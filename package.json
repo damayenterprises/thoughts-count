@@ -1,0 +1,13 @@
+{
+  "name": "thoughts-count",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Thoughts Count — an AI relationship companion that helps people show up for life's most important moments.",
+  "scripts": {
+    "dev": "netlify dev",
+    "deploy": "netlify deploy --prod"
+  },
+  "dependencies": {
+    "@netlify/blobs": "^8.1.0"
+  }
+}

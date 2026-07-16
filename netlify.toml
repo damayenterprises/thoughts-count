@@ -1,0 +1,30 @@
+[build]
+  publish = "public"
+  functions = "netlify/functions"
+
+[functions]
+  node_bundler = "esbuild"
+
+# Kick off generation (background function, no timeout ceiling)
+[[redirects]]
+  from = "/api/generate"
+  to = "/.netlify/functions/generate-background"
+  status = 200
+
+# Poll for the finished plan
+[[redirects]]
+  from = "/api/plan"
+  to = "/.netlify/functions/plan"
+  status = 200
+
+# Email me my plan (+ opt into date-based email reminders)
+[[redirects]]
+  from = "/api/send-plan"
+  to = "/.netlify/functions/send-plan"
+  status = 200
+
+# Google Places photo proxy (keeps the key server-side)
+[[redirects]]
+  from = "/api/place-photo"
+  to = "/.netlify/functions/place-photo"
+  status = 200

@@ -1,0 +1,685 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Thoughts Count — a gentle guide for showing up when it matters</title>
+<meta name="description" content="A warm companion that helps you show up for life's important moments. Not a gift site — thoughtful, personal guidance for what to say and do, and how to keep showing up." />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<style>
+  :root {
+    --paper: #dfeae6;
+    --paper-2: #e5eee9;
+    --cloud: #f8fbf9;
+    --ink: #34382f;
+    --ink-soft: #5f6b60;
+    --sage: #7d8a68;
+    --sage-deep: #5f6c4c;
+    --clay: #c28a63;
+    --clay-deep: #a97350;
+    --blush: #e7efe9;
+    --mist: #dfeae1;
+    --line: #d9e4dd;
+    --shadow: 0 2px 6px rgba(80,60,30,.04), 0 14px 40px rgba(80,60,30,.06);
+    --shadow-soft: 0 1px 3px rgba(80,60,30,.05);
+    --shadow-art: 0 10px 40px rgba(90,60,25,.14), 0 2px 8px rgba(90,60,25,.08);
+  }
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    font-family: 'Nunito', system-ui, -apple-system, sans-serif;
+    color: var(--ink);
+    background: #dfeae6;
+    line-height: 1.7;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  /* ---------- full-page ambient gradient (slow drifting clouds) ---------- */
+  #bg { position: fixed; inset: 0; z-index: -2; overflow: hidden;
+    background: linear-gradient(160deg, #e6f0ea 0%, #dde9e8 50%, #d9e5ec 100%); }
+  #bg .cloud { position: absolute; border-radius: 50%; filter: blur(66px); opacity: 0.6; will-change: transform; }
+  /* greens and blues intermixed, each roaming far across the whole screen */
+  #bg .c1 { width: 58vw; height: 58vw; left: 4vw;  top: 2vh;    background: #9fc596; animation: drift1 26s ease-in-out infinite alternate; }
+  #bg .c2 { width: 54vw; height: 54vw; right: 2vw; top: 6vh;    background: #a2bdd8; animation: drift2 30s ease-in-out infinite alternate; animation-delay: -12s; }
+  #bg .c3 { width: 60vw; height: 60vw; left: 20vw; bottom: 2vh; background: #8fbfb4; animation: drift3 28s ease-in-out infinite alternate; animation-delay: -6s; }
+  #bg .c4 { width: 52vw; height: 52vw; right: 6vw; bottom: 4vh; background: #a9c3e2; animation: drift4 32s ease-in-out infinite alternate; animation-delay: -18s; }
+  #bg .c5 { width: 48vw; height: 48vw; left: 34vw; top: 30vh;   background: #b3d2ac; opacity: 0.5; animation: drift5 24s ease-in-out infinite alternate; animation-delay: -9s; }
+  #bg .c6 { width: 50vw; height: 50vw; left: 2vw;  bottom: 6vh; background: #98bcd8; animation: drift6 34s ease-in-out infinite alternate; animation-delay: -15s; }
+  @keyframes drift1 { from { transform: translate(-8vw,-6vh) scale(1); }   to { transform: translate(26vw,20vh) scale(1.22); } }
+  @keyframes drift2 { from { transform: translate(6vw,-4vh) scale(1.1); }  to { transform: translate(-24vw,18vh) scale(1); } }
+  @keyframes drift3 { from { transform: translate(-4vw,6vh) scale(1); }    to { transform: translate(22vw,-22vh) scale(1.18); } }
+  @keyframes drift4 { from { transform: translate(4vw,4vh) scale(1.05); }  to { transform: translate(-26vw,-18vh) scale(1.2); } }
+  @keyframes drift5 { from { transform: translate(0,0) scale(1); }         to { transform: translate(-20vw,14vh) scale(1.25); } }
+  @keyframes drift6 { from { transform: translate(-6vw,4vh) scale(1); }    to { transform: translate(24vw,-16vh) scale(1.15); } }
+  @media (prefers-reduced-motion: reduce) { #bg .cloud { animation: none !important; } }
+  h1, h2, h3, .serif { font-family: 'Fraunces', Georgia, serif; font-weight: 500; letter-spacing: -0.005em; }
+  a { color: var(--sage-deep); }
+
+  .bar { display: flex; align-items: center; justify-content: space-between; padding: 22px 30px; max-width: 1080px; margin: 0 auto; }
+  .brand { font-family: 'Fraunces', serif; font-size: 23px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 11px; }
+  .brand svg { width: 26px; height: 26px; flex: 0 0 auto; }
+  .bar .promise { font-size: 14px; color: var(--ink-soft); font-style: italic; font-family: 'Fraunces', serif; }
+  .wrap { max-width: 1080px; margin: 0 auto; padding: 0 30px; }
+
+  /* ---------- hero ---------- */
+  .hero { text-align: center; padding: 60px 0 52px; }
+  .hero h1 { font-size: clamp(32px, 5vw, 54px); line-height: 1.12; font-weight: 500; margin: 0 auto 18px; max-width: 15ch; }
+  .hero h1 em { font-style: italic; color: var(--clay-deep); }
+  .hero p.lead { font-size: clamp(17px, 2.1vw, 20px); color: var(--ink-soft); max-width: 40ch; margin: 0 auto 30px; }
+  .cta { display: inline-flex; align-items: center; gap: 10px; background: var(--clay); color: #fff; border: none; padding: 15px 34px; border-radius: 999px; font-size: 16.5px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow); transition: transform .14s ease, background .2s ease; font-family: inherit; }
+  .cta:hover { background: var(--clay-deep); transform: translateY(-1px); }
+  .cta.sage { background: var(--sage); }
+  .cta.sage:hover { background: var(--sage-deep); }
+  .cta.ghost { background: transparent; color: var(--sage-deep); box-shadow: none; border: 1.5px solid var(--line); }
+  .cta.ghost:hover { background: var(--cloud); }
+  .reassure { margin-top: 16px; font-size: 13.5px; color: var(--ink-soft); }
+  .reassure b { color: var(--sage-deep); font-weight: 700; }
+
+  /* ---------- trust strip (compact, visual) ---------- */
+  .trust { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.22); }
+  .trust-inner { max-width: 1080px; margin: 0 auto; padding: 20px 30px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
+  .trust .t { display: flex; gap: 11px; align-items: center; font-size: 14.5px; font-weight: 600; color: var(--ink); }
+  .trust .t svg { width: 24px; height: 24px; flex: 0 0 auto; }
+
+  /* ---------- sections ---------- */
+  .section { padding: 56px 0; }
+  .section h2 { text-align: center; font-size: clamp(25px, 3.4vw, 34px); font-weight: 500; margin: 0 0 8px; }
+  .section .sub { text-align: center; color: var(--ink-soft); margin: 0 auto 40px; max-width: 42ch; font-size: 16.5px; }
+  .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
+  .step { background: var(--cloud); border: 1px solid var(--line); border-radius: 24px; padding: 0 0 26px; box-shadow: var(--shadow); overflow: hidden; }
+  .step .scene { width: 100%; height: 130px; display: block; }
+  .step .scene svg { width: 100%; height: 100%; display: block; }
+  .step h3 { font-size: 20px; font-weight: 500; margin: 20px 24px 6px; }
+  .step p { margin: 0 24px; color: var(--ink-soft); font-size: 14.5px; }
+
+  .moments { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 34px; }
+  .moments .chip { background: var(--cloud); border: 1px solid var(--line); border-radius: 999px; padding: 9px 17px; font-size: 14px; color: var(--ink-soft); box-shadow: var(--shadow-soft); }
+
+  /* ---------- quote ---------- */
+  .quote-band { background: transparent; }
+  .quote-band .wrap { padding: 56px 30px; text-align: center; }
+  .quote-band blockquote { font-family: 'Fraunces', serif; font-style: italic; font-size: clamp(21px, 3vw, 28px); line-height: 1.5; max-width: 22ch; margin: 0 auto 14px; color: var(--ink); }
+  .quote-band .who { font-size: 14px; color: var(--ink-soft); }
+  .quote-band .concept-tag { font-size: 12px; color: #b3a58c; margin-top: 6px; }
+
+  /* ---------- modal ---------- */
+  .scrim { position: fixed; inset: 0; background: rgba(59,54,46,.44); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; padding: 30px 16px; overflow-y: auto; z-index: 50; }
+  .scrim.open { display: flex; }
+  .panel { background: var(--paper); width: 100%; max-width: 660px; border-radius: 26px; box-shadow: 0 24px 70px rgba(50,35,15,.3); overflow: hidden; margin: auto 0; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--line); background: var(--cloud); }
+  .panel-head .brand { font-size: 19px; }
+  .close { background: none; border: none; font-size: 22px; color: var(--ink-soft); cursor: pointer; line-height: 1; padding: 4px 9px; border-radius: 10px; }
+  .close:hover { background: var(--paper-2); }
+  .progress { height: 4px; background: var(--line); }
+  .progress .fill { height: 100%; background: var(--sage); width: 0%; transition: width .35s ease; }
+
+  .panel-body { padding: 32px 32px 28px; }
+  .q-eyebrow { font-size: 13px; letter-spacing: .04em; color: var(--sage-deep); font-weight: 700; text-transform: uppercase; }
+  .q-title { font-size: clamp(23px, 3.4vw, 28px); font-weight: 500; margin: 10px 0 4px; }
+  .q-help { color: var(--ink-soft); font-size: 15px; margin: 0 0 22px; }
+
+  .chip-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
+  .pick { background: var(--cloud); border: 1.5px solid var(--line); border-radius: 13px; padding: 10px 15px; font-size: 14.5px; cursor: pointer; color: var(--ink); font-family: inherit; transition: all .15s ease; }
+  .pick:hover { border-color: var(--sage); }
+  .pick.active { background: var(--sage); color: #fff; border-color: var(--sage); }
+
+  textarea, input[type=text] { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; padding: 14px 16px; font-size: 15.5px; font-family: inherit; color: var(--ink); background: var(--cloud); resize: vertical; line-height: 1.6; }
+  textarea:focus, input:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 3px var(--mist); }
+  textarea { min-height: 100px; }
+
+  .nav { display: flex; align-items: center; justify-content: space-between; margin-top: 26px; }
+  .link-btn { background: none; border: none; color: var(--ink-soft); font-size: 15px; cursor: pointer; font-family: inherit; padding: 8px 4px; }
+  .link-btn:hover { color: var(--ink); }
+  .link-btn[disabled] { opacity: 0; pointer-events: none; }
+
+  /* ---------- loading ---------- */
+  .loading { text-align: center; padding: 46px 24px; }
+  .loading .lantern { width: 120px; height: auto; margin: 0 auto 20px; display: block; }
+  .loading .glow { transform-origin: center; animation: breathe 3.4s ease-in-out infinite; }
+  @keyframes breathe { 0%,100% { opacity:.45 } 50% { opacity:.95 } }
+  .loading p.big { font-family: 'Fraunces', serif; font-size: 21px; color: var(--ink); margin: 0 0 8px; }
+  .loading .lines { max-width: 32ch; margin: 0 auto; font-size: 14.5px; color: var(--ink-soft); }
+
+  /* ---------- plan ---------- */
+  .plan-head { padding: 10px 32px 0; }
+  .plan-headline { font-size: clamp(21px, 3vw, 26px); font-weight: 500; line-height: 1.35; margin: 8px 0 22px; }
+  .plan-body { padding: 0 32px 30px; }
+  .block { background: var(--cloud); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; margin-bottom: 15px; box-shadow: var(--shadow); }
+  .block h4 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 0 0 13px; display: flex; align-items: center; gap: 11px; }
+  .block h4 .ic { width: 30px; height: 30px; border-radius: 10px; background: var(--mist); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
+  .block h4 .ic svg { width: 17px; height: 17px; }
+  .block.say h4 .ic { background: #e4ecdb; }
+  .block.avoid h4 .ic { background: #f2e4d6; }
+  .block p { margin: 0; color: var(--ink); font-size: 15.2px; }
+  .block ul { margin: 0; padding-left: 2px; list-style: none; }
+  .block ul li { position: relative; padding-left: 24px; margin-bottom: 11px; font-size: 15.2px; }
+  .block ul li:last-child { margin-bottom: 0; }
+  .block ul li::before { content: "•"; position: absolute; left: 7px; color: var(--sage); font-weight: 700; }
+  .block.say ul li::before { content: "\201C"; color: var(--sage-deep); font-size: 22px; top: -3px; }
+  .block.avoid ul li::before { content: "\2013"; color: var(--clay-deep); top: 0; }
+
+  .action { border-top: 1px solid var(--line); padding-top: 15px; margin-top: 15px; }
+  .action:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+  .action .a-title { font-weight: 700; font-size: 15.5px; }
+  .action .a-why { color: var(--ink-soft); font-size: 14.5px; margin: 3px 0 8px; }
+  .action .a-meta { display: flex; gap: 8px; flex-wrap: wrap; }
+  .action .a-meta span { font-size: 12.5px; background: var(--paper-2); border-radius: 999px; padding: 4px 12px; color: var(--ink-soft); }
+
+  /* gift ideas */
+  .gift { display: flex; gap: 16px; align-items: flex-start; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 16px; }
+  .gift:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
+  .gift .tile { flex: 0 0 auto; width: 86px; height: 86px; border-radius: 16px; overflow: hidden; }
+  .gift .tile svg { width: 100%; height: 100%; display: block; }
+  .gift .tile img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .gift .g-place { font-size: 13.5px; margin: 3px 0 7px; color: var(--ink); display: flex; flex-wrap: wrap; align-items: center; gap: 5px; }
+  .gift .g-place .pin { color: var(--sage-deep); flex: 0 0 auto; }
+  .gift .g-place .rating { color: var(--clay-deep); font-weight: 700; }
+  .gift .g-place .g-addr { color: var(--ink-soft); font-size: 12.5px; width: 100%; }
+  .gift .g-body { flex: 1; min-width: 0; }
+  .gift .g-title { font-weight: 700; font-size: 15.5px; }
+  .gift .g-blurb { color: var(--ink-soft); font-size: 14px; margin: 2px 0 4px; }
+  .gift .g-why { font-size: 13.5px; color: var(--ink); margin: 0 0 8px; }
+  .gift .g-why b { color: var(--sage-deep); font-weight: 700; }
+  .gift .g-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+  .gift .price { font-size: 12.5px; background: var(--paper-2); border-radius: 999px; padding: 4px 12px; color: var(--ink-soft); font-weight: 700; }
+  .gift .local-badge { font-size: 12px; background: #e4ecdb; color: var(--sage-deep); border-radius: 999px; padding: 4px 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+  .gift .g-link { font-size: 13.5px; font-weight: 700; color: var(--clay-deep); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
+  .gift .g-link:hover { text-decoration: underline; }
+  .more-places { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
+  .more-places .mp-label { font-size: 13.5px; color: var(--ink-soft); margin-bottom: 9px; }
+  .more-places .mp-links { display: flex; flex-wrap: wrap; gap: 8px; }
+  .more-places a { font-size: 13px; background: var(--cloud); border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; color: var(--sage-deep); text-decoration: none; font-weight: 600; }
+  .more-places a:hover { border-color: var(--sage); }
+  .gift-note { font-size: 13px; color: var(--ink-soft); font-style: italic; }
+
+  .followup { display: flex; gap: 15px; margin-bottom: 16px; }
+  .followup:last-child { margin-bottom: 0; }
+  .followup .when { flex: 0 0 auto; font-weight: 700; color: var(--clay-deep); font-size: 14px; min-width: 96px; }
+  .followup .g { font-size: 15px; }
+  .followup .body { flex: 1; }
+  .remind-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; background: var(--mist); color: var(--sage-deep); border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background .15s ease; }
+  .remind-btn:hover { background: #dbe2c8; }
+  .remind-btn.done { background: #e4ecdb; color: var(--sage-deep); border-color: #cdddb8; }
+  .remind-btn svg { width: 15px; height: 15px; }
+
+  .closing { text-align: center; font-style: italic; color: var(--ink-soft); font-family: 'Fraunces', serif; font-size: 18px; padding: 14px 22px 4px; line-height: 1.5; }
+
+  /* email-me-my-plan */
+  .keep { background: var(--cloud); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; margin: 4px 0 2px; box-shadow: var(--shadow); }
+  .keep h4 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 0 0 4px; }
+  .keep p.k-sub { margin: 0 0 14px; color: var(--ink-soft); font-size: 14px; }
+  .keep .k-row { display: flex; gap: 10px; flex-wrap: wrap; }
+  .keep input[type=email] { flex: 1; min-width: 200px; }
+  .keep .k-remind { display: flex; align-items: center; gap: 9px; margin-top: 13px; font-size: 14px; color: var(--ink); cursor: pointer; }
+  .keep .k-remind input { width: 17px; height: 17px; accent-color: var(--sage); cursor: pointer; }
+  .keep .k-msg { margin-top: 12px; font-size: 14px; }
+  .keep .k-msg.ok { color: var(--sage-deep); font-weight: 700; }
+  .keep .k-msg.bad { color: #a04a2e; }
+  .keep .k-privacy { margin-top: 10px; font-size: 12px; color: #b3a58c; }
+  .plan-actions { display: flex; gap: 11px; justify-content: center; padding: 20px 32px 6px; flex-wrap: wrap; }
+  .disclaimer { text-align: center; font-size: 12.5px; color: #b3a58c; padding: 16px 32px 4px; }
+  .err { background: #f3e4da; border: 1px solid #e2c3b1; color: #8a4f34; border-radius: 14px; padding: 15px 17px; font-size: 15px; margin-bottom: 16px; }
+
+  /* ---------- footer ---------- */
+  footer { text-align: center; padding: 54px 24px 60px; color: var(--ink-soft); }
+  footer .promise-big { font-family: 'Fraunces', serif; font-size: clamp(21px, 3vw, 27px); color: var(--ink); font-style: italic; margin-bottom: 10px; }
+  footer .small { font-size: 13px; color: #b3a58c; margin-top: 20px; }
+
+  @media (max-width: 720px) {
+    .steps { grid-template-columns: 1fr; }
+    .trust-inner { gap: 18px; }
+    .bar .promise { display: none; }
+    .panel-body, .plan-body, .plan-head { padding-left: 22px; padding-right: 22px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="bg" aria-hidden="true">
+  <div class="cloud c1"></div>
+  <div class="cloud c2"></div>
+  <div class="cloud c3"></div>
+  <div class="cloud c4"></div>
+  <div class="cloud c5"></div>
+  <div class="cloud c6"></div>
+</div>
+
+<div class="bar">
+  <div class="brand">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg>
+    Thoughts Count
+  </div>
+  <div class="promise">Helping good intentions become meaningful actions</div>
+</div>
+
+<main>
+  <section class="hero wrap">
+    <h1>Show up for the moments that <em>matter most.</em></h1>
+    <p class="lead">Tell us the situation and who they are to you — we'll help you find the words, the gesture, and the best way to be thoughtful.</p>
+    <button class="cta" onclick="openFlow()">Help me show up →</button>
+    <div class="reassure">No account needed · <b>Your details stay private</b> · Free to try</div>
+  </section>
+
+  <div class="trust">
+    <div class="trust-inner">
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/></svg>A soft place to think it through</div>
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path stroke="#c28a63" d="M9 12l2 2 4-4"/></svg>Your details stay yours</div>
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16m0 0c-1.5-2-4-3-6.5-3V7C8 7 10.5 8 12 10c1.5-2 4-3 6.5-3v10c-2.5 0-5 1-6.5 3Z"/></svg>Personal, never generic</div>
+    </div>
+  </div>
+
+  <section class="section wrap">
+    <h2>You're not looking for a product.</h2>
+    <p class="sub">You're looking for the quiet certainty that you didn't get this wrong. So we open with a gentle conversation.</p>
+    <div class="steps">
+      <div class="step">
+        <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e3ece4"/><circle cx="150" cy="60" r="120" fill="#eef4ee"/><path d="M95 78q0-24 24-24h62q24 0 24 24v10q0 24-24 24h-42l-20 18v-18h0q-24 0-24-24Z" fill="#ffffff" stroke="#bcccc0" stroke-width="2"/><path d="M112 74h76M112 88h54" stroke="#9fb3a6" stroke-width="3" stroke-linecap="round"/></svg></span>
+        <h3>Tell us, in your words</h3>
+        <p>What happened, and who they are to you. We listen first.</p>
+      </div>
+      <div class="step">
+        <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e1eae6"/><circle cx="150" cy="66" r="120" fill="#ecf2ee"/><path d="M150 104s-40-24-40-52a20 20 0 0 1 40-12 20 20 0 0 1 40 12c0 28-40 52-40 52Z" fill="#f4d9c6" stroke="#c58f68" stroke-width="2.5"/></svg></span>
+        <h3>We think it through</h3>
+        <p>The way a thoughtful friend would — what helps, not just what's easy.</p>
+      </div>
+      <div class="step">
+        <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e4ece6"/><circle cx="150" cy="60" r="120" fill="#eef4ef"/><rect x="112" y="30" width="76" height="78" rx="8" fill="#ffffff" stroke="#a9b788" stroke-width="2.5"/><path d="M126 50h48M126 64h48M126 78h30" stroke="#9aab77" stroke-width="3" stroke-linecap="round"/><path d="M118 62l30 24 40-46" fill="none" stroke="#7d8a68" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg></span>
+        <h3>You get a gentle plan</h3>
+        <p>What to say, gestures that fit, and how to keep showing up.</p>
+      </div>
+    </div>
+    <div class="moments">
+      <span class="chip">Loss of a loved one</span>
+      <span class="chip">New baby</span>
+      <span class="chip">A hard diagnosis</span>
+      <span class="chip">Beat cancer</span>
+      <span class="chip">Engagement</span>
+      <span class="chip">Job loss</span>
+      <span class="chip">Lost a pet</span>
+      <span class="chip">Just a hard week</span>
+    </div>
+    <div style="text-align:center; margin-top:36px;">
+      <button class="cta sage" onclick="openFlow()">Start with a moment →</button>
+    </div>
+  </section>
+
+  <div class="quote-band">
+    <div class="wrap">
+      <blockquote>"I never know what to say. This helped me actually show up."</blockquote>
+      <div class="who">— the feeling we're building for</div>
+      <div class="concept-tag">Illustrative · concept demo</div>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="promise-big">Helping good intentions become meaningful actions.</div>
+  <div>Not to help you buy better gifts — to help you build stronger relationships.</div>
+  <div class="small">Thoughts Count · concept demo</div>
+</footer>
+
+<!-- ================= CONVERSATION MODAL ================= -->
+<div class="scrim" id="scrim">
+  <div class="panel">
+    <div class="panel-head">
+      <div class="brand">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg>
+        Thoughts Count
+      </div>
+      <button class="close" onclick="closeFlow()" aria-label="Close">✕</button>
+    </div>
+    <div class="progress"><div class="fill" id="progressFill"></div></div>
+    <div id="stage"></div>
+  </div>
+</div>
+
+<script>
+const STEPS = [
+  { key: "moment", eyebrow: "First, the moment", title: "What happened?", help: "Pick what's closest, or tell us in your own words. The more you share, the more personal we can make this.", picks: ["Lost a loved one","New baby","A hard diagnosis","Beat cancer","Engagement","Job loss","Promotion","Lost a pet","Retirement","Just a hard week"], placeholder: "e.g. My coworker's father passed away suddenly last weekend." },
+  { key: "relationship", eyebrow: "Who they are to you", title: "What's your relationship?", help: "This gently shapes everything — what's right for a spouse is different for a coworker.", picks: ["Close friend","Friend","Partner / spouse","Parent","Sibling","Other family","Coworker","Someone I manage","My boss","Neighbor","Client"], placeholder: "e.g. A coworker I like but don't know outside of work." },
+  { key: "about", eyebrow: "Tell us about them", title: "What are they like?", help: "Anything that helps us make this feel like them — their personality, what they're going through, your history together.", picks: [], placeholder: "e.g. She's private and doesn't like a fuss, but she's been carrying a lot. We usually just chat about our kids." },
+  { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure — guide me"], placeholder: "Optional — anything about your style or what you're comfortable with." },
+  { key: "constraints", eyebrow: "Time & budget", title: "What can you give right now?", help: "Totally okay if it's not much. Sometimes the most meaningful gesture is free.", picks: ["Just a little time","An afternoon","No budget","Under $25","$25–75","$75–150","Money's not the issue"], placeholder: "Optional — e.g. I'm slammed this week but want to do something meaningful.",
+    extra: { key: "location", label: "Their area — optional, for local ideas", placeholder: "e.g. Fayetteville, AR or 72703" } },
+];
+
+const answers = {};
+let idx = 0;
+const scrim = document.getElementById('scrim');
+const stage = document.getElementById('stage');
+const fill = document.getElementById('progressFill');
+
+function openFlow(){ idx = 0; scrim.classList.add('open'); document.body.style.overflow='hidden'; renderStep(); }
+function closeFlow(){ scrim.classList.remove('open'); document.body.style.overflow=''; }
+scrim.addEventListener('click', e => { if (e.target === scrim) closeFlow(); });
+function setProgress(p){ fill.style.width = p + '%'; }
+
+function renderStep(){
+  const s = STEPS[idx];
+  setProgress(Math.round((idx / (STEPS.length)) * 100));
+  const current = answers[s.key] || "";
+  const picksHtml = s.picks.length ? `<div class="chip-row" id="picks">${
+    s.picks.map(p => `<button type="button" class="pick" data-v="${p.replace(/"/g,'&quot;')}">${p}</button>`).join('')
+  }</div>` : "";
+  stage.innerHTML = `
+    <div class="panel-body">
+      <div class="q-eyebrow">${s.eyebrow} · ${idx+1} of ${STEPS.length}</div>
+      <h2 class="q-title">${s.title}</h2>
+      <p class="q-help">${s.help}</p>
+      ${picksHtml}
+      <textarea id="freetext" placeholder="${s.placeholder}">${current}</textarea>
+      ${s.extra ? `<label style="display:block;margin-top:14px;font-size:13.5px;color:var(--ink-soft);">${s.extra.label}</label>
+      <input type="text" id="extrafield" style="margin-top:6px;" placeholder="${s.extra.placeholder}" value="${(answers[s.extra.key]||'').replace(/"/g,'&quot;')}" />` : ''}
+      <div class="nav">
+        <button class="link-btn" id="backBtn" ${idx===0?'disabled':''}>← Back</button>
+        <button class="cta" id="nextBtn">${idx === STEPS.length-1 ? 'Create my plan →' : 'Continue →'}</button>
+      </div>
+    </div>`;
+  const ta = document.getElementById('freetext');
+  ta.focus();
+  stage.querySelectorAll('.pick').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const v = btn.dataset.v;
+      btn.classList.toggle('active');
+      const parts = ta.value.split(/,\s*/).map(x=>x.trim()).filter(Boolean);
+      const i = parts.indexOf(v);
+      if (i === -1) parts.push(v); else parts.splice(i,1);
+      ta.value = parts.join(', ');
+      ta.focus();
+    });
+  });
+  document.getElementById('backBtn').onclick = () => { save(); if(idx>0){idx--; renderStep();} };
+  document.getElementById('nextBtn').onclick = () => {
+    save();
+    const s2 = STEPS[idx];
+    if ((s2.key === 'moment') && !answers.moment){ ta.focus(); ta.style.borderColor = '#c28a63'; return; }
+    if (idx < STEPS.length-1){ idx++; renderStep(); } else generate();
+  };
+}
+function save(){
+  const ta = document.getElementById('freetext'); if(ta) answers[STEPS[idx].key] = ta.value.trim();
+  const ex = document.getElementById('extrafield'); const s = STEPS[idx];
+  if (ex && s.extra) answers[s.extra.key] = ex.value.trim();
+}
+
+async function generate(){
+  setProgress(100);
+  stage.innerHTML = `
+    <div class="loading">
+      <svg class="lantern" viewBox="0 0 120 130" aria-hidden="true">
+        <circle class="glow" cx="60" cy="62" r="52" fill="#ffe7b8"/>
+        <path d="M40 40a255 255 0 0 1 40 0" fill="none"/>
+        <path d="M42 46a20 20 0 0 1 36 0V96H42Z" fill="#fff9ee" stroke="#cda074" stroke-width="4"/>
+        <line x1="60" y1="28" x2="60" y2="96" stroke="#cda074" stroke-width="3"/>
+        <line x1="42" y1="66" x2="78" y2="66" stroke="#cda074" stroke-width="3"/>
+        <circle cx="60" cy="66" r="10" fill="#ffd691"/>
+      </svg>
+      <p class="big">Thinking it through…</p>
+      <p class="lines">Taking a moment to weigh what would truly help. This usually takes about half a minute.</p>
+    </div>`;
+  const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+  try {
+    const kick = await fetch('/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId, answers }) });
+    if (kick.status >= 400) {
+      let msg = 'Something went wrong starting your plan.';
+      try { const d = await kick.json(); if (d.error) msg = d.error; } catch {}
+      renderError(msg); return;
+    }
+    const started = Date.now();
+    while (Date.now() - started < 90000) {
+      await new Promise(r => setTimeout(r, 2000));
+      let d;
+      try { const r = await fetch('/api/plan?jobId=' + encodeURIComponent(jobId), { cache: 'no-store' }); d = await r.json(); } catch { continue; }
+      if (d.status === 'done' && d.plan) { renderPlan(d.plan); return; }
+      if (d.status === 'error') { renderError(d.error || "We couldn't finish the plan."); return; }
+    }
+    renderError("This is taking longer than usual. Please try again.");
+  } catch (e) { renderError("We couldn't reach our guide. Please check your connection and try again."); }
+}
+
+function renderError(msg){
+  stage.innerHTML = `
+    <div class="panel-body">
+      <div class="err">${escapeHtml(msg)}</div>
+      <div class="nav">
+        <button class="link-btn" id="backBtn">← Back</button>
+        <button class="cta" id="retry">Try again</button>
+      </div>
+    </div>`;
+  document.getElementById('backBtn').onclick = () => { idx = STEPS.length-1; renderStep(); };
+  document.getElementById('retry').onclick = generate;
+}
+
+// ---- gift ideas: illustrated tiles + trust-safe boutique links ----
+const GIFT_ICONS = {
+  flowers: '<circle cx="24" cy="15" r="5"/><path d="M24 20v18"/><path d="M24 30c-6 0-9-3-9-8 5 0 9 3 9 8Zm0 0c6 0 9-3 9-8-5 0-9 3-9 8Z"/>',
+  candle: '<rect x="18" y="18" width="12" height="20" rx="2"/><path d="M24 18v-3"/><path d="M24 8c3 3 3 6 0 6s-3-3 0-6Z"/>',
+  food_drink: '<path d="M14 18h16v8a8 8 0 0 1-16 0Z"/><path d="M30 20h3a3 3 0 0 1 0 6h-3"/><path d="M18 11v3M24 10v4"/>',
+  book: '<path d="M24 16v20"/><path d="M24 16c-3-2-8-3-11-2v18c3-1 8 0 11 2 3-2 8-3 11-2V14c-3-1-8 0-11 2Z"/>',
+  plant: '<path d="M24 38V22"/><path d="M24 26c-6-1-9-5-9-11 6 1 9 5 9 11Zm0-2c5-1 8-4 8-9-5 1-8 4-8 9Z"/><path d="M18 38h12l-1 4H19Z"/>',
+  self_care: '<rect x="16" y="20" width="16" height="16" rx="4"/><path d="M20 20v-3a4 4 0 0 1 8 0v3"/><path d="M24 26v4"/>',
+  stationery: '<rect x="12" y="16" width="24" height="16" rx="2"/><path d="M12 18l12 8 12-8"/>',
+  keepsake: '<rect x="14" y="13" width="20" height="22" rx="2"/><path d="M24 31s-5-3.2-5-7a2.6 2.6 0 0 1 5-1.4 2.6 2.6 0 0 1 5 1.4c0 3.8-5 7-5 7Z"/>',
+  cozy: '<path d="M14 20c4-3 16-3 20 0v14c-4-3-16-3-20 0Z"/><path d="M20 19v15M26 19v15"/>',
+  experience: '<path d="M14 20a3 3 0 0 0 0 8v6h20v-6a3 3 0 0 1 0-8v-6H14Z"/><path d="M24 15v18" stroke-dasharray="2 3"/>',
+  donation: '<path d="M24 34s-9-5-9-12a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 7-9 12-9 12Z"/>',
+  other: '<rect x="14" y="21" width="20" height="15" rx="2"/><path d="M12 21h24v-5H12z"/><path d="M24 16v20"/><path d="M24 16s-3-6-6-4 1 4 6 4Zm0 0s3-6 6-4-1 4-6 4Z"/>',
+};
+const TILE_BG = ['linear-gradient(135deg,#e6efe8,#dbe9e4)','linear-gradient(135deg,#e3ede9,#d8e6e6)','linear-gradient(135deg,#e6ece2,#dbe6df)'];
+function giftTile(cat, i){
+  return `<span class="tile" style="background:${TILE_BG[i%3]}"><svg viewBox="0 0 48 48" fill="none" stroke="#6a7550" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GIFT_ICONS[cat]||GIFT_ICONS.other}</svg></span>`;
+}
+function etsyLink(q){ return 'https://www.etsy.com/search?q=' + encodeURIComponent(q||'thoughtful gift'); }
+function mapsLink(q, loc){ return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent((q || 'gift shop') + ' near ' + (loc || '')); }
+const PIN_SVG = '<svg class="pin" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.2"/></svg>';
+
+function renderGiftCard(g, i){
+  const loc = (answers.location || '').trim();
+  const lp = g.local_place;
+  const priceTag = `<span class="price">${escapeHtml(g.price_range||'')}</span>`;
+
+  // Real local business resolved via Google Places.
+  if (lp && lp.name) {
+    const tile = lp.photoName
+      ? `<span class="tile"><img src="/api/place-photo?ref=${encodeURIComponent(lp.photoName)}" alt="${escapeHtml(lp.name)}" loading="lazy" onerror="this.remove()"></span>`
+      : giftTile(g.category, i);
+    const rating = lp.rating ? `<span class="rating">${lp.rating}★${lp.ratingCount?` (${lp.ratingCount})`:''}</span>` : '';
+    const href = lp.mapsUri || mapsLink(g.search_query, loc);
+    return `
+      <div class="gift">
+        ${tile}
+        <div class="g-body">
+          <div class="g-title">${escapeHtml(g.title)}</div>
+          <div class="g-place">${PIN_SVG}<b>${escapeHtml(lp.name)}</b>${rating}<span class="g-addr">${escapeHtml(lp.address||'')}</span></div>
+          <div class="g-why"><b>Why it fits:</b> ${escapeHtml(g.why_it_fits||'')}</div>
+          <div class="g-foot">${priceTag}<span class="local-badge">${PIN_SVG}Local</span><a class="g-link" href="${href}" target="_blank" rel="noopener noreferrer">See it on the map →</a></div>
+        </div>
+      </div>`;
+  }
+
+  // Local idea, but no specific business resolved → map-search fallback.
+  const isLocal = g.locality === 'local' && loc;
+  const href = isLocal ? mapsLink(g.search_query, loc) : etsyLink(g.search_query || g.title);
+  const linkText = isLocal ? 'See local options →' : 'Find one like this →';
+  const badge = isLocal ? `<span class="local-badge">${PIN_SVG}Local</span>` : '';
+  return `
+    <div class="gift">
+      ${giftTile(g.category, i)}
+      <div class="g-body">
+        <div class="g-title">${escapeHtml(g.title)}</div>
+        <div class="g-blurb">${escapeHtml(g.blurb||'')}</div>
+        <div class="g-why"><b>Why it fits:</b> ${escapeHtml(g.why_it_fits||'')}</div>
+        <div class="g-foot">${priceTag}${badge}<a class="g-link" href="${href}" target="_blank" rel="noopener noreferrer">${linkText}</a></div>
+      </div>
+    </div>`;
+}
+const MORE_PLACES = [
+  { label: 'Etsy · handmade', url: 'https://www.etsy.com' },
+  { label: 'Uncommon Goods', url: 'https://www.uncommongoods.com' },
+  { label: 'Bookshop.org', url: 'https://bookshop.org' },
+  { label: 'Food52', url: 'https://food52.com/shop' },
+];
+
+function renderPlan(p){
+  const li = arr => (arr||[]).map(x => `<li>${escapeHtml(x)}</li>`).join('');
+  const icon = d => `<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#5f6c4c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
+  const actions = (p.thoughtful_actions||[]).map(a => `
+    <div class="action">
+      <div class="a-title">${escapeHtml(a.action)}</div>
+      <div class="a-why">${escapeHtml(a.why_it_fits)}</div>
+      <div class="a-meta"><span>◷ ${escapeHtml(a.effort||'')}</span><span>${escapeHtml(a.approx_cost||'')}</span></div>
+    </div>`).join('');
+  const follow = (p.follow_up||[]).map((f, i) => `
+    <div class="followup">
+      <div class="when">${escapeHtml(f.when)}</div>
+      <div class="body">
+        <div class="g">${escapeHtml(f.gesture)}</div>
+        <button class="remind-btn" data-fi="${i}">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M12 14v3M10.5 15.5h3"/></svg>
+          Set reminder
+        </button>
+      </div>
+    </div>`).join('');
+
+  const gifts = p.gift_ideas || [];
+  const giftsBlock = gifts.length ? `
+    <div class="block">
+      <h4>${icon('<rect x="4" y="9" width="16" height="12" rx="1"/><path d="M2 5h20v4H2zM12 21V5"/><path d="M12 5S9 1 6.5 2.5 8 6 12 5Zm0 0s3-4 5.5-2.5S16 6 12 5Z"/>')}If you'd like to send something</h4>
+      ${gifts.map((g, i) => renderGiftCard(g, i)).join('')}
+      <div class="more-places">
+        <div class="mp-label">More lovely places to look:</div>
+        <div class="mp-links">
+          ${(answers.location||'').trim() ? `<a href="${mapsLink('gift and flower shops', answers.location)}" target="_blank" rel="noopener noreferrer">📍 Local shops near them</a>` : ''}
+          ${MORE_PLACES.map(m => `<a href="${m.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(m.label)}</a>`).join('')}
+        </div>
+      </div>
+    </div>` : '';
+  stage.innerHTML = `
+    <div class="plan-head">
+      <div class="q-eyebrow">Your gentle plan</div>
+      <h2 class="plan-headline">${escapeHtml(p.headline||'')}</h2>
+    </div>
+    <div class="plan-body">
+      <div class="block"><h4>${icon('<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/>')}What matters most</h4><p>${escapeHtml(p.what_matters_most||'')}</p></div>
+      <div class="block say"><h4>${icon('<path d="M21 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/>')}What you might say</h4><ul>${li(p.what_to_say)}</ul></div>
+      <div class="block avoid"><h4>${icon('<circle cx="12" cy="12" r="9"/><path d="M9 12h6"/>')}What to gently avoid</h4><ul>${li(p.what_not_to_say)}</ul></div>
+      <div class="block"><h4>${icon('<path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7S9 3 6.5 4.5 8 8 12 7Zm0 0s3-4 5.5-2.5S16 8 12 7Z"/>')}Thoughtful things you could do</h4>${actions}</div>
+      <div class="block"><h4>${icon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')}How much to spend</h4><p>${escapeHtml(p.spend_guidance||'')}</p></div>
+      ${giftsBlock}
+      <div class="block"><h4>${icon('<path d="M3 12h4l2 6 4-14 2 6h6"/>')}Keep showing up</h4>${follow}</div>
+      <div class="closing">${escapeHtml(p.closing_encouragement||'')}</div>
+    </div>
+    <div style="padding:8px 32px 0;">
+      <div class="keep">
+        <h4>Keep this plan close</h4>
+        <p class="k-sub">We'll email it to you so it's there when you need it — and gently remind you to follow through.</p>
+        <div class="k-row">
+          <input type="email" id="planEmail" placeholder="you@email.com" autocomplete="email" />
+          <button class="cta" id="emailPlanBtn">Email me my plan</button>
+        </div>
+        <label class="k-remind"><input type="checkbox" id="wantReminders" checked /> Also email me the "keep showing up" reminders, on their dates</label>
+        <div class="k-msg" id="emailMsg"></div>
+        <div class="k-privacy">We use your email only for this — no account, no sharing.</div>
+      </div>
+    </div>
+    <div class="plan-actions">
+      <button class="cta ghost" onclick="restart()">Plan for someone else</button>
+      <button class="cta" onclick="window.print()">Save / print this plan</button>
+    </div>
+    <div class="disclaimer">A thoughtful starting point, made for your situation — trust your own heart on the details.</div>
+    <div style="height:16px"></div>`;
+
+  // Wire up "Set reminder" buttons — each downloads a calendar event the user can
+  // add to their own calendar with one click. No account, no server needed.
+  stage.querySelectorAll('.remind-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const f = (p.follow_up||[])[Number(btn.dataset.fi)];
+      if (!f) return;
+      downloadReminder(f, p.headline || 'Thoughts Count');
+      btn.classList.add('done');
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Added to calendar';
+    });
+  });
+
+  // Wire up "Email me my plan".
+  const emailBtn = document.getElementById('emailPlanBtn');
+  if (emailBtn) emailBtn.addEventListener('click', async () => {
+    const email = (document.getElementById('planEmail').value || '').trim();
+    const wantReminders = document.getElementById('wantReminders').checked;
+    const msg = document.getElementById('emailMsg');
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = 'k-msg bad'; msg.textContent = 'Please enter a valid email address.'; return; }
+    emailBtn.disabled = true; msg.className = 'k-msg'; msg.textContent = 'Sending…';
+    try {
+      const r = await fetch('/api/send-plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, plan: p, wantReminders }) });
+      const d = await r.json();
+      if (r.ok && d.ok) {
+        msg.className = 'k-msg ok';
+        msg.textContent = (wantReminders && d.scheduled)
+          ? `Sent! Check your inbox. We'll gently nudge you ${d.scheduled} more time${d.scheduled > 1 ? 's' : ''} as the dates come.`
+          : 'Sent! Check your inbox.';
+        emailBtn.textContent = 'Sent ✓';
+      } else {
+        msg.className = 'k-msg bad'; msg.textContent = d.error || 'Could not send. Please try again.'; emailBtn.disabled = false;
+      }
+    } catch {
+      msg.className = 'k-msg bad'; msg.textContent = 'Could not send. Please try again.'; emailBtn.disabled = false;
+    }
+  });
+
+  document.querySelector('.panel').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// Build and download an .ics calendar event for a follow-up gesture.
+function downloadReminder(f, context){
+  const days = Number.isFinite(f.days_from_now) ? f.days_from_now : 14;
+  const d = new Date();
+  d.setDate(d.getDate() + days);
+  const ymd = d.getFullYear().toString()
+    + String(d.getMonth()+1).padStart(2,'0')
+    + String(d.getDate()).padStart(2,'0');
+  const dtEnd = new Date(d); dtEnd.setDate(dtEnd.getDate()+1);
+  const ymdEnd = dtEnd.getFullYear().toString()
+    + String(dtEnd.getMonth()+1).padStart(2,'0')
+    + String(dtEnd.getDate()).padStart(2,'0');
+  const uid = 'tc-' + Math.random().toString(36).slice(2) + '@thoughtscount';
+  const esc = s => String(s||'').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n');
+  const title = 'Thoughts Count: ' + (f.gesture || 'reach out');
+  const ics = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//Thoughts Count//EN',
+    'CALSCALE:GREGORIAN',
+    'BEGIN:VEVENT',
+    'UID:' + uid,
+    'DTSTART;VALUE=DATE:' + ymd,
+    'DTEND;VALUE=DATE:' + ymdEnd,
+    'SUMMARY:' + esc(title),
+    'DESCRIPTION:' + esc((f.when ? f.when + ' — ' : '') + (f.gesture||'') + '\n\nA gentle reminder from Thoughts Count (' + context + ').'),
+    'BEGIN:VALARM',
+    'TRIGGER:-PT9H',
+    'ACTION:DISPLAY',
+    'DESCRIPTION:' + esc(title),
+    'END:VALARM',
+    'END:VEVENT',
+    'END:VCALENDAR',
+  ].join('\r\n');
+
+  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'thoughts-count-reminder.ics';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+  setTimeout(() => URL.revokeObjectURL(url), 1500);
+}
+
+function restart(){ for(const k in answers) delete answers[k]; idx=0; renderStep(); }
+function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+</script>
+</body>
+</html>
