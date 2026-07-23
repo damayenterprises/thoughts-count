@@ -20,9 +20,10 @@ export default async (req) => {
   if (!plan || !plan.headline) return json(400, { error: "No plan to send." });
 
   // 1) Email the plan now.
+  const label = (plan.plan_title || "").trim();
   const sent = await sendEmail({
     to: email,
-    subject: "Your Thoughts Count plan",
+    subject: label ? `Thoughts Count — ${label}` : "Your Thoughts Count plan",
     html: planEmailHtml(plan),
   });
   if (!sent.ok) return json(502, { error: sent.error || "We couldn't send the email." });

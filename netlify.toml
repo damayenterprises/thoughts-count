@@ -28,3 +28,9 @@
   from = "/api/place-photo"
   to = "/.netlify/functions/place-photo"
   status = 200
+
+# Public runtime config (Supabase URL + anon key) for the companion
+[[redirects]]
+  from = "/api/public-config"
+  to = "/.netlify/functions/public-config"
+  status = 200

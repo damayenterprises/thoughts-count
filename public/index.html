@@ -3,6 +3,14 @@
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
+<script>
+  // Canonical domain: forward the old Netlify URL to the live domain, keeping any
+  // path + auth-token hash so magic-link sign-ins complete on thoughtscount.com.
+  if (location.hostname === 'thoughts-count.netlify.app') {
+    location.replace('https://thoughtscount.com' + location.pathname + location.search + location.hash);
+  }
+</script>
+<link rel="canonical" href="https://thoughtscount.com/" />
 <title>Thoughts Count — a gentle guide for showing up when it matters</title>
 <meta name="description" content="A warm companion that helps you show up for life's important moments. Not a gift site — thoughtful, personal guidance for what to say and do, and how to keep showing up." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -62,6 +70,27 @@
   .brand { font-family: 'Fraunces', serif; font-size: 23px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 11px; }
   .brand svg { width: 26px; height: 26px; flex: 0 0 auto; }
   .bar .promise { font-size: 14px; color: var(--ink-soft); font-style: italic; font-family: 'Fraunces', serif; }
+  .bar-right { display: flex; align-items: center; gap: 16px; }
+  .tc-authbtn { background: var(--sage); color: #fff; border: none; padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: var(--shadow-soft); transition: background .18s ease, transform .12s ease; }
+  .tc-authbtn:hover { background: var(--sage-deep); transform: translateY(-1px); }
+  .tc-authbtn.ghost { background: transparent; color: var(--sage-deep); border: 1.5px solid var(--line); box-shadow: none; }
+  .tc-authbtn.ghost:hover { background: var(--cloud); }
+  .tc-select { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; padding: 13px 15px; font-size: 15px; font-family: inherit; color: var(--ink); background: var(--cloud); cursor: pointer; }
+  .tc-select:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 3px var(--mist); }
+  .tc-rel { color: var(--ink-soft); font-weight: 400; font-size: 15px; }
+  .tc-dates { display: flex; flex-direction: column; gap: 8px; }
+  .tc-date-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14.5px; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+  .tc-date-row:last-child { border-bottom: none; }
+  .tc-date-when { color: var(--clay-deep); font-weight: 700; font-size: 13.5px; white-space: nowrap; }
+  .tc-empty { color: var(--ink-soft); font-size: 14px; font-style: italic; }
+  .tc-add-date { color: var(--sage-deep) !important; font-weight: 700; margin-top: 10px; }
+  .tc-addwrap h4 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; margin: 0 0 12px; }
+  .tc-savecard { border: 1.5px solid var(--sage); }
+  .tc-showup { width: 100%; justify-content: center; margin-top: 14px; }
+  .tc-savedplans { margin-top: 14px; }
+  .tc-sp-label { font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 7px; }
+  .tc-sp-row { display: block; width: 100%; text-align: left; background: var(--paper-2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 13px; margin-bottom: 6px; font-family: inherit; font-size: 14px; color: var(--sage-deep); cursor: pointer; transition: border-color .15s ease; }
+  .tc-sp-row:hover { border-color: var(--sage); }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0 30px; }
 
   /* ---------- hero ---------- */
@@ -96,7 +125,8 @@
   .step p { margin: 0 24px; color: var(--ink-soft); font-size: 14.5px; }
 
   .moments { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 34px; }
-  .moments .chip { background: var(--cloud); border: 1px solid var(--line); border-radius: 999px; padding: 9px 17px; font-size: 14px; color: var(--ink-soft); box-shadow: var(--shadow-soft); }
+  .moments .chip { background: var(--cloud); border: 1px solid var(--line); border-radius: 999px; padding: 9px 17px; font-size: 14px; color: var(--ink-soft); box-shadow: var(--shadow-soft); font-family: inherit; cursor: pointer; transition: border-color .15s ease, color .15s ease, transform .12s ease; }
+  .moments .chip:hover { border-color: var(--sage); color: var(--ink); transform: translateY(-1px); }
 
   /* ---------- quote ---------- */
   .quote-band { background: transparent; }
@@ -126,8 +156,10 @@
   .pick:hover { border-color: var(--sage); }
   .pick.active { background: var(--sage); color: #fff; border-color: var(--sage); }
 
-  textarea, input[type=text] { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; padding: 14px 16px; font-size: 15.5px; font-family: inherit; color: var(--ink); background: var(--cloud); resize: vertical; line-height: 1.6; }
+  textarea, input[type=text], input[type=email], input[type=date] { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; padding: 14px 16px; font-size: 15.5px; font-family: inherit; color: var(--ink); background: var(--cloud); resize: vertical; line-height: 1.6; }
   textarea:focus, input:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 3px var(--mist); }
+  /* the sign-in email field — larger and roomier */
+  #tcEmail { font-size: 17px; padding: 16px 18px; margin-top: 6px; }
   textarea { min-height: 100px; }
 
   .nav { display: flex; align-items: center; justify-content: space-between; margin-top: 26px; }
@@ -252,7 +284,10 @@
     <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg>
     Thoughts Count
   </div>
-  <div class="promise">Helping good intentions become meaningful actions</div>
+  <div class="bar-right">
+    <div class="promise">Helping good intentions become meaningful actions</div>
+    <span id="authSlot"></span>
+  </div>
 </div>
 
 <main>
@@ -292,14 +327,15 @@
       </div>
     </div>
     <div class="moments">
-      <span class="chip">Loss of a loved one</span>
-      <span class="chip">New baby</span>
-      <span class="chip">A hard diagnosis</span>
-      <span class="chip">Beat cancer</span>
-      <span class="chip">Engagement</span>
-      <span class="chip">Job loss</span>
-      <span class="chip">Lost a pet</span>
-      <span class="chip">Just a hard week</span>
+      <button type="button" class="chip" onclick="openFlow('Lost a loved one')">Lost a loved one</button>
+      <button type="button" class="chip" onclick="openFlow('New baby')">New baby</button>
+      <button type="button" class="chip" onclick="openFlow('A hard diagnosis')">A hard diagnosis</button>
+      <button type="button" class="chip" onclick="openFlow('Beat cancer')">Beat cancer</button>
+      <button type="button" class="chip" onclick="openFlow('Engagement')">Engagement</button>
+      <button type="button" class="chip" onclick="openFlow('New job')">New job</button>
+      <button type="button" class="chip" onclick="openFlow('Job loss')">Job loss</button>
+      <button type="button" class="chip" onclick="openFlow('Lost a pet')">Lost a pet</button>
+      <button type="button" class="chip" onclick="openFlow('Just a hard week')">Just a hard week</button>
     </div>
     <div style="text-align:center; margin-top:36px;">
       <button class="cta sage" onclick="openFlow()">Start with a moment →</button>
@@ -338,37 +374,76 @@
 
 <script>
 const STEPS = [
-  { key: "moment", eyebrow: "First, the moment", title: "What happened?", help: "Pick what's closest, or tell us in your own words. The more you share, the more personal we can make this.", picks: ["Lost a loved one","New baby","A hard diagnosis","Beat cancer","Engagement","Job loss","Promotion","Lost a pet","Retirement","Just a hard week"], placeholder: "e.g. My coworker's father passed away suddenly last weekend." },
-  { key: "relationship", eyebrow: "Who they are to you", title: "What's your relationship?", help: "This gently shapes everything — what's right for a spouse is different for a coworker.", picks: ["Close friend","Friend","Partner / spouse","Parent","Sibling","Other family","Coworker","Someone I manage","My boss","Neighbor","Client"], placeholder: "e.g. A coworker I like but don't know outside of work." },
+  { key: "moment", eyebrow: "First, the moment", title: "What happened?", help: "Pick what's closest, or tell us in your own words. The more you share, the more personal we can make this.", picks: ["Lost a loved one","New baby","A hard diagnosis","Beat cancer","Engagement","New job","Promotion","Job loss","Lost a pet","Retirement","Just a hard week"], placeholder: "e.g. My coworker's father passed away suddenly last weekend." },
+  { key: "relationship", eyebrow: "Who they are to you", title: "What's your relationship?", help: "This gently shapes everything — what's right for a spouse is different for a coworker.", picks: ["Close friend","Friend","Partner / spouse","Parent","Sibling","Other family","Coworker","Someone I manage","My boss","Neighbor","Client"], placeholder: "e.g. A coworker I like but don't know outside of work.",
+    extra: { key: "name", label: "Their name — optional, makes everything more personal", placeholder: "e.g. Todd" } },
   { key: "about", eyebrow: "Tell us about them", title: "What are they like?", help: "Anything that helps us make this feel like them — their personality, what they're going through, your history together.", picks: [], placeholder: "e.g. She's private and doesn't like a fuss, but she's been carrying a lot. We usually just chat about our kids." },
   { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure — guide me"], placeholder: "Optional — anything about your style or what you're comfortable with." },
   { key: "constraints", eyebrow: "Time & budget", title: "What can you give right now?", help: "Totally okay if it's not much. Sometimes the most meaningful gesture is free.", picks: ["Just a little time","An afternoon","No budget","Under $25","$25–75","$75–150","Money's not the issue"], placeholder: "Optional — e.g. I'm slammed this week but want to do something meaningful.",
     extra: { key: "location", label: "Their area — optional, for local ideas", placeholder: "e.g. Fayetteville, AR or 72703" } },
 ];
 
-const answers = {};
+const answers = {};   // raw free-text per step
+const picks = {};      // selected chips per step (kept separate from free text)
 let idx = 0;
+let currentPlan = null;
+let flowPerson = null; // set when the flow was launched from a saved person
+function firstName(n){ return String(n||'').trim().split(/\s+/)[0] || 'them'; }
 const scrim = document.getElementById('scrim');
 const stage = document.getElementById('stage');
 const fill = document.getElementById('progressFill');
 
-function openFlow(){ idx = 0; scrim.classList.add('open'); document.body.style.overflow='hidden'; renderStep(); }
+function openFlow(preset){
+  idx = 0;
+  flowPerson = null; window.__tcFlowPersonId = null;
+  for (const k in answers) delete answers[k];
+  for (const k in picks) delete picks[k];
+  if (preset) picks.moment = [preset];
+  scrim.classList.add('open'); document.body.style.overflow='hidden'; renderStep();
+}
+// Launch the plan flow already knowing who this is for (from a saved person).
+function openFlowForPerson(person){
+  idx = 0;
+  flowPerson = person || null;
+  for (const k in answers) delete answers[k];
+  for (const k in picks) delete picks[k];
+  if (person){
+    answers.name = person.name || '';
+    answers.relationship = person.relationship || '';
+    answers.about = person.notes || '';
+    answers.location = person.location || '';
+  }
+  window.__tcFlowPersonId = person ? person.id : null;
+  scrim.classList.add('open'); document.body.style.overflow='hidden'; renderStep();
+}
+window.openFlowForPerson = openFlowForPerson;
+// Re-open a previously saved plan for viewing.
+function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; renderPlan(plan); }
+window.renderSavedPlan = renderSavedPlan;
 function closeFlow(){ scrim.classList.remove('open'); document.body.style.overflow=''; }
 scrim.addEventListener('click', e => { if (e.target === scrim) closeFlow(); });
 function setProgress(p){ fill.style.width = p + '%'; }
 
 function renderStep(){
   const s = STEPS[idx];
-  setProgress(Math.round((idx / (STEPS.length)) * 100));
+  setProgress(Math.max(7, Math.round((idx / (STEPS.length)) * 100)));
+  let sEyebrow = s.eyebrow, sTitle = s.title, sHelp = s.help;
+  if (flowPerson && s.key === 'moment'){
+    sEyebrow = 'For ' + (flowPerson.name || 'someone you care about');
+    sTitle = "What's happening with " + firstName(flowPerson.name) + "?";
+    sHelp = "Just tell us the situation — we already know who they are to you.";
+  }
   const current = answers[s.key] || "";
+  const chosen = picks[s.key] || [];
   const picksHtml = s.picks.length ? `<div class="chip-row" id="picks">${
-    s.picks.map(p => `<button type="button" class="pick" data-v="${p.replace(/"/g,'&quot;')}">${p}</button>`).join('')
+    s.picks.map(p => { const v = p.replace(/"/g,'&quot;'); const on = chosen.includes(p);
+      return `<button type="button" class="pick${on?' active':''}" aria-pressed="${on}" data-v="${v}">${p}</button>`; }).join('')
   }</div>` : "";
   stage.innerHTML = `
     <div class="panel-body">
-      <div class="q-eyebrow">${s.eyebrow} · ${idx+1} of ${STEPS.length}</div>
-      <h2 class="q-title">${s.title}</h2>
-      <p class="q-help">${s.help}</p>
+      <div class="q-eyebrow">${sEyebrow} · ${idx+1} of ${STEPS.length}</div>
+      <h2 class="q-title">${sTitle}</h2>
+      <p class="q-help">${sHelp}</p>
       ${picksHtml}
       <textarea id="freetext" placeholder="${s.placeholder}">${current}</textarea>
       ${s.extra ? `<label style="display:block;margin-top:14px;font-size:13.5px;color:var(--ink-soft);">${s.extra.label}</label>
@@ -380,22 +455,26 @@ function renderStep(){
     </div>`;
   const ta = document.getElementById('freetext');
   ta.focus();
+  // Chips set selection state only — they never write into the free-text box,
+  // so a tapped chip and typed detail can't collide. Both are combined at send.
   stage.querySelectorAll('.pick').forEach(btn => {
     btn.addEventListener('click', () => {
       const v = btn.dataset.v;
-      btn.classList.toggle('active');
-      const parts = ta.value.split(/,\s*/).map(x=>x.trim()).filter(Boolean);
-      const i = parts.indexOf(v);
-      if (i === -1) parts.push(v); else parts.splice(i,1);
-      ta.value = parts.join(', ');
-      ta.focus();
+      const key = STEPS[idx].key;
+      const arr = picks[key] || (picks[key] = []);
+      const i = arr.indexOf(v);
+      if (i === -1) arr.push(v); else arr.splice(i, 1);
+      const on = i === -1;
+      btn.classList.toggle('active', on);
+      btn.setAttribute('aria-pressed', String(on));
     });
   });
   document.getElementById('backBtn').onclick = () => { save(); if(idx>0){idx--; renderStep();} };
   document.getElementById('nextBtn').onclick = () => {
     save();
     const s2 = STEPS[idx];
-    if ((s2.key === 'moment') && !answers.moment){ ta.focus(); ta.style.borderColor = '#c28a63'; return; }
+    const hasMoment = (picks.moment && picks.moment.length) || answers.moment;
+    if ((s2.key === 'moment') && !hasMoment){ ta.focus(); ta.style.borderColor = '#c28a63'; return; }
     if (idx < STEPS.length-1){ idx++; renderStep(); } else generate();
   };
 }
@@ -403,6 +482,21 @@ function save(){
   const ta = document.getElementById('freetext'); if(ta) answers[STEPS[idx].key] = ta.value.trim();
   const ex = document.getElementById('extrafield'); const s = STEPS[idx];
   if (ex && s.extra) answers[s.extra.key] = ex.value.trim();
+}
+
+// Combine the selected chips and the free text for a step into one answer string.
+function composeAnswer(key){
+  const chosen = (picks[key] || []).join(', ');
+  const t = (answers[key] || '').trim();
+  if (chosen && t) return chosen + '. ' + t;
+  return chosen || t;
+}
+// Build the payload the model sees: chips + free text merged per step, plus
+// the pass-through fields (name, location).
+function buildPayload(){
+  const p = { ...answers };
+  ['moment','relationship','about','voice','constraints'].forEach(k => { p[k] = composeAnswer(k); });
+  return p;
 }
 
 async function generate(){
@@ -422,7 +516,7 @@ async function generate(){
     </div>`;
   const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
   try {
-    const kick = await fetch('/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId, answers }) });
+    const kick = await fetch('/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId, answers: buildPayload() }) });
     if (kick.status >= 400) {
       let msg = 'Something went wrong starting your plan.';
       try { const d = await kick.json(); if (d.error) msg = d.error; } catch {}
@@ -524,6 +618,7 @@ const MORE_PLACES = [
 ];
 
 function renderPlan(p){
+  currentPlan = p;
   const li = arr => (arr||[]).map(x => `<li>${escapeHtml(x)}</li>`).join('');
   const icon = d => `<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#5f6c4c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
   const actions = (p.thoughtful_actions||[]).map(a => `
@@ -587,7 +682,7 @@ function renderPlan(p){
     </div>
     <div class="plan-actions">
       <button class="cta ghost" onclick="restart()">Plan for someone else</button>
-      <button class="cta" onclick="window.print()">Save / print this plan</button>
+      <button class="cta" onclick="savePlan()">Save / print this plan</button>
     </div>
     <div class="disclaimer">A thoughtful starting point, made for your situation — trust your own heart on the details.</div>
     <div style="height:16px"></div>`;
@@ -598,7 +693,7 @@ function renderPlan(p){
     btn.addEventListener('click', () => {
       const f = (p.follow_up||[])[Number(btn.dataset.fi)];
       if (!f) return;
-      downloadReminder(f, p.headline || 'Thoughts Count');
+      downloadReminder(f, p);
       btn.classList.add('done');
       btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Added to calendar';
     });
@@ -629,11 +724,29 @@ function renderPlan(p){
     }
   });
 
+  // Offer to save this plan to one of the user's people (companion layer).
+  window.__tcAnswers = answers;
+  if (window.TCCompanion && window.TCCompanion.mountSaveToPerson) {
+    try { window.TCCompanion.mountSaveToPerson(stage, p); } catch (e) { console.error(e); }
+  }
+
   document.querySelector('.panel').scrollIntoView({behavior:'smooth', block:'start'});
 }
 
+// Set the person + occasion as the document title so the saved PDF / printout
+// is named specifically, e.g. "Thoughts Count — Todd Hudgens, new job".
+function savePlan(){
+  const label = (currentPlan && currentPlan.plan_title) ? currentPlan.plan_title : '';
+  const prev = document.title;
+  if (label) document.title = 'Thoughts Count — ' + label;
+  window.print();
+  setTimeout(() => { document.title = prev; }, 800);
+}
+
 // Build and download an .ics calendar event for a follow-up gesture.
-function downloadReminder(f, context){
+function downloadReminder(f, plan){
+  const label = (plan && plan.plan_title) ? plan.plan_title : '';
+  const context = label || (plan && plan.headline) || 'Thoughts Count';
   const days = Number.isFinite(f.days_from_now) ? f.days_from_now : 14;
   const d = new Date();
   d.setDate(d.getDate() + days);
@@ -646,7 +759,7 @@ function downloadReminder(f, context){
     + String(dtEnd.getDate()).padStart(2,'0');
   const uid = 'tc-' + Math.random().toString(36).slice(2) + '@thoughtscount';
   const esc = s => String(s||'').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n');
-  const title = 'Thoughts Count: ' + (f.gesture || 'reach out');
+  const title = label ? (label + ' — ' + (f.gesture || 'reach out')) : ('Thoughts Count: ' + (f.gesture || 'reach out'));
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -678,8 +791,9 @@ function downloadReminder(f, context){
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-function restart(){ for(const k in answers) delete answers[k]; idx=0; renderStep(); }
+function restart(){ for(const k in answers) delete answers[k]; for(const k in picks) delete picks[k]; flowPerson=null; window.__tcFlowPersonId=null; idx=0; renderStep(); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 </script>
+<script type="module" src="/companion.js"></script>
 </body>
 </html>

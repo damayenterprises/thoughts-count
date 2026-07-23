@@ -86,5 +86,15 @@ export function reminderEmailHtml({ when, gesture, headline }) {
   return WRAP(inner);
 }
 
+// Proactive, standing nudge for a saved person's upcoming key date (companion).
+export function peopleNudgeEmailHtml({ personName, label, whenText, planUrl }) {
+  const inner = `
+    <div style="font-family:Georgia,serif;font-size:18px;color:#3b362e;margin-bottom:6px;">${esc(personName)}'s ${esc(label)} is ${esc(whenText)}</div>
+    <div style="color:#6f675b;margin-bottom:14px;">A gentle heads-up, so you have time to show up well.</div>
+    <div style="background:#f4ead3;border-radius:14px;padding:16px 18px;font-size:15px;">Want a thoughtful, personal plan for ${esc(personName)}? <a href="${esc(planUrl)}" style="color:#a97350;font-weight:600;text-decoration:none;">Take two minutes here →</a></div>
+    <div style="margin-top:16px;color:#6f675b;">Thinking of it ahead of everyone else is exactly what makes it land.</div>`;
+  return WRAP(inner);
+}
+
 function stripHtml(h) { return String(h || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
 async function safeText(res) { try { return await res.text(); } catch { return "(no body)"; } }

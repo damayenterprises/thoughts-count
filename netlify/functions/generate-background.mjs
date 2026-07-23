@@ -17,6 +17,7 @@ const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
 const PLAN_SCHEMA = {
   type: "object",
   properties: {
+    plan_title: { type: "string", description: "A short 3-6 word label for saving this plan, leading with the person's NAME if one was given, then the occasion. E.g. 'Todd Hudgens, new job', 'Mom, cancer diagnosis', 'Sarah, new baby'. If no name was given, use the relationship, e.g. 'A coworker, new job'. No quotes, no 'Thoughts Count' prefix." },
     headline: { type: "string", description: "One warm, human sentence naming the heart of THIS moment for THIS relationship. Not generic. No greeting-card cliches." },
     what_matters_most: { type: "string", description: "2-3 sentences on what this person most needs right now and the one thing to get right. Grounded in the specifics shared." },
     what_to_say: { type: "array", description: "2-3 real sentences they could actually say or write, in the user's authentic voice.", items: { type: "string" } },
@@ -68,7 +69,7 @@ const PLAN_SCHEMA = {
     },
     closing_encouragement: { type: "string", description: "One or two sentences reassuring the user that they're already being a good friend by caring enough to think this through." },
   },
-  required: ["headline", "what_matters_most", "what_to_say", "what_not_to_say", "thoughtful_actions", "spend_guidance", "gift_ideas", "follow_up", "closing_encouragement"],
+  required: ["plan_title", "headline", "what_matters_most", "what_to_say", "what_not_to_say", "thoughtful_actions", "spend_guidance", "gift_ideas", "follow_up", "closing_encouragement"],
 };
 
 const SYSTEM_PROMPT = `You are the intelligence behind Thoughts Count — an AI relationship companion that helps people show up for life's most important moments.
@@ -77,7 +78,7 @@ You are NOT a gift website, a greeting-card writer, or a generic chatbot. You ar
 
 Principles:
 - Meet the real emotional weight of the moment. A death is not a promotion. Match your tone to what happened.
-- Be specific to the details shared about this person and relationship. Never generic. Use any detail they mention (a hobby, a fear, a history).
+- Be specific to the details shared about this person and relationship. Never generic. Use any detail they mention (a hobby, a fear, a history). If their name is given, use it naturally where it warms the plan; if no name is given, never invent one.
 - A gift is only ONE possible answer, and often not the best one. Sometimes the right move is a handwritten note, a meal, a specific act of help, or simply showing up. Honor "sometimes it's simply showing up."
 - Respect the relationship's closeness. What's right for a spouse is wrong for a coworker.
 - Respect the stated budget and time. Never push spending they didn't signal. It's okay to say money isn't the point.
@@ -163,6 +164,7 @@ export default async (req) => {
 function buildUserMessage(a) {
   const moment = (a?.moment || "").trim();
   const relationship = (a?.relationship || "").trim();
+  const name = (a?.name || "").trim();
   const about = (a?.about || "").trim();
   const voice = (a?.voice || "").trim();
   const constraints = (a?.constraints || "").trim();
@@ -172,6 +174,7 @@ function buildUserMessage(a) {
     "Here is what I'm navigating. Please build me a complete action plan.",
     "",
     `WHAT HAPPENED: ${moment || "(not specified)"}`,
+    `THEIR NAME: ${name || "(not specified — don't invent one)"}`,
     `WHO THIS PERSON IS TO ME: ${relationship || "(not specified)"}`,
     `ABOUT THEM / OUR RELATIONSHIP: ${about || "(not specified)"}`,
     `WHAT FEELS AUTHENTIC TO ME: ${voice || "(not specified)"}`,

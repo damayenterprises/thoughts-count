@@ -1,0 +1,94 @@
+// Thoughts Count — daily proactive nudges for saved people (companion).
+// Once a day, looks at every saved key date, finds the ones coming up in exactly
+// LEAD_DAYS, and emails that person's owner a gentle heads-up with a link to build
+// a plan. A nudge_log row keeps each date from nudging more than once per year.
+// This is what turns per-plan reminders into a standing "we've got your back".
+//
+// Runs harmlessly (no-op) until Supabase is configured, so it can ship ahead of
+// the keys.
+
+import { createClient } from "@supabase/supabase-js";
+import { getEnv, sendEmail, peopleNudgeEmailHtml } from "./_email.mjs";
+
+export const config = { schedule: "15 13 * * *" }; // ~8:15am CT daily
+
+const LEAD_DAYS = 7;
+
+export default async () => {
+  const url = getEnv("SUPABASE_URL");
+  const serviceKey = getEnv("SUPABASE_SERVICE_ROLE_KEY");
+  if (!url || !serviceKey) {
+    return json({ skipped: "supabase-not-configured" });
+  }
+
+  const siteUrl = getEnv("URL") || "https://thoughts-count.netlify.app";
+  const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
+  const today = startOfDay(new Date());
+  let checked = 0, sent = 0;
+
+  try {
+    const { data: dates, error } = await supabase
+      .from("key_dates")
+      .select("id, user_id, person_id, label, event_date, recurs, people(name)");
+    if (error) throw error;
+
+    const emailCache = new Map();
+
+    for (const kd of dates || []) {
+      checked++;
+      const occ = nextOccurrence(kd.event_date, kd.recurs, today);
+      if (!occ) continue;                         // one-off already in the past
+      if (daysBetween(today, occ) !== LEAD_DAYS) continue;
+
+      const occStr = ymd(occ);
+
+      // Already nudged for this occurrence?
+      const { data: seen } = await supabase
+        .from("nudge_log").select("id").eq("key_date_id", kd.id).eq("occurrence", occStr).maybeSingle();
+      if (seen) continue;
+
+      // Resolve the owner's email (cached per user).
+      let email = emailCache.get(kd.user_id);
+      if (email === undefined) {
+        const { data: u } = await supabase.auth.admin.getUserById(kd.user_id);
+        email = u?.user?.email || null;
+        emailCache.set(kd.user_id, email);
+      }
+      if (!email) continue;
+
+      const personName = kd.people?.name || "someone you care about";
+      const res = await sendEmail({
+        to: email,
+        subject: `${personName}'s ${kd.label} is coming up`,
+        html: peopleNudgeEmailHtml({
+          personName,
+          label: kd.label,
+          whenText: "in a week",
+          planUrl: siteUrl,
+        }),
+      });
+      if (res.ok) {
+        await supabase.from("nudge_log").insert({ key_date_id: kd.id, occurrence: occStr });
+        sent++;
+      }
+    }
+  } catch (err) {
+    console.error("nudges-cron error", err);
+  }
+
+  return json({ checked, sent, today: ymd(today) });
+};
+
+// The next time this date occurs on/after `from`. Recurring dates roll to this or
+// next year; one-offs return null once they're in the past.
+function nextOccurrence(eventDate, recurs, from) {
+  const d = new Date(eventDate + "T00:00:00");
+  if (!recurs) return d >= from ? d : null;
+  const candidate = new Date(from.getFullYear(), d.getMonth(), d.getDate());
+  if (candidate < from) candidate.setFullYear(from.getFullYear() + 1);
+  return candidate;
+}
+function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function daysBetween(a, b) { return Math.round((startOfDay(b) - startOfDay(a)) / 86400000); }
+function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function json(obj) { return new Response(JSON.stringify(obj), { headers: { "content-type": "application/json" } }); }
