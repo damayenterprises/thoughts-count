@@ -10,6 +10,7 @@
 // be recovered by anyone the link is shared with.
 
 import { getStore } from "@netlify/blobs";
+import { logEvent, classifyValence, classifyOccasion, classifyRelationship, budgetBand } from "./_analytics.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
@@ -152,7 +153,34 @@ export default async (req) => {
       await enrichLocalIdeas(toolUse.input, location, placesKey);
     }
 
+    // Resolve "online" gift ideas into a real product (photo + direct buy link):
+    // Etsy first (boutique/handmade), then Google Shopping as a fallback with all
+    // big-box / national retailers filtered out. Falls back to an Etsy search link.
+    const etsyKey = env("ETSY_API_KEY");
+    const shoppingKey = env("SEARCHAPI_KEY");
+    if (etsyKey || shoppingKey) {
+      await enrichOnlineIdeas(toolUse.input, etsyKey, shoppingKey);
+    }
+
     await store.setJSON(jobId, { status: "done", plan: toolUse.input });
+
+    // Anonymized "what people need" signal — buckets only, never raw text/names.
+    try {
+      const a = body?.answers || {};
+      const gifts = Array.isArray(toolUse.input?.gift_ideas) ? toolUse.input.gift_ideas : [];
+      await logEvent("plan_generated", {
+        sid: (body?.sid || "").toString().slice(0, 40),
+        occasion: classifyOccasion(a.moment),
+        valence: classifyValence(a.moment),
+        relationship: classifyRelationship(a.relationship),
+        budget_band: budgetBand(a.constraints),
+        has_location: !!(a.location || "").trim(),
+        gift_fit: gifts.length > 0,
+        gift_count: gifts.length,
+        followups: Array.isArray(toolUse.input?.follow_up) ? toolUse.input.follow_up.length : 0,
+      }, { test: !!body?.test });
+    } catch (e) { console.error("plan analytics failed", e); }
+
     return new Response("ok", { status: 202 });
   } catch (err) {
     console.error("generate-background error", err);
@@ -185,6 +213,84 @@ function buildUserMessage(a) {
 
 async function safeText(res) {
   try { return await res.text(); } catch { return "(no body)"; }
+}
+
+function env(name) {
+  return (typeof Netlify !== "undefined" && Netlify.env?.get(name)) || process.env[name];
+}
+
+// Big-box / national retailers to exclude from the Google Shopping fallback, so a
+// fallback product still feels boutique (per the brand's "artisan, not big-box" rule).
+const BIG_BOX = [
+  "amazon", "walmart", "target", "best buy", "bestbuy", "ebay", "wayfair", "kohl", "macy",
+  "costco", "sam's club", "samsclub", "aliexpress", "temu", "wish", "overstock", "ikea",
+  "home depot", "homedepot", "lowe", "cvs", "walgreens", "michaels", "hobby lobby", "hobbylobby",
+  "barnes", "nordstrom", "kmart", "sears", "newegg", "alibaba", "shein", "dollar general",
+  "dollar tree", "dollartree", "bed bath", "bedbath", "williams sonoma", "crate", "pottery barn",
+  "potterybarn", "anthropologie", "urban outfitters", "west elm", "world market", "container store",
+  "staples", "office depot", "petco", "petsmart", "gamestop", "chewy", "qvc", "etsy",
+];
+
+function isBigBox(merchant, link) {
+  const m = String(merchant || "").toLowerCase();
+  const l = String(link || "").toLowerCase();
+  return BIG_BOX.some((b) => m.includes(b) || l.includes(b.replace(/[^a-z]/g, "")));
+}
+
+// Pick a random item from the top `n` of an array — adds variety so the same idea
+// phrase doesn't always surface the identical product.
+function pickVaried(arr, n) {
+  if (!arr || !arr.length) return null;
+  return arr[Math.floor(Math.random() * Math.min(n, arr.length))];
+}
+
+// For each "online" gift idea, attach a real product (photo, price, direct link).
+async function enrichOnlineIdeas(plan, etsyKey, shoppingKey) {
+  if (!plan || !Array.isArray(plan.gift_ideas)) return;
+  const online = plan.gift_ideas.filter((g) => g.locality !== "local").slice(0, 3);
+  for (const g of online) {
+    const q = (g.search_query || g.title || "").trim();
+    if (!q) continue;
+    let product = null;
+    if (etsyKey) { try { product = await etsyLookup(q, etsyKey); } catch (e) { console.error("etsy lookup failed", e); } }
+    if (!product && shoppingKey) { try { product = await shoppingLookup(q, shoppingKey); } catch (e) { console.error("shopping lookup failed", e); } }
+    if (product && product.image && product.url) g.product = product;
+  }
+}
+
+async function etsyLookup(query, key) {
+  const url = `https://openapi.etsy.com/v3/application/listings/active?limit=10&sort_on=score&keywords=${encodeURIComponent(query)}&includes=Images`;
+  const res = await fetch(url, { headers: { "x-api-key": key } });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const withImages = (data.results || []).filter((r) => (r.images || r.Images || []).length);
+  const it = pickVaried(withImages, 4); // vary among the top few relevant matches
+  if (!it) return null;
+  const imgs = it.images || it.Images || [];
+  const image = (imgs[0] && (imgs[0].url_570xN || imgs[0].url_fullxfull || imgs[0].url_340x270)) || "";
+  let price = "";
+  if (it.price && it.price.amount != null) {
+    price = "$" + (Number(it.price.amount) / Number(it.price.divisor || 100)).toFixed(2);
+  }
+  return { source: "etsy", title: it.title || "", image, price, url: it.url || "", merchant: "Etsy" };
+}
+
+async function shoppingLookup(query, key) {
+  const url = `https://www.searchapi.io/api/v1/search?engine=google_shopping&num=12&q=${encodeURIComponent(query)}&api_key=${key}`;
+  const res = await fetch(url);
+  if (!res.ok) return null;
+  const data = await res.json();
+  const items = data.shopping_results || [];
+  const candidates = [];
+  for (const it of items) {
+    const merchant = it.seller || it.merchant || it.source || "";
+    const link = it.product_link || it.link || it.offers_link || "";
+    const image = it.thumbnail || it.image || "";
+    if (!link || !image || isBigBox(merchant, link)) continue;
+    candidates.push({ source: "shopping", title: it.title || "", image, price: it.price || "", url: link, merchant });
+    if (candidates.length >= 6) break;
+  }
+  return pickVaried(candidates, 4); // vary among the top boutique matches
 }
 
 // For each "local" gift idea, look up one real nearby business via Google Places

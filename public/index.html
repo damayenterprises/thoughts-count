@@ -11,8 +11,8 @@
   }
 </script>
 <link rel="canonical" href="https://thoughtscount.com/" />
-<title>Thoughts Count — a gentle guide for showing up when it matters</title>
-<meta name="description" content="A warm companion that helps you show up for life's important moments. Not a gift site — thoughtful, personal guidance for what to say and do, and how to keep showing up." />
+<title>Thoughts Count — the thoughtful way to show up for the people you care about</title>
+<meta name="description" content="A warm companion that helps you show up for the people you care about — celebrations and hard days alike. Not a gift site: personal guidance on what to say, the gesture that fits, and how to keep showing up." />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
@@ -75,6 +75,8 @@
   .tc-authbtn:hover { background: var(--sage-deep); transform: translateY(-1px); }
   .tc-authbtn.ghost { background: transparent; color: var(--sage-deep); border: 1.5px solid var(--line); box-shadow: none; }
   .tc-authbtn.ghost:hover { background: var(--cloud); }
+  .tc-navlink { font-size: 14.5px; font-weight: 700; color: var(--sage-deep); text-decoration: none; padding: 6px 4px; }
+  .tc-navlink:hover { color: var(--ink); }
   .tc-select { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; padding: 13px 15px; font-size: 15px; font-family: inherit; color: var(--ink); background: var(--cloud); cursor: pointer; }
   .tc-select:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 3px var(--mist); }
   .tc-rel { color: var(--ink-soft); font-weight: 400; font-size: 15px; }
@@ -270,6 +272,34 @@
 </head>
 <body>
 
+<script>
+  // Privacy-first funnel tracking: an anonymous random session id (no cookies, no
+  // personal data) so we can follow one visit through the funnel. Agent/dev sessions
+  // set localStorage 'tc_test'='1' (or ?test=1) so they're excluded from real counts.
+  (function(){
+    var sid = 'anon';
+    try {
+      sid = localStorage.getItem('tc_sid');
+      if (!sid) { sid = (self.crypto && crypto.randomUUID) ? crypto.randomUUID() : ('s'+Date.now()+Math.random().toString(36).slice(2)); localStorage.setItem('tc_sid', sid); }
+    } catch(e){}
+    try {
+      if (new URLSearchParams(location.search).get('test') === '1') localStorage.setItem('tc_test','1');
+    } catch(e){}
+    var isTest = false; try { isTest = localStorage.getItem('tc_test') === '1'; } catch(e){}
+    window.__tcSid = sid; window.__tcTest = isTest;
+    window.tcTrack = function(event, props){
+      try {
+        var payload = JSON.stringify(Object.assign({ event: event, sid: sid, test: isTest }, props||{}));
+        if (navigator.sendBeacon) navigator.sendBeacon('/api/track', new Blob([payload], {type:'application/json'}));
+        else fetch('/api/track', { method:'POST', keepalive:true, headers:{'content-type':'application/json'}, body:payload });
+      } catch(e){}
+    };
+    var ref = ''; try { ref = (document.referrer||'').split('/')[2] || ''; } catch(e){}
+    var qp = {}; try { var u = new URLSearchParams(location.search); qp = { utm_source:u.get('utm_source'), utm_medium:u.get('utm_medium'), utm_campaign:u.get('utm_campaign') }; } catch(e){}
+    window.tcTrack('page_view', Object.assign({ page: location.pathname, ref: ref }, qp));
+  })();
+</script>
+
 <div id="bg" aria-hidden="true">
   <div class="cloud c1"></div>
   <div class="cloud c2"></div>
@@ -285,7 +315,7 @@
     Thoughts Count
   </div>
   <div class="bar-right">
-    <div class="promise">Helping good intentions become meaningful actions</div>
+    <a href="/guides/" class="tc-navlink">Guides</a>
     <span id="authSlot"></span>
   </div>
 </div>
@@ -293,22 +323,22 @@
 <main>
   <section class="hero wrap">
     <h1>Show up for the moments that <em>matter most.</em></h1>
-    <p class="lead">Tell us the situation and who they are to you — we'll help you find the words, the gesture, and the best way to be thoughtful.</p>
+    <p class="lead">A new baby or a hard week, a big promotion or just because — tell us what's happening and who they are to you, and we'll help you find the words, the gesture, and the perfect way to show you care.</p>
     <button class="cta" onclick="openFlow()">Help me show up →</button>
     <div class="reassure">No account needed · <b>Your details stay private</b> · Free to try</div>
   </section>
 
   <div class="trust">
     <div class="trust-inner">
-      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/></svg>A soft place to think it through</div>
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/></svg>A calm place to think it through</div>
       <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path stroke="#c28a63" d="M9 12l2 2 4-4"/></svg>Your details stay yours</div>
-      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16m0 0c-1.5-2-4-3-6.5-3V7C8 7 10.5 8 12 10c1.5-2 4-3 6.5-3v10c-2.5 0-5 1-6.5 3Z"/></svg>Personal, never generic</div>
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16m0 0c-1.5-2-4-3-6.5-3V7C8 7 10.5 8 12 10c1.5-2 4-3 6.5-3v10c-2.5 0-5 1-6.5 3Z"/></svg>Personal to every moment</div>
     </div>
   </div>
 
   <section class="section wrap">
     <h2>You're not looking for a product.</h2>
-    <p class="sub">You're looking for the quiet certainty that you didn't get this wrong. So we open with a gentle conversation.</p>
+    <p class="sub">You're looking for the quiet certainty that you got it just right — big moment or small. So we start with a real conversation.</p>
     <div class="steps">
       <div class="step">
         <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e3ece4"/><circle cx="150" cy="60" r="120" fill="#eef4ee"/><path d="M95 78q0-24 24-24h62q24 0 24 24v10q0 24-24 24h-42l-20 18v-18h0q-24 0-24-24Z" fill="#ffffff" stroke="#bcccc0" stroke-width="2"/><path d="M112 74h76M112 88h54" stroke="#9fb3a6" stroke-width="3" stroke-linecap="round"/></svg></span>
@@ -322,19 +352,19 @@
       </div>
       <div class="step">
         <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e4ece6"/><circle cx="150" cy="60" r="120" fill="#eef4ef"/><rect x="112" y="30" width="76" height="78" rx="8" fill="#ffffff" stroke="#a9b788" stroke-width="2.5"/><path d="M126 50h48M126 64h48M126 78h30" stroke="#9aab77" stroke-width="3" stroke-linecap="round"/><path d="M118 62l30 24 40-46" fill="none" stroke="#7d8a68" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg></span>
-        <h3>You get a gentle plan</h3>
+        <h3>You get a plan that fits</h3>
         <p>What to say, gestures that fit, and how to keep showing up.</p>
       </div>
     </div>
     <div class="moments">
-      <button type="button" class="chip" onclick="openFlow('Lost a loved one')">Lost a loved one</button>
       <button type="button" class="chip" onclick="openFlow('New baby')">New baby</button>
+      <button type="button" class="chip" onclick="openFlow('New job or promotion')">New job or promotion</button>
+      <button type="button" class="chip" onclick="openFlow('Engagement or wedding')">Engagement or wedding</button>
+      <button type="button" class="chip" onclick="openFlow('Graduation')">Graduation</button>
+      <button type="button" class="chip" onclick="openFlow('Birthday')">Birthday</button>
+      <button type="button" class="chip" onclick="openFlow('A thank-you, just because')">Thank-you, just because</button>
       <button type="button" class="chip" onclick="openFlow('A hard diagnosis')">A hard diagnosis</button>
-      <button type="button" class="chip" onclick="openFlow('Beat cancer')">Beat cancer</button>
-      <button type="button" class="chip" onclick="openFlow('Engagement')">Engagement</button>
-      <button type="button" class="chip" onclick="openFlow('New job')">New job</button>
-      <button type="button" class="chip" onclick="openFlow('Job loss')">Job loss</button>
-      <button type="button" class="chip" onclick="openFlow('Lost a pet')">Lost a pet</button>
+      <button type="button" class="chip" onclick="openFlow('Lost a loved one')">Lost a loved one</button>
       <button type="button" class="chip" onclick="openFlow('Just a hard week')">Just a hard week</button>
     </div>
     <div style="text-align:center; margin-top:36px;">
@@ -344,9 +374,8 @@
 
   <div class="quote-band">
     <div class="wrap">
-      <blockquote>"I never know what to say. This helped me actually show up."</blockquote>
-      <div class="who">— the feeling we're building for</div>
-      <div class="concept-tag">Illustrative · concept demo</div>
+      <blockquote>When you don't know what to say, we help you show up anyway.</blockquote>
+      <div class="who">That's the whole idea.</div>
     </div>
   </div>
 </main>
@@ -354,7 +383,10 @@
 <footer>
   <div class="promise-big">Helping good intentions become meaningful actions.</div>
   <div>Not to help you buy better gifts — to help you build stronger relationships.</div>
-  <div class="small">Thoughts Count · concept demo</div>
+  <div style="margin-top:16px;font-size:14.5px;">
+    <a href="/guides/" style="color:var(--sage-deep);font-weight:700;">Guides: what to say &amp; do when it matters →</a>
+  </div>
+  <div class="small">Thoughts Count</div>
 </footer>
 
 <!-- ================= CONVERSATION MODAL ================= -->
@@ -399,6 +431,7 @@ function openFlow(preset){
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
   if (preset) picks.moment = [preset];
+  try { window.tcTrack && tcTrack('intake_start', preset ? { label: preset } : {}); } catch(e){}
   scrim.classList.add('open'); document.body.style.overflow='hidden'; renderStep();
 }
 // Launch the plan flow already knowing who this is for (from a saved person).
@@ -516,7 +549,7 @@ async function generate(){
     </div>`;
   const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
   try {
-    const kick = await fetch('/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId, answers: buildPayload() }) });
+    const kick = await fetch('/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId, answers: buildPayload(), sid: window.__tcSid, test: window.__tcTest }) });
     if (kick.status >= 400) {
       let msg = 'Something went wrong starting your plan.';
       try { const d = await kick.json(); if (d.error) msg = d.error; } catch {}
@@ -594,6 +627,24 @@ function renderGiftCard(g, i){
       </div>`;
   }
 
+  // Real online product resolved via Etsy (or filtered Google Shopping).
+  const p = g.product;
+  if (p && p.image && p.url) {
+    const priceOut = p.price ? `<span class="price">${escapeHtml(p.price)}</span>` : priceTag;
+    const linkText = p.source === 'etsy' ? 'See it on Etsy →' : 'See it →';
+    const src = p.merchant && p.source !== 'etsy' ? `<span style="font-size:12px;color:var(--ink-soft);margin-right:8px;">at ${escapeHtml(p.merchant)}</span>` : '';
+    return `
+      <div class="gift">
+        <span class="tile"><img src="${escapeHtml(p.image)}" alt="${escapeHtml(p.title||g.title)}" loading="lazy" referrerpolicy="no-referrer" onerror="this.closest('.tile').remove()"></span>
+        <div class="g-body">
+          <div class="g-title">${escapeHtml(g.title)}</div>
+          <div class="g-blurb">${escapeHtml(g.blurb||'')}</div>
+          <div class="g-why"><b>Why it fits:</b> ${escapeHtml(g.why_it_fits||'')}</div>
+          <div class="g-foot">${priceOut}${src}<a class="g-link" href="${escapeHtml(p.url)}" target="_blank" rel="noopener noreferrer">${linkText}</a></div>
+        </div>
+      </div>`;
+  }
+
   // Local idea, but no specific business resolved → map-search fallback.
   const isLocal = g.locality === 'local' && loc;
   const href = isLocal ? mapsLink(g.search_query, loc) : etsyLink(g.search_query || g.title);
@@ -619,6 +670,7 @@ const MORE_PLACES = [
 
 function renderPlan(p){
   currentPlan = p;
+  try { window.tcTrack && tcTrack('plan_viewed'); } catch(e){}
   const li = arr => (arr||[]).map(x => `<li>${escapeHtml(x)}</li>`).join('');
   const icon = d => `<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#5f6c4c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
   const actions = (p.thoughtful_actions||[]).map(a => `
@@ -670,7 +722,7 @@ function renderPlan(p){
     <div style="padding:8px 32px 0;">
       <div class="keep">
         <h4>Keep this plan close</h4>
-        <p class="k-sub">We'll email it to you so it's there when you need it — and gently remind you to follow through.</p>
+        <p class="k-sub">We'll email it to you so it's there when you need it — and remind you at just the right time to follow through.</p>
         <div class="k-row">
           <input type="email" id="planEmail" placeholder="you@email.com" autocomplete="email" />
           <button class="cta" id="emailPlanBtn">Email me my plan</button>
@@ -685,6 +737,7 @@ function renderPlan(p){
       <button class="cta" onclick="savePlan()">Save / print this plan</button>
     </div>
     <div class="disclaimer">A thoughtful starting point, made for your situation — trust your own heart on the details.</div>
+    <div style="text-align:center;margin-top:14px;"><a href="/guides/" style="color:var(--sage-deep);font-weight:700;font-size:14.5px;">Explore more guides on showing up →</a></div>
     <div style="height:16px"></div>`;
 
   // Wire up "Set reminder" buttons — each downloads a calendar event the user can
@@ -708,7 +761,7 @@ function renderPlan(p){
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = 'k-msg bad'; msg.textContent = 'Please enter a valid email address.'; return; }
     emailBtn.disabled = true; msg.className = 'k-msg'; msg.textContent = 'Sending…';
     try {
-      const r = await fetch('/api/send-plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, plan: p, wantReminders }) });
+      const r = await fetch('/api/send-plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, plan: p, wantReminders, test: window.__tcTest }) });
       const d = await r.json();
       if (r.ok && d.ok) {
         msg.className = 'k-msg ok';
@@ -793,6 +846,14 @@ function downloadReminder(f, plan){
 
 function restart(){ for(const k in answers) delete answers[k]; for(const k in picks) delete picks[k]; flowPerson=null; window.__tcFlowPersonId=null; idx=0; renderStep(); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+// Deep-link from the SEO guide pages: /?begin=<moment> opens the flow pre-filled.
+(function(){
+  try {
+    var b = new URLSearchParams(location.search).get('begin');
+    if (b) openFlow(b.slice(0, 120));
+  } catch(e){}
+})();
 </script>
 <script type="module" src="/companion.js"></script>
 </body>

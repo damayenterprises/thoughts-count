@@ -4,6 +4,7 @@
 
 import { getStore } from "@netlify/blobs";
 import { sendEmail, reminderEmailHtml } from "./_email.mjs";
+import { logEvent, isTestEmail } from "./_analytics.mjs";
 
 export const config = { schedule: "0 13 * * *" }; // 13:00 UTC daily (~8am CT)
 
@@ -28,6 +29,7 @@ export default async () => {
       if (res.ok) {
         await store.setJSON(b.key, { ...rec, sent: true, sentAt: today });
         sent++;
+        await logEvent("reminder_sent", { insider: isTestEmail(rec.email) });
       }
     }
   } catch (err) {

@@ -1,12 +1,12 @@
 // Shared email helpers for Thoughts Count.
-// Sends via SendGrid (reusing the Damay account key). Sender is the company
-// domain notifications@damayenterprises.com (authenticated in that account).
+// Sends via SendGrid (reusing the Damay account key). Sender is the branded
+// domain care@thoughtscount.com (authenticated in that account, 2026-07-26).
 
 const BRAND = "Thoughts Count";
 
 export async function sendEmail({ to, subject, html, text }) {
   const key = getEnv("SENDGRID_API_KEY");
-  const from = getEnv("FROM_EMAIL") || "notifications@damayenterprises.com";
+  const from = getEnv("FROM_EMAIL") || "care@thoughtscount.com";
   const fromName = getEnv("FROM_NAME") || BRAND;
   if (!key) return { ok: false, error: "Email isn't configured (missing SENDGRID_API_KEY)." };
 

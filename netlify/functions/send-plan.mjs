@@ -4,6 +4,7 @@
 
 import { getStore } from "@netlify/blobs";
 import { sendEmail, planEmailHtml } from "./_email.mjs";
+import { logEvent, hashEmail, isTestEmail } from "./_analytics.mjs";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -55,6 +56,17 @@ export default async (req) => {
       // Plan email already sent; don't fail the whole request over reminders.
     }
   }
+
+  // Record a unique-email submission (hashed, never stored in the clear). Insider/
+  // test addresses and agent sessions are flagged so growth counts stay clean.
+  try {
+    await logEvent("email_submitted", {
+      emailHash: await hashEmail(email),
+      insider: isTestEmail(email), // you + JC: counts as utilization, excluded from growth
+      wantReminders,
+      scheduled,
+    }, { test: !!body?.test });
+  } catch (e) { console.error("email analytics failed", e); }
 
   return json(200, { ok: true, scheduled });
 };

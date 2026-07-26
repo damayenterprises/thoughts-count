@@ -23,6 +23,10 @@ async function boot() {
   try { cfg = await (await fetch("/api/public-config", { cache: "no-store" })).json(); } catch { return; }
   if (!cfg || !cfg.enabled) return;
 
+  // Did this page load actually come from a magic-link email? (Capture before the
+  // client processes and strips the URL.) Only then should we auto-open "Your People".
+  const fromMagicLink = /[#&](access_token|refresh_token)=/.test(location.hash) || /[?&]code=/.test(location.search);
+
   sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
   });
@@ -33,7 +37,9 @@ async function boot() {
   sb.auth.onAuthStateChange((evt, session) => {
     user = session?.user || null;
     renderAuthBtn();
-    if (evt === "SIGNED_IN") { closeModal(); openHome(); }   // returning from magic link
+    // Only auto-open "Your People" on a genuine magic-link return — NOT on the
+    // SIGNED_IN that Supabase re-fires every time it restores a saved session.
+    if (evt === "SIGNED_IN" && fromMagicLink) { closeModal(); openHome(); }
   });
 
   ensureModal();

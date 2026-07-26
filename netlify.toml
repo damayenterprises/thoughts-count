@@ -34,3 +34,21 @@
   from = "/api/public-config"
   to = "/.netlify/functions/public-config"
   status = 200
+
+# Anonymous funnel event ingest (no cookies, no personal data)
+[[redirects]]
+  from = "/api/track"
+  to = "/.netlify/functions/track"
+  status = 200
+
+# Analytics summary (admin token required)
+[[redirects]]
+  from = "/api/analytics"
+  to = "/.netlify/functions/analytics-summary"
+  status = 200
+
+# Send the weekly report now (admin token required) — preview / manual re-send
+[[redirects]]
+  from = "/api/send-digest"
+  to = "/.netlify/functions/send-digest"
+  status = 200
