@@ -12,7 +12,7 @@ import { dirname, join } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SITE = "https://thoughtscount.com";
-const TODAY = "2026-07-26";
+const TODAY = "2026-07-27";
 
 const GUIDES = [
   {
@@ -193,7 +193,7 @@ const GUIDES = [
       ["What's a good gift for a new job or promotion?", "Something understated for the new role — a quality notebook or pen, a desk plant — or simply taking them out to celebrate. A heartfelt note naming their strengths is always welcome."],
       ["Should I check in after they start?", "Yes. A brief 'how's the new role going?' a week or two after they start, once the initial buzz has passed, shows real, lasting support."],
     ],
-    related: ["what-to-write-in-a-new-baby-card", "what-to-write-in-a-graduation-card"],
+    related: ["what-to-say-when-someone-loses-their-job", "what-to-write-in-a-graduation-card"],
   },
   {
     slug: "what-to-write-in-a-graduation-card",
@@ -269,7 +269,7 @@ const GUIDES = [
       ["What practical things can I do for a grieving friend?", "Drop off freezer meals, handle chores (lawn, laundry, pet care, errands), help with the paperwork that follows a death, and coordinate a longer-term meal or check-in schedule."],
       ["How long should I keep helping?", "Well beyond the funeral. Support usually vanishes after a couple of weeks, exactly when grief deepens. Check in at one month, six months, and the one-year anniversary."],
     ],
-    related: ["what-to-say-when-someone-loses-a-parent", "how-to-honor-someone-on-a-loss-anniversary"],
+    related: ["what-to-say-after-a-miscarriage", "how-to-honor-someone-on-a-loss-anniversary"],
   },
   {
     slug: "how-to-help-new-parents",
@@ -459,7 +459,153 @@ const GUIDES = [
       ["Do you need a special occasion to thank someone?", "No. Some of the most meaningful thank-yous come on an ordinary day for no reason at all — which is exactly what makes them feel genuine."],
       ["How do you make a thank-you feel genuine?", "Specificity. Name the particular things they do and the moments you remember, so they know you truly see and value them rather than offering a routine thanks."],
     ],
-    related: ["ways-to-celebrate-a-friends-promotion", "what-to-write-in-a-graduation-card"],
+    related: ["what-to-say-to-someone-having-a-hard-week", "what-to-write-in-a-graduation-card"],
+  },
+
+  // ---- Batch 3: the hard, underserved moments (TC-24 gap-fillers) ----
+  {
+    slug: "what-to-say-when-someone-loses-their-job",
+    tone: "hard",
+    title: "What to Say When Someone Loses Their Job",
+    meta: "Supportive, non-awkward things to say when a friend loses their job or is laid off — plus what to avoid, and concrete ways to help beyond 'let me know if you hear of anything.'",
+    h1: "What to say when someone loses their job",
+    begin: "A friend just lost their job",
+    intro: [
+      "Losing a job hits far more than the bank account — it shakes someone's sense of identity, security, and worth all at once. You want to help, and you're afraid of saying something that lands as pity or judgment. The good news: warmth and one concrete offer beat perfect words every time.",
+      "Here's what genuinely helps, what to avoid, and how to keep showing up while the search drags on.",
+    ],
+    matters: "Right now they're likely cycling through shock, embarrassment, and fear about what's next. What they most need is to feel that this doesn't change how you see them — and that they're not facing it alone. Steady belief in them matters more than advice.",
+    say: [
+      ["“This says nothing about how good you are at what you do — and I've seen how good you are.”", "Layoffs are usually about budgets, not merit. Naming their competence pushes back on the shame."],
+      ["“I'm here — do you want to vent, brainstorm, or think about something else entirely today?”", "Lets them choose what they need instead of assuming they want job-hunt talk."],
+      ["“Can I introduce you to [name], or look over your resume this week?”", "A specific, concrete offer is worth far more than 'let me know if you hear of anything.'"],
+    ],
+    avoid: [
+      ["“Everything happens for a reason.”", "It asks them to feel grateful in the middle of a gut-punch. Let them be upset first."],
+      ["“At least you hated that job anyway.”", "Even if true, it minimizes a real loss of income and stability."],
+      ["“Have you tried applying to…?”", "Unsolicited job-hunt advice can feel like pressure or blame. Offer help; don't assign homework."],
+    ],
+    gestures: [
+      ["Make a real introduction", "The fastest path to a new job is a warm intro. Think of one person in your network and connect them — that beats any pep talk."],
+      ["Treat them to something normal", "Buy the coffee, cover dinner, plan a free hike. Money stress makes people withdraw; a low-key treat keeps them connected without making it a thing."],
+      ["Offer a concrete skill", "Proofread the resume, run a mock interview, share a template that worked for you. One tangible task done is real help."],
+    ],
+    followUp: "Check-ins pour in the first week, then everyone assumes it's handled — but a search often drags on for months, and the quiet stretch is the demoralizing part. Set a reminder to reach out in a few weeks with a low-pressure note: 'thinking of you — no update needed, just in your corner.'",
+    faq: [
+      ["What do you say to someone who just lost their job?", "Lead with warmth, not advice: reassure them a layoff doesn't define their worth, offer to listen however they need, and make one concrete offer of help like an introduction or a resume review. Skip the silver-lining clichés."],
+      ["What should you not say when someone loses their job?", "Avoid 'everything happens for a reason,' 'at least you hated it anyway,' and unsolicited 'have you tried…' advice. These minimize the loss or add pressure. Let them feel the blow before problem-solving."],
+      ["How can I actually help a friend who was laid off?", "Make a warm introduction in your network, offer a specific skill (resume, mock interview, referrals), and treat them to something normal and low-cost so money stress doesn't isolate them."],
+      ["How long should I keep checking in?", "Well past the first week. Job searches often stretch for months, and support tends to vanish right when the discouragement sets in. A brief, no-pressure check-in every few weeks means a lot."],
+    ],
+    related: ["what-to-say-for-a-new-job-or-promotion", "what-to-say-to-someone-having-a-hard-week"],
+  },
+  {
+    slug: "what-to-say-to-someone-going-through-a-divorce",
+    tone: "hard",
+    title: "What to Say to Someone Going Through a Divorce",
+    meta: "What to say to a friend going through a divorce — supportive words that don't take sides or pry, what to avoid, and thoughtful ways to help through a long, messy transition.",
+    h1: "What to say to someone going through a divorce",
+    begin: "A friend is going through a divorce",
+    intro: [
+      "Divorce is a grief no one brings a casserole for. Your friend is mourning a future they'd planned on — often while handling logistics, kids, and everyone's opinions. You want to support them without taking sides or saying the wrong thing.",
+      "Here's how to show up for someone whose life is coming apart and being rebuilt at the same time.",
+    ],
+    matters: "They may feel like a failure, even when the divorce is the right call. What helps most is knowing you're on their side without needing them to justify anything — no interrogation, no scorekeeping, just steady presence through a long, messy transition.",
+    say: [
+      ["“I'm so sorry. However you're feeling about it, I'm on your side.”", "Offers loyalty without forcing them to explain or defend the decision."],
+      ["“You don't have to have it figured out. I'm here for the long haul.”", "Divorce is a marathon of logistics and emotion; naming that you'll stay eases the fear of being a burden."],
+      ["“Do you want to talk about it, or would a normal night out sound better?”", "Gives them a break from being 'the person going through a divorce.'"],
+    ],
+    avoid: [
+      ["“I never liked them anyway.”", "Trashing the ex can backfire — they may reconcile, co-parent, or still love parts of them. Follow their lead."],
+      ["“At least you didn't have kids / weren't married that long.”", "Ranking their loss minimizes it. Every divorce is its own grief."],
+      ["“So what went wrong?”", "The interrogation everyone subjects them to. Let them share what they want, when they want."],
+    ],
+    gestures: [
+      ["Take a logistical load off", "Divorce buries people in admin and solo parenting. Offer one specific thing — a meal, a school pickup, help moving boxes."],
+      ["Keep including them", "Newly single people often get quietly dropped from couple gatherings. A standing invitation says 'you still belong here.'"],
+      ["Mark the small wins", "First night in the new place, paperwork finalized — a card or a 'proud of you' text honors milestones no one else celebrates."],
+    ],
+    followUp: "Support clusters around the announcement, then fades as the process grinds on for a year or more. Check in during the quiet stretches — after a court date, around what would've been an anniversary, on the first holidays alone. Being the friend who remembers those dates is a rare gift.",
+    faq: [
+      ["What do you say to someone going through a divorce?", "Offer loyalty and presence without taking sides or asking for details: 'I'm on your side, however you feel about it,' and 'I'm here for the long haul.' Let them decide how much to share and whether they want distraction or a listening ear."],
+      ["What should you not say to someone getting divorced?", "Avoid bashing the ex, ranking their loss ('at least no kids'), and prying with 'what went wrong?' These can backfire or minimize a real grief. Support them without interrogating them."],
+      ["How can I support a friend during a divorce?", "Take a logistical load off (meals, childcare, moving help), keep including them in plans so they don't feel dropped, and quietly mark the milestones and hard dates no one else acknowledges."],
+      ["How long does someone need support after a divorce?", "Often a year or more — the legal process and the emotional recovery both take time. Support usually fades after the announcement, so checking in through the long, quiet middle matters most."],
+    ],
+    related: ["ways-to-help-a-grieving-friend", "what-to-say-to-someone-having-a-hard-week"],
+  },
+  {
+    slug: "what-to-say-after-a-miscarriage",
+    tone: "hard",
+    title: "What to Say to Someone After a Miscarriage",
+    meta: "Gentle, comforting things to say to someone who's had a miscarriage — words that acknowledge the loss, what to avoid, and how to support them through a grief the world often overlooks.",
+    h1: "What to say to someone after a miscarriage",
+    begin: "Someone I care about had a miscarriage",
+    intro: [
+      "A miscarriage is a real loss of a real future — and one the world often rushes past, or never learns about at all. Your friend may be grieving a baby they'd already loved, sometimes in silence. Simply acknowledging that loss, gently and without minimizing it, is profoundly healing.",
+      "Here's how to offer comfort after a pregnancy loss, and what to avoid.",
+    ],
+    matters: "So much of the pain of miscarriage is how invisible and lonely it can feel — the sense that they should just 'move on' from something no one else saw. When you treat it as the genuine loss it is, and follow their lead on how they name it, you give them permission to grieve openly.",
+    say: [
+      ["“I'm so sorry. This was a real loss, and I'm here with you.”", "Naming it as a real loss counters the world's instinct to minimize it."],
+      ["“You don't have to be strong or say anything. I'm just here.”", "Removes the pressure to perform okayness or explain their grief."],
+      ["“I'm thinking of you both. There is nothing you did to cause this.”", "Miscarriage often comes with irrational guilt; gently naming that it wasn't their fault can matter enormously."],
+    ],
+    avoid: [
+      ["“At least you know you can get pregnant.”", "It reframes a loss as a silver lining and dismisses the baby they just lost."],
+      ["“Everything happens for a reason.” / “It wasn't meant to be.”", "Meaning-making clichés can feel cruel in fresh grief. Presence beats explanation."],
+      ["“You can always try again.”", "It rushes them past this loss toward a replacement. Let them grieve this one first."],
+    ],
+    gestures: [
+      ["Acknowledge it in writing", "A short, gentle note — 'thinking of you, no need to reply' — tells them the loss is seen. So many people, unsure what to say, say nothing at all."],
+      ["Bring quiet, practical care", "A meal at the door, a warm blanket, their favorite tea. Comfort with no expectation of conversation."],
+      ["Remember the hard dates", "The due date and the anniversary can hit hard, often long after everyone else has forgotten. A simple message on those days is extraordinary."],
+    ],
+    followUp: "Grief after a miscarriage doesn't follow a schedule, and support usually disappears within days. The due date, especially, can arrive months later like a fresh wave. Quietly note it, and reach out then — 'I remembered, and I'm thinking of you.' Few things mean more.",
+    faq: [
+      ["What do you say to someone who had a miscarriage?", "Acknowledge it as a real loss and offer steady presence: 'I'm so sorry, this was a real loss, and I'm here with you.' Gently reassure them it wasn't their fault, and let them lead on how much they want to talk. Avoid silver linings."],
+      ["What should you not say after a miscarriage?", "Avoid minimizing lines like 'at least you can get pregnant,' 'everything happens for a reason,' 'it wasn't meant to be,' and 'you can always try again.' These dismiss the loss or rush the person past their grief."],
+      ["How can you support someone after a pregnancy loss?", "Acknowledge the loss in a gentle note, bring quiet practical comfort (a meal, tea, a blanket) with no pressure to talk, and remember the hard dates like the due date and anniversary, when grief can resurface."],
+      ["Is it okay to bring it up, or will that remind them?", "It's almost always okay — they haven't forgotten, and silence can feel like the loss didn't matter. Acknowledge it gently, follow their lead on how much to say, and make clear they don't owe you a reply."],
+    ],
+    related: ["what-to-say-when-someone-loses-a-parent", "ways-to-help-a-grieving-friend"],
+  },
+  {
+    slug: "what-to-say-to-someone-having-a-hard-week",
+    tone: "everyday",
+    title: "What to Say to Someone Having a Hard Time",
+    meta: "What to say to someone going through a rough patch or a hard week — comforting words that help without fixing, what to avoid, and small gestures that remind them they're not alone.",
+    h1: "What to say to someone having a hard time",
+    begin: "Someone I care about is having a really hard week",
+    intro: [
+      "Not every hard moment has a name. Sometimes someone you love is just worn down — stressed, overwhelmed, quietly struggling — and there's no casserole or card for 'a rough patch.' You don't need to fix it. You just need to let them know you noticed, and you're here.",
+      "Here's how to comfort someone having a hard time without minimizing it or rushing to solutions.",
+    ],
+    matters: "When someone's struggling, the instinct is to cheer them up or solve the problem — but what most people want first is to feel understood. Being witnessed in a hard moment, without judgment or a fix, is what actually lightens it.",
+    say: [
+      ["“That sounds really hard. I'm sorry you're carrying all this.”", "Validation before advice. Feeling understood is what people crave most in a rough patch."],
+      ["“You don't have to have it together with me.”", "Gives them permission to drop the 'I'm fine' act, which is a relief."],
+      ["“What would actually help right now — company, a distraction, or some space?”", "Asks instead of assuming, and hands them a little control when everything feels heavy."],
+    ],
+    avoid: [
+      ["“Just stay positive!”", "Forced positivity can make them feel they can't be honest about how bad it is."],
+      ["“It could be worse.”", "Comparing their struggle to something bigger makes them feel unjustified in feeling bad."],
+      ["“Have you tried…?” (unsolicited advice)", "Jumping to solutions can feel dismissive. Ask if they want ideas before offering them."],
+    ],
+    gestures: [
+      ["Send a low-effort lifeline", "A 'thinking of you, no need to reply' text, or their favorite snack delivered. Small proof they're not alone, with zero pressure."],
+      ["Take one thing off their plate", "Bring dinner, run an errand, watch the kids for an hour. Lightening the load says more than any pep talk."],
+      ["Just show up", "Sit with them, go for a walk, put on a comfort movie. Presence without an agenda is often the whole gift."],
+    ],
+    followUp: "A rough patch rarely resolves in a day. Circle back in a few days — 'still thinking of you, how are you holding up?' The person who checks in again, after the first message, is the one who really shows they care.",
+    faq: [
+      ["What do you say to someone having a hard time?", "Lead with validation, not solutions: 'that sounds really hard, I'm sorry you're carrying this.' Let them know they don't have to pretend to be okay, and ask what would actually help — company, distraction, or space."],
+      ["What should you not say to someone who's struggling?", "Avoid forced positivity ('just stay positive!'), comparisons ('it could be worse'), and unsolicited advice. These can make them feel unheard or guilty for struggling. Ask before offering solutions."],
+      ["How do you comfort someone without fixing their problem?", "Focus on being present and understanding. Reflect back that it sounds hard, resist jumping to advice, and offer small concrete support — a text, a meal, your company — so they feel less alone."],
+      ["How do you check in on someone going through a rough patch?", "Reach out simply and without pressure ('thinking of you, no need to reply'), then circle back again a few days later. Consistency matters more than perfect words."],
+    ],
+    related: ["what-to-say-to-someone-going-through-a-divorce", "ways-to-thank-someone-who-is-always-there"],
   },
 ];
 
