@@ -634,6 +634,18 @@ function page(g) {
       { "@type": "ListItem", position: 3, name: g.title, item: url },
     ],
   };
+  const articleLd = {
+    "@context": "https://schema.org",
+    "@type": "Article",
+    headline: g.title,
+    description: g.meta,
+    mainEntityOfPage: url,
+    inLanguage: "en",
+    datePublished: TODAY,
+    dateModified: TODAY,
+    author: { "@type": "Organization", name: "Thoughts Count", url: SITE + "/" },
+    publisher: { "@type": "Organization", name: "Thoughts Count", logo: { "@type": "ImageObject", url: SITE + "/favicon.svg" } },
+  };
   const sayRows = g.say.map(([line, note]) => `
       <div class="row good">
         <div class="line">${line}</div>
@@ -666,9 +678,11 @@ function page(g) {
 <meta property="og:url" content="${url}" />
 <meta property="og:site_name" content="Thoughts Count" />
 <meta name="twitter:card" content="summary" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<script type="application/ld+json">${JSON.stringify(articleLd)}</script>
 <script type="application/ld+json">${JSON.stringify(faqLd)}</script>
 <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
 <style>
@@ -757,6 +771,22 @@ ${TRACKER}
 }
 
 function hub() {
+  const collectionLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    name: "Guides — What to Say & Do When It Matters",
+    url: SITE + "/guides/",
+    description: "Warm, practical guides on what to say and do for life's big moments.",
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: GUIDES.map((g, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        url: `${SITE}/guides/${g.slug}/`,
+        name: g.title,
+      })),
+    },
+  };
   const cards = GUIDES.map((g) => `
       <a class="card" href="/guides/${g.slug}/">
         <span class="tag ${g.tone}">${g.tone === "hard" ? "Hard moment" : g.tone === "everyday" ? "Everyday" : "Celebration"}</span>
@@ -774,6 +804,12 @@ function hub() {
 <meta property="og:title" content="Guides — What to Say & Do When It Matters" />
 <meta property="og:description" content="Warm, practical guides on what to say and do for life's big moments." />
 <meta property="og:url" content="${SITE}/guides/" />
+<meta property="og:site_name" content="Thoughts Count" />
+<meta name="twitter:card" content="summary" />
+<meta name="twitter:title" content="Guides — What to Say & Do When It Matters" />
+<meta name="twitter:description" content="Warm, practical guides on what to say and do for life's big moments." />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<script type="application/ld+json">${JSON.stringify(collectionLd)}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
