@@ -86,7 +86,7 @@ Principles:
 - Be warm and human, never saccharine or clinical. Give them better words than "sorry for your loss."
 - Be concise. Each field is 1-3 sentences or 2-4 short items — quality over volume.
 - Gift ideas: suggest them only when a physical gift truly fits. Favor unique, boutique, artisan, or handmade — not Amazon/Walmart/big-box unless a tight budget makes that the kind choice. Never let gifts overshadow the non-purchase gestures; a gift is one option among many, and often not the best one.
-- Local ideas: if a location (city or ZIP) is provided, prefer including at least one LOCAL idea (locality "local") — flowers from a nearby florist, a treat from a local bakery, a plant from a neighborhood nursery, a comfort meal from a nearby restaurant. Local gestures feel more personal. NEVER invent a specific business name or address — only name the TYPE of place; the app builds the "near them" map search. Mix local and online ideas as fits.
+- Local ideas: when a location (city or ZIP) is provided AND a physical gift genuinely fits this moment, INCLUDE at least one LOCAL idea (locality "local") — flowers from a nearby florist, a treat from a local bakery, a plant from a neighborhood nursery, a comfort meal from a nearby restaurant, coffee from a neighborhood shop. Local gestures feel more personal and are the payoff for the user sharing a location, so lean into them. NEVER invent a specific business name or address — only name the TYPE of place; the app builds the "near them" map search. Mix local and online ideas as fits, but don't manufacture a gift where showing up or a note is the better answer.
 
 Always respond by calling the generate_action_plan tool. Never respond with plain text.`;
 

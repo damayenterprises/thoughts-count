@@ -423,7 +423,7 @@ const STEPS = [
   { key: "about", eyebrow: "Tell us about them", title: "What are they like?", help: "Anything that helps us make this feel like them — their personality, what they're going through, your history together.", picks: [], placeholder: "e.g. She's private and doesn't like a fuss, but she's been carrying a lot. We usually just chat about our kids." },
   { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure — guide me"], placeholder: "Optional — anything about your style or what you're comfortable with." },
   { key: "constraints", eyebrow: "Time & budget", title: "What can you give right now?", help: "Totally okay if it's not much. Sometimes the most meaningful gesture is free.", picks: ["Just a little time","An afternoon","No budget","Under $25","$25–75","$75–150","Money's not the issue"], placeholder: "Optional — e.g. I'm slammed this week but want to do something meaningful.",
-    extra: { key: "location", label: "Their area — optional, for local ideas", placeholder: "e.g. Fayetteville, AR or 72703" } },
+    extra: { key: "location", label: "📍 What town or ZIP are they in?", hint: "Optional — but if you add it, we'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
 ];
 
 const answers = {};   // raw free-text per step
@@ -491,6 +491,7 @@ function renderStep(){
       ${picksHtml}
       <textarea id="freetext" placeholder="${s.placeholder}">${current}</textarea>
       ${s.extra ? `<label style="display:block;margin-top:14px;font-size:13.5px;color:var(--ink-soft);">${s.extra.label}</label>
+      ${s.extra.hint ? `<p style="margin:3px 0 0;font-size:12.5px;line-height:1.5;color:#b3a58c;">${s.extra.hint}</p>` : ''}
       <input type="text" id="extrafield" style="margin-top:6px;" placeholder="${s.extra.placeholder}" value="${(answers[s.extra.key]||'').replace(/"/g,'&quot;')}" />` : ''}
       <div class="nav">
         <button class="link-btn" id="backBtn" ${idx===0?'disabled':''}>← Back</button>
