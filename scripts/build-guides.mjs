@@ -677,7 +677,11 @@ function page(g) {
 <meta property="og:description" content="${esc(g.meta)}" />
 <meta property="og:url" content="${url}" />
 <meta property="og:site_name" content="Thoughts Count" />
-<meta name="twitter:card" content="summary" />
+<meta property="og:image" content="${SITE}/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${SITE}/og.png" />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -805,7 +809,11 @@ function hub() {
 <meta property="og:description" content="Warm, practical guides on what to say and do for life's big moments." />
 <meta property="og:url" content="${SITE}/guides/" />
 <meta property="og:site_name" content="Thoughts Count" />
-<meta name="twitter:card" content="summary" />
+<meta property="og:image" content="${SITE}/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${SITE}/og.png" />
 <meta name="twitter:title" content="Guides — What to Say & Do When It Matters" />
 <meta name="twitter:description" content="Warm, practical guides on what to say and do for life's big moments." />
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
