@@ -42,6 +42,8 @@ function daysUntil(d) { return Math.round((startOfDay(d) - startOfDay(new Date()
 function relativeWhen(days) {
   if (days === 0) return "today";
   if (days === 1) return "tomorrow";
+  if (days === 7) return "in a week";
+  if (days === 14) return "in two weeks";
   if (days <= 30) return `in ${days} days`;
   if (days <= 60) return "in about a month";
   return "coming up";
@@ -190,13 +192,23 @@ async function savePlan(personId, plan, occasion) {
 // its own day (lead_days 0). Best-effort: a single failure doesn't block the save.
 async function addPlanFollowups(personId, plan) {
   const items = (plan.follow_up || []).filter((f) => Number.isFinite(f.days_from_now) && f.days_from_now > 0);
+  // Idempotent: re-opening and re-saving the same plan must not stack duplicate
+  // reminder rows. Skip any (label, date) we already have for this person.
+  let seen = new Set();
+  try {
+    const { data: existing } = await sb.from("key_dates").select("label,event_date").eq("person_id", personId);
+    seen = new Set((existing || []).map((k) => k.label + "|" + k.event_date));
+  } catch (e) { console.error("follow-up dedupe lookup failed", e); }
   let count = 0;
   for (const f of items) {
     const dt = new Date(); dt.setDate(dt.getDate() + f.days_from_now);
+    const event_date = ymd(dt);
     let label = String(f.gesture || f.when || "Reach out").trim();
     if (label.length > 70) label = label.slice(0, 67).trimEnd() + "…";
+    if (seen.has(label + "|" + event_date)) continue;
     try {
-      await addKeyDate(personId, { label, kind: "moment", event_date: ymd(dt), recurs: false, lead_days: 0 });
+      await addKeyDate(personId, { label, kind: "moment", event_date, recurs: false, lead_days: 0 });
+      seen.add(label + "|" + event_date);
       count++;
     } catch (e) { console.error("follow-up reminder insert failed", e); }
   }
@@ -425,7 +437,7 @@ async function mountSaveToPerson(stageEl, plan) {
   const opts = people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
   const followups = (plan.follow_up || []).filter((f) => Number.isFinite(f.days_from_now) && f.days_from_now > 0);
   const followupOpt = followups.length ? `
-    <label class="k-remind" style="margin-top:12px;"><input type="checkbox" id="tcRemindFollow" checked /> Also remind me to follow through — we'll nudge you on each of this plan's ${followups.length} “keep showing up” date${followups.length > 1 ? "s" : ""}</label>` : "";
+    <label class="k-remind" style="margin-top:12px;"><input type="checkbox" id="tcRemindFollow" checked /> Also remind me to follow through — we'll gently nudge you the morning each of this plan's ${followups.length} “keep showing up” date${followups.length > 1 ? "s" : ""} arrives</label>` : "";
   card.innerHTML = `
     <h4>Keep this plan with your people</h4>
     <p class="k-sub">Save it to ${recipient ? esc(recipient) : "someone"}, and we'll remind you at just the right time to follow through.</p>
