@@ -51,6 +51,15 @@ export function normalizeDate(raw) {
   const s = String(raw).trim();
   if (!s) return null;
 
+  // Refuse PARTIAL dates (year-only, year+month, month-name+year). We must never invent
+  // a day the user didn't provide — a fabricated "Jan 1" would become a real key date and
+  // drive a nudge on a guessed anniversary (TC-38 UX finding #2). Full dates only.
+  // Preserving + displaying partials (without nudging) is the Architect follow-up.
+  if (/^\d{4}$/.test(s)) return null;                     // 2021
+  if (/^\d{4}[-\/]\d{1,2}$/.test(s)) return null;         // 2020-06, 2020/6
+  if (/^\d{1,2}[-\/]\d{4}$/.test(s)) return null;         // 6/2020
+  if (/^[A-Za-z]{3,9}\.?\s+\d{4}$/.test(s)) return null;  // June 2020, Jun 2020
+
   // ISO first.
   let m = /^(\d{4})-(\d{1,2})-(\d{1,2})/.exec(s);
   if (m) return iso(+m[1], +m[2], +m[3]);
