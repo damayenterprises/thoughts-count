@@ -323,9 +323,13 @@ function renderHome(people) {
   modalBody().innerHTML = `
     <div class="panel-body">
       <div class="q-eyebrow">Welcome back</div>
-      <h2 class="q-title" style="margin-bottom:2px;">People I care about</h2>
-      <p class="q-help" style="margin-bottom:6px;">${email} · we'll nudge you before each date.</p>
-      <div style="margin:0 0 18px;"><button class="link-btn tc-signout" style="padding:2px 0;font-size:13.5px;">Sign out</button></div>
+      <h2 class="q-title" style="margin-bottom:10px;">People I care about</h2>
+      <div class="tc-promise">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
+        <span class="tc-promise-txt">We'll <b>gently nudge you before every date that matters</b> — birthdays, anniversaries, hard days — so you're always ready to show up.</span>
+      </div>
+      <p class="tc-account">Signed in as ${email} · <button class="link-btn tc-signout">Sign out</button></p>
+      <div style="height:14px"></div>
       ${comingUp}
       ${controls}
       <div id="tcPeopleList"></div>
