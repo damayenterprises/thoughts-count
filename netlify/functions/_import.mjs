@@ -258,6 +258,14 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
   }
 
   // 4) No match → insert a fresh person, its identifiers, its source row, its key dates.
+  const personId = await insertPerson(supa, userId, n, source, contactKind);
+  return { action: "inserted", personId };
+}
+
+// Insert a brand-new person from a normalized row, plus its identifiers, source row,
+// and key dates. Shared by the "no match" route and review keep-both resolution (which
+// must force a new person WITHOUT re-running dedup, or it would fuzzy-match right back).
+async function insertPerson(supa, userId, n, source, contactKind = "contact") {
   const { data: person, error: insErr } = await supa
     .from("people")
     .insert({
@@ -273,11 +281,41 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     .select("id")
     .single();
   if (insErr) throw insErr;
-
   await addIdentifiers(supa, userId, person.id, n.identifiers);
   await touchSource(supa, userId, person.id, source, { natural_key: n.natural_key });
   await upsertKeyDates(supa, userId, person.id, n.key_dates);
-  return { action: "inserted", personId: person.id };
+  return person.id;
+}
+
+// Resolve one review candidate. 'merge' folds the held row into the matched person;
+// 'keep_both' promotes it to its own person. Either way we record a contact_source for
+// the incoming natural key, so re-uploading that same row later is a silent no-op rather
+// than re-proposing the same question.
+export async function resolveCandidate({ supa, userId, candidateId, action }) {
+  const { data: cand } = await supa
+    .from("review_candidates")
+    .select("id, existing_person_id, incoming")
+    .eq("user_id", userId)
+    .eq("id", candidateId)
+    .maybeSingle();
+  if (!cand) return { ok: false, error: "That item was already resolved." };
+
+  const n = cand.incoming || {};
+  const source = n.source || "csv";
+  let personId;
+
+  if (action === "merge") {
+    personId = cand.existing_person_id;
+    await mergeIntoPerson(supa, userId, personId, n);
+    await touchSource(supa, userId, personId, source, { natural_key: n.natural_key });
+  } else if (action === "keep_both") {
+    personId = await insertPerson(supa, userId, n, source, "contact");
+  } else {
+    return { ok: false, error: "Unknown action." };
+  }
+
+  await supa.from("review_candidates").delete().eq("user_id", userId).eq("id", candidateId);
+  return { ok: true, action, personId };
 }
 
 // Field-merge into an existing person: fill empty fields, never clobber a curated note.
@@ -302,8 +340,7 @@ async function mergeIntoPerson(supa, userId, personId, n) {
   fill("location", n.location);
   fill("primary_email", n.email);
   fill("primary_phone", n.phone);
-  // Prefer a fuller name (e.g. "Jane Q. Smith" over "Jane") but don't shrink one.
-  if (n.name && n.name.length > (cur.name || "").length) patch.name = n.name;
+  fill("name", n.name); // only if the existing person has no name — never rename a curated contact
 
   if (Object.keys(patch).length) {
     patch.updated_at = new Date().toISOString();
