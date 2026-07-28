@@ -70,7 +70,7 @@ async function boot() {
 
   // Did this page load actually come from a magic-link email? (Capture before the
   // client processes and strips the URL.) Only then should we auto-open "Your People".
-  const fromMagicLink = /[#&](access_token|refresh_token)=/.test(location.hash) || /[?&]code=/.test(location.search);
+  let fromMagicLink = /[#&](access_token|refresh_token)=/.test(location.hash) || /[?&]code=/.test(location.search);
 
   sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, {
     auth: { persistSession: true, autoRefreshToken: true, detectSessionInUrl: true },
@@ -82,9 +82,11 @@ async function boot() {
   sb.auth.onAuthStateChange((evt, session) => {
     user = session?.user || null;
     renderAuthBtn();
-    // Only auto-open "Your People" on a genuine magic-link return — NOT on the
-    // SIGNED_IN that Supabase re-fires every time it restores a saved session.
-    if (evt === "SIGNED_IN" && fromMagicLink) { closeModal(); openHome(); }
+    // Auto-open "Your People" ONCE, only on a genuine magic-link return. Supabase
+    // re-fires SIGNED_IN on session restore and tab refocus, so we consume the flag
+    // after the first open — otherwise the panel keeps popping up unbidden when the
+    // user comes back to the tab from another screen.
+    if (evt === "SIGNED_IN" && fromMagicLink) { fromMagicLink = false; closeModal(); openHome(); }
   });
 
   ensureModal();
@@ -151,15 +153,39 @@ function openSignIn() {
     </div>`;
   const emailEl = modalBody().querySelector("#tcEmail");
   emailEl.focus();
-  modalBody().querySelector("#tcSendLink").onclick = async () => {
+  const send = async () => {
     const email = (emailEl.value || "").trim();
     const msg = modalBody().querySelector("#tcAuthMsg");
+    const btn = modalBody().querySelector("#tcSendLink");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = "k-msg bad"; msg.textContent = "Please enter a valid email address."; return; }
-    msg.className = "k-msg"; msg.textContent = "Sending your link…";
+    btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Sending your link…";
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
-    if (error) { msg.className = "k-msg bad"; msg.textContent = error.message || "Could not send the link. Please try again."; return; }
-    msg.className = "k-msg ok"; msg.textContent = "Check your inbox — your sign-in link is on the way. You can close this and click it from your email.";
+    if (error) { btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = error.message || "Could not send the link. Please try again."; return; }
+    renderCheckInbox(email);
   };
+  modalBody().querySelector("#tcSendLink").onclick = send;
+  emailEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); send(); } });
+}
+
+// A clean, inviting confirmation after a sign-in link is sent — replaces the form
+// entirely (no more email box) so the whole screen says "we've got it, go check".
+function renderCheckInbox(email) {
+  modalBody().innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div class="tc-sent-badge" aria-hidden="true">
+        <svg viewBox="0 0 48 48" fill="none" stroke="#7d8a68" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="8" y="13" width="32" height="22" rx="3"/><path d="M9 15l15 11 15-11"/>
+          <circle cx="37" cy="34" r="7" fill="#e4ecdb" stroke="#c28a63"/><path d="M34 34l2 2 4-4" stroke="#5f6c4c"/>
+        </svg>
+      </div>
+      <h2 class="q-title" style="margin-top:14px;">Check your inbox</h2>
+      <p class="q-help" style="max-width:34ch;margin-left:auto;margin-right:auto;">We just sent a sign-in link to <b>${esc(email)}</b>. Open it from your email and you're in — no password to remember.</p>
+      <p class="tc-help-sm" style="text-align:center;max-width:34ch;margin:0 auto 20px;">The link opens right back here. You can safely close this window in the meantime.</p>
+      <button class="cta" id="tcInboxDone" style="min-width:180px;justify-content:center;">Got it</button>
+      <div class="k-privacy" style="margin-top:16px;">Didn't see it? Check spam, or <button class="link-btn tc-inbox-retry" style="padding:0 2px;">use a different email</button>.</div>
+    </div>`;
+  modalBody().querySelector("#tcInboxDone").onclick = closeModal;
+  modalBody().querySelector(".tc-inbox-retry").onclick = openSignIn;
 }
 
 /* ---------------- data ---------------- */
