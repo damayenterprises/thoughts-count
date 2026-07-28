@@ -647,6 +647,7 @@ const GIFT_ICONS = {
   cozy: '<path d="M14 20c4-3 16-3 20 0v14c-4-3-16-3-20 0Z"/><path d="M20 19v15M26 19v15"/>',
   experience: '<path d="M14 20a3 3 0 0 0 0 8v6h20v-6a3 3 0 0 1 0-8v-6H14Z"/><path d="M24 15v18" stroke-dasharray="2 3"/>',
   donation: '<path d="M24 34s-9-5-9-12a5 5 0 0 1 9-3 5 5 0 0 1 9 3c0 7-9 12-9 12Z"/>',
+  gift_card: '<rect x="13" y="18" width="22" height="15" rx="2.5"/><path d="M13 24h22"/><path d="M24 18v-3"/><path d="M24 15c1.7 1.7 1.7 3 0 3s-1.7-1.3 0-3Z"/>',
   other: '<rect x="14" y="21" width="20" height="15" rx="2"/><path d="M12 21h24v-5H12z"/><path d="M24 16v20"/><path d="M24 16s-3-6-6-4 1 4 6 4Zm0 0s3-6 6-4-1 4-6 4Z"/>',
 };
 const TILE_BG = ['linear-gradient(135deg,#e6efe8,#dbe9e4)','linear-gradient(135deg,#e3ede9,#d8e6e6)','linear-gradient(135deg,#e6ece2,#dbe6df)'];
@@ -661,6 +662,44 @@ function renderGiftCard(g, i){
   const loc = (answers.location || '').trim();
   const lp = g.local_place;
   const priceTag = `<span class="price">${escapeHtml(g.price_range||'')}</span>`;
+  const gcBadge = `<span class="local-badge">🎁 Gift card</span>`;
+
+  // Gift card — a "let them choose" option. Prefer a card to the real nearby
+  // business we resolved (far more personal); otherwise a small, tasteful chooser.
+  if (g.category === 'gift_card') {
+    if (lp && lp.name) {
+      const tile = lp.photoName
+        ? `<span class="tile"><img src="/api/place-photo?ref=${encodeURIComponent(lp.photoName)}" alt="${escapeHtml(lp.name)}" loading="lazy" onerror="this.remove()"></span>`
+        : giftTile(g.category, i);
+      const rating = lp.rating ? `<span class="rating">${lp.rating}★${lp.ratingCount?` (${lp.ratingCount})`:''}</span>` : '';
+      const href = lp.website || lp.mapsUri || mapsLink(g.search_query, loc);
+      return `
+      <div class="gift">
+        ${tile}
+        <div class="g-body">
+          <div class="g-title">${escapeHtml(g.title)}</div>
+          <div class="g-place">${PIN_SVG}<b>${escapeHtml(lp.name)}</b>${rating}<span class="g-addr">${escapeHtml(lp.address||'')}</span></div>
+          <div class="g-why"><b>Why it fits:</b> ${escapeHtml(g.why_it_fits||'')}</div>
+          <div style="font-size:13px;color:var(--ink-soft);margin:2px 0 4px;">Many local spots sell gift cards on their site or at the counter — a quick check confirms it.</div>
+          <div class="g-foot">${priceTag}${gcBadge}<a class="g-link" href="${href}" target="_blank" rel="noopener noreferrer">${lp.website ? 'Visit their site →' : 'See them on the map →'}</a></div>
+        </div>
+      </div>`;
+    }
+    const gcChoices = [
+      { label: 'Bookshop.org', url: 'https://bookshop.org/gift_cards' },
+      { label: 'Uncommon Goods', url: 'https://www.uncommongoods.com/gift-cards' },
+    ].map(c => `<a class="g-link" href="${c.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(c.label)} →</a>`).join('<span style="color:var(--line);margin:0 4px;">·</span>');
+    return `
+      <div class="gift">
+        ${giftTile(g.category, i)}
+        <div class="g-body">
+          <div class="g-title">${escapeHtml(g.title)}</div>
+          <div class="g-blurb">${escapeHtml(g.blurb||'')}</div>
+          <div class="g-why"><b>Why it fits:</b> ${escapeHtml(g.why_it_fits||'')}</div>
+          <div class="g-foot">${priceTag}${gcBadge}${gcChoices}</div>
+        </div>
+      </div>`;
+  }
 
   // Real local business resolved via Google Places.
   if (lp && lp.name) {

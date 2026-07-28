@@ -48,9 +48,9 @@ const PLAN_SCHEMA = {
           blurb: { type: "string", description: "One short sentence on what it is / why it's lovely." },
           why_it_fits: { type: "string", description: "One sentence tying it to this person and moment." },
           price_range: { type: "string", description: "e.g. '$30–45'. Respect the stated budget." },
-          category: { type: "string", enum: ["flowers","candle","food_drink","book","plant","self_care","stationery","keepsake","cozy","experience","donation","other"], description: "Best-fit category, used to show a matching illustration." },
-          locality: { type: "string", enum: ["online","local"], description: "'local' ONLY if a location was provided AND this idea is best sourced from a nearby business (a florist, bakery, plant nursery, comfort-meal restaurant, coffee shop). Otherwise 'online'." },
-          search_query: { type: "string", description: "For 'online': 2-5 words to find one on a boutique marketplace, e.g. 'hand poured soy candle'. For 'local': the TYPE of nearby business to search, e.g. 'florist', 'bakery', 'plant nursery' (do NOT invent a specific business name)." },
+          category: { type: "string", enum: ["flowers","candle","food_drink","book","plant","self_care","stationery","keepsake","cozy","experience","donation","gift_card","other"], description: "Best-fit category, used to show a matching illustration. Use 'gift_card' for a gift-card idea." },
+          locality: { type: "string", enum: ["online","local"], description: "'local' ONLY if a location was provided AND this idea is best sourced from a nearby business (a florist, bakery, plant nursery, comfort-meal restaurant, coffee shop, or a gift card to one of those). Otherwise 'online'." },
+          search_query: { type: "string", description: "For 'online': 2-5 words to find one on a boutique marketplace, e.g. 'hand poured soy candle'. For 'local': the TYPE of nearby business to search, e.g. 'florist', 'bakery', 'coffee shop', 'bookstore' (do NOT invent a specific business name). For a local gift_card, use the business type whose card they'd love, e.g. 'coffee shop', 'restaurant', 'bookstore'." },
         },
         required: ["title", "blurb", "why_it_fits", "price_range", "category", "locality", "search_query"],
       },
@@ -87,6 +87,7 @@ Principles:
 - Be concise. Each field is 1-3 sentences or 2-4 short items — quality over volume.
 - Gift ideas: suggest them only when a physical gift truly fits. Favor unique, boutique, artisan, or handmade — not Amazon/Walmart/big-box unless a tight budget makes that the kind choice. Never let gifts overshadow the non-purchase gestures; a gift is one option among many, and often not the best one.
 - Local ideas: when a location (city or ZIP) is provided AND a physical gift genuinely fits this moment, INCLUDE at least one LOCAL idea (locality "local") — flowers from a nearby florist, a treat from a local bakery, a plant from a neighborhood nursery, a comfort meal from a nearby restaurant, coffee from a neighborhood shop. Local gestures feel more personal and are the payoff for the user sharing a location, so lean into them. NEVER invent a specific business name or address — only name the TYPE of place; the app builds the "near them" map search. Mix local and online ideas as fits, but don't manufacture a gift where showing up or a note is the better answer.
+- Gift cards (category "gift_card"): offer one ONLY as a single option when choosing a specific item is genuinely hard to get right — the recipient is far away, their taste is uncertain, time is very short, or letting them choose is the kindest move. HARD LIMIT: at most ONE gift_card idea in the whole plan, and never the only idea. A gift card to a NEARBY business they'd love — their neighborhood coffee shop, a favorite-type restaurant, a local bookstore — is far more thoughtful than a generic one; strongly prefer a local gift_card (locality "local") when a location is provided. For a local gift_card, the title should name the kind of place (e.g. "A gift card to a cozy local coffee shop"). For an ONLINE gift_card (no location), keep the title generic and warm (e.g. "A gift card so they can pick something they'll love") — do NOT name a specific card brand (never Visa, Amazon, Airbnb, Target, etc.); the app presents a couple of tasteful options. Keep gift cards personal, never big-box/national/transactional. NEVER suggest a gift card for grief, death, illness, or sympathy — there it reads as cold.
 
 Always respond by calling the generate_action_plan tool. Never respond with plain text.`;
 
@@ -244,10 +245,32 @@ function pickVaried(arr, n) {
   return arr[Math.floor(Math.random() * Math.min(n, arr.length))];
 }
 
+// From up to a handful of Google Places matches, pick the *loved* one — not just
+// Google's top relevance hit. A Bayesian average pulls thinly-reviewed shops toward
+// a neutral prior so a 5.0 with 3 reviews can't beat a 4.6 with 400. Prefer places
+// clearing a basic quality floor; if none do, still return the best available
+// (better a real business than nothing — the client has a map-search fallback too).
+function pickBestPlace(places) {
+  if (!Array.isArray(places) || !places.length) return null;
+  const PRIOR_MEAN = 4.2, PRIOR_WEIGHT = 20;
+  const scored = places.map((p) => {
+    const r = typeof p.rating === "number" ? p.rating : null;
+    const c = typeof p.userRatingCount === "number" ? p.userRatingCount : 0;
+    const score = r == null ? 0 : (r * c + PRIOR_MEAN * PRIOR_WEIGHT) / (c + PRIOR_WEIGHT);
+    return { p, r, c, score };
+  });
+  const qualified = scored.filter((s) => s.r != null && s.r >= 4.0 && s.c >= 15);
+  const pool = qualified.length ? qualified : scored;
+  pool.sort((a, b) => b.score - a.score);
+  return pool[0].p;
+}
+
 // For each "online" gift idea, attach a real product (photo, price, direct link).
 async function enrichOnlineIdeas(plan, etsyKey, shoppingKey) {
   if (!plan || !Array.isArray(plan.gift_ideas)) return;
-  const online = plan.gift_ideas.filter((g) => g.locality !== "local").slice(0, 3);
+  // Gift cards are resolved differently (local business or a curated chooser in the
+  // client) — never attach a random marketplace product to a gift-card idea.
+  const online = plan.gift_ideas.filter((g) => g.locality !== "local" && g.category !== "gift_card").slice(0, 3);
   for (const g of online) {
     const q = (g.search_query || g.title || "").trim();
     if (!q) continue;
@@ -321,13 +344,13 @@ async function enrichLocalIdeas(plan, location, key) {
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": key,
-          "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.photos",
+          "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.photos",
         },
-        body: JSON.stringify({ textQuery: `${g.search_query} near ${location}`, maxResultCount: 1 }),
+        body: JSON.stringify({ textQuery: `${g.search_query} near ${location}`, maxResultCount: 5 }),
       });
       if (!res.ok) continue;
       const data = await res.json();
-      const p0 = data.places && data.places[0];
+      const p0 = pickBestPlace(data.places);
       if (!p0) continue;
       g.local_place = {
         name: p0.displayName?.text || "",
@@ -335,6 +358,7 @@ async function enrichLocalIdeas(plan, location, key) {
         rating: p0.rating || null,
         ratingCount: p0.userRatingCount || null,
         mapsUri: p0.googleMapsUri || "",
+        website: p0.websiteUri || "",
         photoName: (p0.photos && p0.photos[0] && p0.photos[0].name) || "",
       };
     } catch (err) {
