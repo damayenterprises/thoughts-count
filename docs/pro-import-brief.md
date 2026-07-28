@@ -11,10 +11,25 @@ where this brief recommends, it is a starting point to refine, not a spec to obe
 
 ## 1. Goal & scope
 
-Give a professional user (beachhead: **real estate agents**) two ways to get their
-"book of business" into Thoughts Count, both landing in **one shared, deduplicated set
-of people**, so the existing engine (moments → thoughtful plan; key-date nudges) can run
-across a whole roster instead of a handful of personal contacts.
+Give any professional with a roster two ways to get their people into Thoughts Count,
+both landing in **one shared, deduplicated set of people**, so the existing engine
+(moments → thoughtful plan; key-date nudges) can run across a whole book of business
+instead of a handful of personal contacts.
+
+**The two paths are deliberately different in reach — build them that way:**
+- **CSV / manual import = the UNIVERSAL on-ramp to the entire market, day one.** Every
+  profession and every system exports a CSV — HR platforms, advisor/insurance CRMs, a
+  spreadsheet, Google Contacts. The moment the smart importer works, *anyone with a roster*
+  (HR managers, financial advisors, insurance agents, small-business owners, sales reps —
+  not just realtors) can get in with zero vertical-specific work from us. **This path is
+  segment-agnostic and must never be gated to realtors.** It is how we keep the whole
+  market's door open while we focus acquisition.
+- **Follow Up Boss = the first DEEP vertical integration** — the connect-once-and-forget
+  magic for the one vertical we're pointing marketing at first.
+
+Real estate agents are the **go-to-market focus** (who we market to first), **not the
+product ceiling.** The smart-mapping mandate (§5.0) is exactly what makes the universal CSV
+path viable for *any* industry's export, so it earns its "reaches everyone" billing.
 
 **In scope (this build):**
 1. **CSV / manual import** that is **radically forgiving and zero-config** — no required
@@ -158,6 +173,11 @@ into it. Design mandates:
      with **zero pre-built templates** — a real differentiator. *Privacy:* resolve obvious
      fields with heuristic sniffing; only send minimal samples, server-side, for the
      ambiguous remainder; never send the whole file. Same trust posture as plan generation.
+   - **Canonical target fields are profession-agnostic** (this path serves everyone): name,
+     emails, phones, role/relationship, notes, location, and *any number of key-date columns*
+     mapped to `key_dates` with an inferred kind. Detect dates generically across industries —
+     birthday, work anniversary / start date (HR), closing anniversary / "client since"
+     (realtor/advisor), renewal date (insurance), or a one-off moment — never a realtor-only set.
 
 3. **Format-tolerant parsing — coerce, don't reject.** Dates in any format (MM/DD/YYYY,
    "March 3", ISO, Excel serial) → normalized; phones in any format → E.164; names as
