@@ -29,12 +29,23 @@ function nextOccurrence(eventDate, recurs) {
   return cand;
 }
 function daysUntil(d) { return Math.round((startOfDay(d) - startOfDay(new Date())) / 86400000); }
-function relativeWhen(days) {
-  if (days === 0) return "today";
+// A warm, human "when". Beyond ~2 months we NAME THE MONTH instead of a flat
+// "coming up", so a realtor scanning a roster can tell a date 3 months out from one
+// 11 months out (TC-38 UX finding #1). Needs the occurrence date, not just the count.
+function whenLabel(occ, days) {
+  if (days == null) return "";
+  if (days <= 0) return "today";
   if (days === 1) return "tomorrow";
   if (days === 7) return "in a week";
   if (days <= 30) return `in ${days} days`;
   if (days <= 60) return "in about a month";
+  if (occ) {
+    const now = new Date();
+    const month = occ.toLocaleDateString(undefined, { month: "long" });
+    if (occ.getFullYear() === now.getFullYear()) return `in ${month}`;
+    if (occ.getFullYear() === now.getFullYear() + 1) return `next ${month}`;
+    return `${month} ${occ.getFullYear()}`;
+  }
   return "coming up";
 }
 function soonestDate(p) {
@@ -43,7 +54,7 @@ function soonestDate(p) {
     const occ = nextOccurrence(kd.event_date, kd.recurs);
     if (!occ) continue;
     const days = daysUntil(occ);
-    if (!best || days < best.days) best = { days, label: kd.label };
+    if (!best || days < best.days) best = { days, label: kd.label, occ };
   }
   return best;
 }
@@ -187,7 +198,7 @@ function render() {
 
 function rowHtml(p) {
   const next = soonestDate(p);
-  const chip = next && next.days >= 0 ? `<span class="tc-ros-chip">${esc(next.label)} · ${relativeWhen(next.days)}</span>` : "";
+  const chip = next && next.days >= 0 ? `<span class="tc-ros-chip">${esc(next.label)} · ${whenLabel(next.occ, next.days)}</span>` : "";
   const sub = [p.relationship, p.primary_email].filter(Boolean).map(esc).join(" · ");
   return `<div class="tc-ros-row" data-id="${p.id}">
       <button class="tc-ros-main" data-id="${p.id}">
@@ -214,7 +225,7 @@ function toggleDetail(id) {
     return (oa ? daysUntil(oa) : 9e9) - (ob ? daysUntil(ob) : 9e9);
   });
   const dateHtml = dates.length
-    ? dates.map((d) => { const occ = nextOccurrence(d.event_date, d.recurs); const soon = occ ? daysUntil(occ) : null; return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${soon != null ? relativeWhen(soon) : (d.recurs ? "yearly" : "past")}</span></div>`; }).join("")
+    ? dates.map((d) => { const occ = nextOccurrence(d.event_date, d.recurs); const soon = occ ? daysUntil(occ) : null; return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${soon != null ? whenLabel(occ, soon) : (d.recurs ? "yearly" : "past")}</span></div>`; }).join("")
     : `<div class="tc-empty">No dates yet.</div>`;
   const contact = [p.primary_email, p.primary_phone].filter(Boolean).map(esc).join(" · ");
   el.innerHTML = `
