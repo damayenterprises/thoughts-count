@@ -322,9 +322,10 @@ function renderHome(people) {
 
   modalBody().innerHTML = `
     <div class="panel-body">
-      <div class="q-eyebrow">People I care about</div>
-      <h2 class="q-title" style="margin-bottom:2px;">People who matter</h2>
-      <p class="q-help">${email} · we'll nudge you before each date. <button class="link-btn tc-signout" style="padding:0 2px;">Sign out</button></p>
+      <div class="q-eyebrow">Welcome back</div>
+      <h2 class="q-title" style="margin-bottom:2px;">People I care about</h2>
+      <p class="q-help" style="margin-bottom:6px;">${email} · we'll nudge you before each date.</p>
+      <div style="margin:0 0 18px;"><button class="link-btn tc-signout" style="padding:2px 0;font-size:13.5px;">Sign out</button></div>
       ${comingUp}
       ${controls}
       <div id="tcPeopleList"></div>
