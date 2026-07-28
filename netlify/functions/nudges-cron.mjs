@@ -12,7 +12,17 @@ import { getEnv, sendEmail, peopleNudgeEmailHtml } from "./_email.mjs";
 
 export const config = { schedule: "15 13 * * *" }; // ~8:15am CT daily
 
-const LEAD_DAYS = 7;
+const DEFAULT_LEAD_DAYS = 7;
+
+// Human phrasing for how far out a date is, so the email reads naturally whatever
+// lead time the user chose ("today", "tomorrow", "in 3 days", "in a week").
+function leadPhrase(days) {
+  if (days <= 0) return "today";
+  if (days === 1) return "tomorrow";
+  if (days === 7) return "in a week";
+  if (days === 14) return "in two weeks";
+  return `in ${days} days`;
+}
 
 export default async () => {
   const url = getEnv("SUPABASE_URL");
@@ -29,16 +39,17 @@ export default async () => {
   try {
     const { data: dates, error } = await supabase
       .from("key_dates")
-      .select("id, user_id, person_id, label, event_date, recurs, people(name)");
+      .select("id, user_id, person_id, label, event_date, recurs, lead_days, people(name)");
     if (error) throw error;
 
     const emailCache = new Map();
 
     for (const kd of dates || []) {
       checked++;
+      const lead = Number.isFinite(kd.lead_days) ? kd.lead_days : DEFAULT_LEAD_DAYS;
       const occ = nextOccurrence(kd.event_date, kd.recurs, today);
       if (!occ) continue;                         // one-off already in the past
-      if (daysBetween(today, occ) !== LEAD_DAYS) continue;
+      if (daysBetween(today, occ) !== lead) continue;
 
       const occStr = ymd(occ);
 
@@ -63,7 +74,7 @@ export default async () => {
         html: peopleNudgeEmailHtml({
           personName,
           label: kd.label,
-          whenText: "in a week",
+          whenText: leadPhrase(lead),
           planUrl: siteUrl,
         }),
       });

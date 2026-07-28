@@ -27,6 +27,7 @@ create table if not exists key_dates (
   kind        text not null default 'custom', -- birthday | work_anniversary | moment | custom
   event_date  date not null,
   recurs      boolean not null default false,
+  lead_days   integer not null default 7,  -- how many days before the date to nudge (0 = on the day)
   created_at  timestamptz not null default now()
 );
 
