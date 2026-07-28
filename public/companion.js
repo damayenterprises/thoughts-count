@@ -204,7 +204,10 @@ async function addPlanFollowups(personId, plan) {
     const dt = new Date(); dt.setDate(dt.getDate() + f.days_from_now);
     const event_date = ymd(dt);
     let label = String(f.gesture || f.when || "Reach out").trim();
-    if (label.length > 70) label = label.slice(0, 67).trimEnd() + "…";
+    // Truncate by code points, not UTF-16 units, so an emoji/accent can't be cut
+    // in half. Array.from splits on code points.
+    const chars = Array.from(label);
+    if (chars.length > 70) label = chars.slice(0, 67).join("").trimEnd() + "…";
     if (seen.has(label + "|" + event_date)) continue;
     try {
       await addKeyDate(personId, { label, kind: "moment", event_date, recurs: false, lead_days: 0 });

@@ -33,7 +33,10 @@ export default async () => {
 
   const siteUrl = getEnv("URL") || "https://thoughts-count.netlify.app";
   const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
-  const today = startOfDay(new Date());
+  // Compute "today" in Central Time, not the function's UTC, so the lead-day
+  // countdown lands on the calendar day users actually mean (dates are stored
+  // tz-less, and CT is our default reference).
+  const today = todayInZone("America/Chicago");
   let checked = 0, sent = 0;
 
   try {
@@ -100,6 +103,13 @@ function nextOccurrence(eventDate, recurs, from) {
   return candidate;
 }
 function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+// Midnight of "today" as seen in a given IANA timezone, returned as a plain Date so
+// it lines up with event dates parsed the same tz-less way (new Date(ymd+"T00:00:00")).
+function todayInZone(tz) {
+  const parts = new Intl.DateTimeFormat("en-CA", { timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit" }).formatToParts(new Date());
+  const g = (t) => parts.find((x) => x.type === t).value;
+  return new Date(Number(g("year")), Number(g("month")) - 1, Number(g("day")));
+}
 function daysBetween(a, b) { return Math.round((startOfDay(b) - startOfDay(a)) / 86400000); }
 function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 function json(obj) { return new Response(JSON.stringify(obj), { headers: { "content-type": "application/json" } }); }
