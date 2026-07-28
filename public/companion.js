@@ -58,7 +58,7 @@ function renderAuthBtn() {
   const slot = document.getElementById("authSlot");
   if (!slot) return;
   if (user) {
-    slot.innerHTML = `<button class="tc-authbtn" id="tcHomeBtn">♡ Your People</button>`;
+    slot.innerHTML = `<button class="tc-authbtn" id="tcHomeBtn">♡ People I care about</button>`;
     slot.querySelector("#tcHomeBtn").onclick = openHome;
   } else {
     slot.innerHTML = `<button class="tc-authbtn ghost" id="tcSignInBtn">Sign in</button>`;
@@ -179,7 +179,7 @@ function renderHome(people) {
 
   modalBody().innerHTML = `
     <div class="panel-body">
-      <div class="q-eyebrow">Your people</div>
+      <div class="q-eyebrow">People I care about</div>
       <h2 class="q-title" style="margin-bottom:2px;">People who matter</h2>
       <p class="q-help">${email} · we'll nudge you a week before each date. <button class="link-btn tc-signout" style="padding:0 2px;">Sign out</button></p>
       ${cards}
@@ -304,7 +304,7 @@ async function mountSaveToPerson(stageEl, plan) {
         personId = person.id;
       }
       await savePlan(personId, plan, occasion);
-      msg.className = "k-msg ok"; msg.textContent = "Saved ✓ — open “Your People” to add their key dates and turn on reminders.";
+      msg.className = "k-msg ok"; msg.textContent = "Saved ✓ — open “People I care about” to add their key dates and turn on reminders.";
       card.querySelector("#tcSavePlan").textContent = "Saved ✓";
       card.querySelector("#tcSavePlan").disabled = true;
     } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }

@@ -145,6 +145,19 @@
   .moments .chip { background: var(--cloud); border: 1px solid var(--line); border-radius: 999px; padding: 9px 17px; font-size: 14px; color: var(--ink-soft); box-shadow: var(--shadow-soft); font-family: inherit; cursor: pointer; transition: border-color .15s ease, color .15s ease, transform .12s ease; }
   .moments .chip:hover { border-color: var(--sage); color: var(--ink); transform: translateY(-1px); }
 
+  /* ---------- what you get (hero) ---------- */
+  .gets { margin: -14px auto 26px; font-size: 14.5px; color: var(--ink-soft); max-width: 46ch; line-height: 1.7; }
+  .gets b { color: var(--sage-deep); font-weight: 700; }
+
+  /* ---------- a real example ---------- */
+  .example-card { max-width: 620px; margin: 0 auto; background: var(--cloud); border: 1px solid var(--line); border-radius: 24px; padding: 30px 34px 28px; box-shadow: var(--shadow); }
+  .example-eyebrow { text-align: center; }
+  .example-situation { font-family: 'Fraunces', serif; font-style: italic; font-size: 19px; color: var(--ink); text-align: center; margin: 12px 0 22px; line-height: 1.5; }
+  .example-lines { display: grid; gap: 15px; }
+  .example-line { font-size: 14.5px; color: var(--ink-soft); line-height: 1.6; }
+  .example-line span { display: block; color: var(--sage-deep); font-weight: 700; font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase; margin-bottom: 3px; }
+  .example-foot { text-align: center; color: var(--ink-soft); font-size: 13.5px; font-style: italic; margin: 22px 0 0; }
+
   /* ---------- quote ---------- */
   .quote-band { background: transparent; }
   .quote-band .wrap { padding: 56px 30px; text-align: center; }
@@ -344,6 +357,7 @@
   <section class="hero wrap">
     <h1>Show up for the moments that <em>matter most.</em></h1>
     <p class="lead">A new baby or a hard week, a big promotion or just because — tell us what's happening and who they are to you, and we'll help you find the words, the gesture, and the perfect way to show you care.</p>
+    <p class="gets">You'll get: <b>what to say</b> · <b>what to do</b> · <b>what to send</b> · <b>how to keep showing up</b></p>
     <button class="cta" onclick="openFlow()">Help me show up →</button>
     <div class="reassure">No account needed · <b>Your details stay private</b> · Free to try</div>
   </section>
@@ -389,6 +403,19 @@
     </div>
     <div style="text-align:center; margin-top:36px;">
       <button class="cta sage" onclick="openFlow()">Start with a moment →</button>
+    </div>
+  </section>
+
+  <section class="section wrap">
+    <div class="example-card">
+      <div class="q-eyebrow example-eyebrow">A real example</div>
+      <p class="example-situation">"My coworker's father passed away, but we aren't close."</p>
+      <div class="example-lines">
+        <div class="example-line"><span>What to say</span>"I was so sorry to hear about your dad. I'm thinking of you this week." — sincere, brief, and no pressure to reply.</div>
+        <div class="example-line"><span>A gesture that fits</span>A card left on their desk, or quietly covering their lunch. Presence over a big display.</div>
+        <div class="example-line"><span>How to keep showing up</span>A short check-in the following week, once the cards have stopped and it gets quiet.</div>
+      </div>
+      <p class="example-foot">This is a taste — your plan is built around your person and what feels right to you.</p>
     </div>
   </section>
 
