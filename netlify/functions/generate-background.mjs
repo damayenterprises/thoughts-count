@@ -259,20 +259,35 @@ async function enrichOnlineIdeas(plan, etsyKey, shoppingKey) {
 }
 
 async function etsyLookup(query, key) {
-  const url = `https://openapi.etsy.com/v3/application/listings/active?limit=10&sort_on=score&keywords=${encodeURIComponent(query)}&includes=Images`;
+  const url = `https://openapi.etsy.com/v3/application/listings/active?limit=10&sort_on=score&keywords=${encodeURIComponent(query)}`;
   const res = await fetch(url, { headers: { "x-api-key": key } });
   if (!res.ok) return null;
   const data = await res.json();
-  const withImages = (data.results || []).filter((r) => (r.images || r.Images || []).length);
-  const it = pickVaried(withImages, 4); // vary among the top few relevant matches
+  const results = (data.results || []).filter((r) => r.listing_id && r.url);
+  const it = pickVaried(results, 4); // vary among the top few relevant matches
   if (!it) return null;
-  const imgs = it.images || it.Images || [];
-  const image = (imgs[0] && (imgs[0].url_570xN || imgs[0].url_fullxfull || imgs[0].url_340x270)) || "";
+  // The `includes=Images` association isn't populated for app-key (non-OAuth) auth,
+  // so pull the listing's primary image from the dedicated images endpoint.
+  const image = await etsyPrimaryImage(it.listing_id, key);
+  if (!image) return null; // no photo → let the Shopping fallback try instead
   let price = "";
   if (it.price && it.price.amount != null) {
     price = "$" + (Number(it.price.amount) / Number(it.price.divisor || 100)).toFixed(2);
   }
   return { source: "etsy", title: it.title || "", image, price, url: it.url || "", merchant: "Etsy" };
+}
+
+async function etsyPrimaryImage(listingId, key) {
+  try {
+    const res = await fetch(`https://openapi.etsy.com/v3/application/listings/${listingId}/images`, { headers: { "x-api-key": key } });
+    if (!res.ok) return "";
+    const data = await res.json();
+    const first = (data.results || [])[0];
+    return (first && (first.url_570xN || first.url_fullxfull || first.url_340x270)) || "";
+  } catch (e) {
+    console.error("etsy image fetch failed", e);
+    return "";
+  }
 }
 
 async function shoppingLookup(query, key) {
