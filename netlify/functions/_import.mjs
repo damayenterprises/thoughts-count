@@ -154,6 +154,48 @@ function labelForKind(kind) {
   );
 }
 
+// ---------- batch runner ----------
+
+// Run a whole mapped file through the dedup core. Creates the import_batches row,
+// ingests every row (one bad row NEVER blocks the batch — we carry the error), and
+// returns the summary. Shared by the inline and background commit endpoints.
+// `onProgress(done, total)` is optional (background path reports it to Blobs).
+export async function runImport({ supa, userId, filename, rows, source = "csv", onProgress = null }) {
+  const { data: batch, error: bErr } = await supa
+    .from("import_batches")
+    .insert({ user_id: userId, filename: filename || null })
+    .select("id")
+    .single();
+  if (bErr) throw bErr;
+  const batchId = batch.id;
+
+  let added = 0, updated = 0, needs_review = 0, skipped = 0;
+  const total = rows.length;
+  for (let i = 0; i < total; i++) {
+    try {
+      const r = await upsertPerson({ supa, userId, row: rows[i], source, batchId });
+      if (r.action === "inserted") added++;
+      else if (r.action === "updated" || r.action === "unchanged") updated++;
+      else if (r.action === "review") needs_review++;
+    } catch (err) {
+      // Carry the error — the user never gets homework. Log and keep going.
+      skipped++;
+      console.error(`import row ${i} failed`, err?.message || err);
+    }
+    if (onProgress && (i % 25 === 0 || i === total - 1)) {
+      try { await onProgress(i + 1, total); } catch {}
+    }
+  }
+
+  await supa
+    .from("import_batches")
+    .update({ added, updated, needs_review })
+    .eq("user_id", userId)
+    .eq("id", batchId);
+
+  return { batch_id: batchId, added, updated, needs_review, skipped };
+}
+
 // ---------- the upsert ----------
 
 // Ingest one row. `supa` is a service-role client; `userId` is the VERIFIED caller.
@@ -190,6 +232,17 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
   //    do NOT create a duplicate person (T6 resolves it: merge or keep-both).
   const fuzzy = await fuzzyMatch(supa, userId, n.name);
   if (fuzzy) {
+    // Idempotency: if we already proposed this same pair, don't ask twice on re-upload.
+    const { data: existingRc } = await supa
+      .from("review_candidates")
+      .select("id")
+      .eq("user_id", userId)
+      .eq("existing_person_id", fuzzy.person_id)
+      .eq("incoming->>natural_key", n.natural_key)
+      .maybeSingle();
+    if (existingRc?.id) {
+      return { action: "unchanged", personId: fuzzy.person_id, candidateId: existingRc.id };
+    }
     const { data: rc } = await supa
       .from("review_candidates")
       .insert({
