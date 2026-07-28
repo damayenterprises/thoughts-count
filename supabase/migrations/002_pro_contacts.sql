@@ -91,3 +91,24 @@ create policy own_identifiers      on identifiers      for all using (auth.uid()
 create policy own_contact_sources  on contact_sources  for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
 create policy own_import_batches   on import_batches   for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
 create policy own_review_candidates on review_candidates for all using (auth.uid()=user_id) with check (auth.uid()=user_id);
+
+-- Fuzzy person match (the dedup core's Tier-2 "propose, never auto-merge" step).
+-- PostgREST can't express similarity() in a plain select, so the import function
+-- calls this RPC (service-role, user_id passed explicitly). Scoped to book-of-
+-- business contacts only, so a CSV row never fuzzy-collides with the intimate
+-- personal circle — deterministic email/phone matches still converge across kinds.
+create or replace function tc38_fuzzy_person_match(
+  p_user_id   uuid,
+  p_name      text,
+  p_threshold real default 0.4
+) returns table(person_id uuid, name text, score real)
+language sql stable as $$
+  select id, name, similarity(name, p_name) as score
+  from people
+  where user_id = p_user_id
+    and contact_kind = 'contact'
+    and p_name is not null and length(trim(p_name)) > 0
+    and similarity(name, p_name) >= p_threshold
+  order by score desc
+  limit 5;
+$$;
