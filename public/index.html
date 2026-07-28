@@ -117,9 +117,12 @@
   .tc-cu-who { flex: 1; min-width: 0; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .tc-cu-go { flex: 0 0 auto; font-size: 13px; font-weight: 700; color: var(--sage-deep); opacity: 0; transition: opacity .15s ease; }
   .tc-cu-row:hover .tc-cu-go, .tc-cu-row:focus-visible .tc-cu-go { opacity: 1; }
+  /* Touch devices have no hover — always show the cue so it isn't invisible on phones. */
+  @media (hover: none) { .tc-cu-go { opacity: 1; } }
   .tc-controls { display: flex; gap: 10px; margin: 0 0 14px; }
   .tc-controls #tcSearch { flex: 1; min-width: 0; }
   .tc-controls .tc-select { width: auto; flex: 0 0 auto; padding: 10px 12px; font-size: 14px; }
+  @media (max-width: 480px) { .tc-controls { flex-direction: column; } .tc-controls .tc-select { width: 100%; } }
   .tc-next { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--ink); background: #e4ecdb; border-radius: 999px; padding: 4px 12px; margin-bottom: 4px; }
   .tc-next b { color: var(--clay-deep); font-weight: 700; }
   .tc-next-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); flex: 0 0 auto; }
