@@ -151,7 +151,6 @@ function render() {
     <div class="tc-ros-top">
       <div><div class="q-eyebrow">Book of business</div><h2 class="q-title" style="margin:2px 0 0;">${total} ${total === 1 ? "person" : "people"}</h2></div>
       <div class="tc-ros-actions">
-        <button class="tc-authbtn ghost" id="tcFub">Connect Follow Up Boss</button>
         <button class="tc-authbtn" id="tcImportBtn">＋ Import contacts</button>
       </div>
     </div>`;
@@ -163,7 +162,6 @@ function render() {
       </div></div>`;
     body().querySelector("#tcImportBtn").onclick = launchImport;
     body().querySelector("#tcImportBtn2").onclick = launchImport;
-    body().querySelector("#tcFub").onclick = fubStub;
     return;
   }
 
@@ -186,7 +184,6 @@ function render() {
   body().innerHTML = head + controls + `<div id="tcRosList" class="tc-ros-list">${rows}</div>` + pager + `</div>`;
 
   body().querySelector("#tcImportBtn").onclick = launchImport;
-  body().querySelector("#tcFub").onclick = fubStub;
   const searchEl = body().querySelector("#tcRosSearch");
   if (searchEl) searchEl.oninput = () => { query = searchEl.value; page = 0; render(); const s = body().querySelector("#tcRosSearch"); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } };
   const sortEl = body().querySelector("#tcRosSort");
@@ -246,9 +243,10 @@ function toggleDetail(id) {
 function launchImport() {
   openImport({ sb, onComplete: () => { openScrim(); reload(); } });
 }
+// DORMANT (UX finding #4): no "Connect Follow Up Boss" entry point until the FUB
+// integration actually ships (S1 spike + T11–T16). Kept here so restoring the button is
+// a one-line change then — re-add the header button + wire it back to fubStub.
 function fubStub() {
-  // FUB connect ships in the Follow Up Boss phase (S1 spike + T11–T16). Until then,
-  // a graceful placeholder rather than a broken link.
   const actions = body().querySelector(".tc-ros-actions") || body();
   let note = body().querySelector("#tcFubNote");
   if (!note) { note = document.createElement("div"); note.id = "tcFubNote"; note.className = "k-msg"; note.style.cssText = "flex-basis:100%;text-align:right;"; actions.appendChild(note); }

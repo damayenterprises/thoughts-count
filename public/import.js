@@ -278,7 +278,7 @@ async function pollImport(jobId) {
 function summaryView(s) {
   const bits = [];
   if (s.added) bits.push(`<b>${s.added}</b> added`);
-  if (s.updated) bits.push(`<b>${s.updated}</b> already yours`);
+  if (s.updated) bits.push(`<b>${s.updated}</b> ${s.updated === 1 ? "row" : "rows"} already in your roster`);
   if (s.needs_review) bits.push(`<b>${s.needs_review}</b> to review`);
   const line = bits.length ? bits.join(" · ") : "Nothing new — you're all caught up";
   const reviewCta = s.needs_review
