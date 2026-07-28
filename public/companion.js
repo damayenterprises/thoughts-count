@@ -12,9 +12,54 @@ const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 const KINDS = [
   { v: "birthday", label: "Birthday", recurs: true },
   { v: "work_anniversary", label: "Work anniversary", recurs: true },
-  { v: "moment", label: "The moment I helped with", recurs: false },
+  { v: "moment", label: "A one-time reminder to reach out", recurs: false },
   { v: "custom", label: "Something else", recurs: false },
 ];
+
+// How many days before a date we can nudge. 7 stays the default.
+const LEADS = [
+  { v: 0, label: "On the day" },
+  { v: 2, label: "2 days before" },
+  { v: 7, label: "A week before" },
+  { v: 14, label: "Two weeks before" },
+];
+
+/* ---------------- date helpers (mirror nudges-cron so the UI agrees with it) --- */
+function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
+function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+// The next time a date lands on/after today. Recurring dates roll to this/next year;
+// one-offs return null once past.
+function nextOccurrence(eventDate, recurs) {
+  const today = startOfDay(new Date());
+  const d = new Date(eventDate + "T00:00:00");
+  if (!recurs) return d >= today ? d : null;
+  const cand = new Date(today.getFullYear(), d.getMonth(), d.getDate());
+  if (cand < today) cand.setFullYear(today.getFullYear() + 1);
+  return cand;
+}
+function daysUntil(d) { return Math.round((startOfDay(d) - startOfDay(new Date())) / 86400000); }
+// Warm, human phrasing of how far out a date is.
+function relativeWhen(days) {
+  if (days === 0) return "today";
+  if (days === 1) return "tomorrow";
+  if (days === 7) return "in a week";
+  if (days === 14) return "in two weeks";
+  if (days <= 30) return `in ${days} days`;
+  if (days <= 60) return "in about a month";
+  return "coming up";
+}
+// The soonest upcoming date across a person's key dates (for card summaries + the
+// "coming up" strip). Returns { occ, days, label } or null.
+function soonestDate(person) {
+  let best = null;
+  for (const kd of person.key_dates || []) {
+    const occ = nextOccurrence(kd.event_date, kd.recurs);
+    if (!occ) continue;
+    const days = daysUntil(occ);
+    if (!best || days < best.days) best = { occ, days, label: kd.label };
+  }
+  return best;
+}
 
 boot();
 
@@ -121,7 +166,7 @@ function openSignIn() {
 async function loadPeople() {
   const { data, error } = await sb
     .from("people")
-    .select("id,name,relationship,notes,location,created_at,key_dates(id,label,kind,event_date,recurs),saved_plans(id,plan_title,occasion,created_at,plan)")
+    .select("id,name,relationship,notes,location,created_at,key_dates(id,label,kind,event_date,recurs,lead_days),saved_plans(id,plan_title,occasion,created_at,plan)")
     .order("created_at", { ascending: true });
   if (error) { console.error(error); return []; }
   return data || [];
@@ -141,6 +186,37 @@ async function savePlan(personId, plan, occasion) {
   });
   if (error) throw error;
 }
+// Turn a plan's "keep showing up" follow-ups into real one-off reminders on the
+// person, so the most useful nudges (check in in two weeks, a month, a year) are
+// actually scheduled instead of living only as a calendar download. Each fires on
+// its own day (lead_days 0). Best-effort: a single failure doesn't block the save.
+async function addPlanFollowups(personId, plan) {
+  const items = (plan.follow_up || []).filter((f) => Number.isFinite(f.days_from_now) && f.days_from_now > 0);
+  // Idempotent: re-opening and re-saving the same plan must not stack duplicate
+  // reminder rows. Skip any (label, date) we already have for this person.
+  let seen = new Set();
+  try {
+    const { data: existing } = await sb.from("key_dates").select("label,event_date").eq("person_id", personId);
+    seen = new Set((existing || []).map((k) => k.label + "|" + k.event_date));
+  } catch (e) { console.error("follow-up dedupe lookup failed", e); }
+  let count = 0;
+  for (const f of items) {
+    const dt = new Date(); dt.setDate(dt.getDate() + f.days_from_now);
+    const event_date = ymd(dt);
+    let label = String(f.gesture || f.when || "Reach out").trim();
+    // Truncate by code points, not UTF-16 units, so an emoji/accent can't be cut
+    // in half. Array.from splits on code points.
+    const chars = Array.from(label);
+    if (chars.length > 70) label = chars.slice(0, 67).join("").trimEnd() + "…";
+    if (seen.has(label + "|" + event_date)) continue;
+    try {
+      await addKeyDate(personId, { label, kind: "moment", event_date, recurs: false, lead_days: 0 });
+      seen.add(label + "|" + event_date);
+      count++;
+    } catch (e) { console.error("follow-up reminder insert failed", e); }
+  }
+  return count;
+}
 
 /* ---------------- "Your People" home ---------------- */
 async function openHome() {
@@ -154,46 +230,144 @@ async function openHome() {
 function dateLine(d) {
   const dt = new Date(d.event_date + "T00:00:00");
   const nice = dt.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(d.recurs ? {} : { year: "numeric" }) });
-  return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${nice}${d.recurs ? " · yearly" : ""}</span></div>`;
+  const occ = nextOccurrence(d.event_date, d.recurs);
+  const soon = occ ? daysUntil(occ) : null;
+  const hint = (soon != null && soon <= 45) ? ` · ${relativeWhen(soon)}` : (d.recurs ? " · yearly" : "");
+  return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${nice}${hint}</span></div>`;
+}
+
+function personCard(p) {
+  const sp = p.saved_plans || [];
+  const savedHtml = sp.length ? `<div class="tc-savedplans"><div class="tc-sp-label">Plans you've made</div>${
+    sp.map((x) => `<button class="tc-sp-row" data-pid="${p.id}" data-spid="${x.id}">${esc(x.plan_title || x.occasion || "A plan")}</button>`).join("")
+  }</div>` : "";
+  const next = soonestDate(p);
+  const nextHtml = next
+    ? `<div class="tc-next"><span class="tc-next-dot"></span>${esc(next.label)} — <b>${relativeWhen(next.days)}</b></div>`
+    : "";
+  const dates = (p.key_dates || []).slice().sort((a, b) => {
+    const oa = nextOccurrence(a.event_date, a.recurs), ob = nextOccurrence(b.event_date, b.recurs);
+    return (oa ? daysUntil(oa) : 9e9) - (ob ? daysUntil(ob) : 9e9);
+  });
+  return `
+    <div class="block" data-pid="${p.id}">
+      <h4 style="justify-content:space-between;margin-bottom:6px;">
+        <span>${esc(p.name)}${p.relationship ? ` <span class="tc-rel">· ${esc(p.relationship)}</span>` : ""}</span>
+      </h4>
+      ${nextHtml}
+      ${p.notes ? `<p style="margin:8px 0 10px;">${esc(p.notes)}</p>` : ""}
+      <div class="tc-dates">${dates.map(dateLine).join("") || `<div class="tc-empty">No dates yet — add one so we can gently remind you.</div>`}</div>
+      <button class="tc-add-date link-btn" data-pid="${p.id}">+ Add a date or reminder</button>
+      ${savedHtml}
+      <button class="cta tc-showup" data-pid="${p.id}">♡ Help me show up for ${esc(firstName(p.name))}</button>
+    </div>`;
 }
 
 function renderHome(people) {
   const email = esc(user.email || "");
-  const cards = people.length ? people.map((p) => {
-    const sp = p.saved_plans || [];
-    const savedHtml = sp.length ? `<div class="tc-savedplans"><div class="tc-sp-label">Plans you've made</div>${
-      sp.map((x) => `<button class="tc-sp-row" data-pid="${p.id}" data-spid="${x.id}">${esc(x.plan_title || x.occasion || "A plan")}</button>`).join("")
-    }</div>` : "";
-    return `
-    <div class="block" data-pid="${p.id}">
-      <h4 style="justify-content:space-between;">
-        <span>${esc(p.name)}${p.relationship ? ` <span class="tc-rel">· ${esc(p.relationship)}</span>` : ""}</span>
-      </h4>
-      ${p.notes ? `<p style="margin-bottom:10px;">${esc(p.notes)}</p>` : ""}
-      <div class="tc-dates">${(p.key_dates || []).sort((a,b)=>a.event_date.slice(5).localeCompare(b.event_date.slice(5))).map(dateLine).join("") || `<div class="tc-empty">No key dates yet — add one so we can remind you.</div>`}</div>
-      <button class="tc-add-date link-btn" data-pid="${p.id}">+ Add a date</button>
-      ${savedHtml}
-      <button class="cta tc-showup" data-pid="${p.id}">♡ Help me show up for ${esc(firstName(p.name))}</button>
-    </div>`;
-  }).join("") : `<div class="tc-empty" style="padding:8px 0 18px;">No one saved yet. Add the first person who matters to you below — a friend, a teammate, someone you manage.</div>`;
+  let sortBy = "next", query = "";
+
+  // The soonest 3 upcoming dates across everyone — the most useful thing to see first.
+  const upcoming = people
+    .map((p) => ({ p, next: soonestDate(p) }))
+    .filter((x) => x.next && x.next.days >= 0)
+    .sort((a, b) => a.next.days - b.next.days)
+    .slice(0, 3);
+  const comingUp = upcoming.length ? `
+    <div class="tc-comingup">
+      <div class="tc-cu-label">Coming up</div>
+      ${upcoming.map(({ p, next }) => `
+        <button class="tc-cu-row" data-pid="${p.id}">
+          <span class="tc-cu-when">${relativeWhen(next.days)}</span>
+          <span class="tc-cu-who">${esc(firstName(p.name))} · ${esc(next.label)}</span>
+          <span class="tc-cu-go">Help me show up →</span>
+        </button>`).join("")}
+    </div>` : "";
+
+  const controls = people.length > 1 ? `
+    <div class="tc-controls">
+      <input type="text" id="tcSearch" placeholder="Search your people…" autocomplete="off" />
+      <select id="tcSort" class="tc-select">
+        <option value="next">Sort: next date</option>
+        <option value="alpha">Sort: name (A–Z)</option>
+        <option value="recent">Sort: recently added</option>
+      </select>
+    </div>` : "";
 
   modalBody().innerHTML = `
     <div class="panel-body">
       <div class="q-eyebrow">People I care about</div>
       <h2 class="q-title" style="margin-bottom:2px;">People who matter</h2>
-      <p class="q-help">${email} · we'll nudge you a week before each date. <button class="link-btn tc-signout" style="padding:0 2px;">Sign out</button></p>
-      ${cards}
-      <div class="block tc-addwrap">
+      <p class="q-help">${email} · we'll nudge you before each date. <button class="link-btn tc-signout" style="padding:0 2px;">Sign out</button></p>
+      ${comingUp}
+      ${controls}
+      <div id="tcPeopleList"></div>
+      <button class="cta ghost tc-addtoggle" id="tcAddToggle" style="width:100%;justify-content:center;margin-top:6px;">＋ Add someone</button>
+      <div class="block tc-addwrap" id="tcAddForm" style="display:none;">
         <h4>Add someone</h4>
         <input type="text" id="np_name" placeholder="Their name" />
         <input type="text" id="np_rel" placeholder="Who they are to you (e.g. someone I manage)" style="margin-top:10px;" />
         <textarea id="np_notes" placeholder="Anything worth remembering about them (optional)" style="margin-top:10px;min-height:64px;"></textarea>
-        <div class="nav"><span></span><button class="cta" id="np_save">Add them →</button></div>
+        <div class="nav"><button class="link-btn" id="np_cancel">Cancel</button><button class="cta" id="np_save">Add them →</button></div>
         <div class="k-msg" id="np_msg"></div>
       </div>
     </div>`;
 
+  const listEl = () => modalBody().querySelector("#tcPeopleList");
+
+  // Re-render just the person list for the current search + sort, without a reload.
+  function renderList() {
+    const q = query.trim().toLowerCase();
+    let view = people.filter((p) =>
+      !q || (p.name || "").toLowerCase().includes(q) || (p.relationship || "").toLowerCase().includes(q));
+    if (sortBy === "alpha") view.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    else if (sortBy === "recent") view.sort((a, b) => (b.created_at || "").localeCompare(a.created_at || ""));
+    else view.sort((a, b) => {
+      const na = soonestDate(a), nb = soonestDate(b);
+      return (na ? na.days : 9e9) - (nb ? nb.days : 9e9);
+    });
+
+    listEl().innerHTML = people.length
+      ? (view.length ? view.map(personCard).join("") : `<div class="tc-empty" style="padding:10px 0;">No one matches “${esc(query)}”.</div>`)
+      : `<div class="tc-empty" style="padding:8px 0 14px;">No one saved yet. Add the first person who matters to you — a friend, a teammate, someone you manage.</div>`;
+    wireCards();
+  }
+
+  // (Re)attach handlers for the cards currently in the list.
+  function wireCards() {
+    listEl().querySelectorAll(".tc-add-date").forEach((btn) => { btn.onclick = () => openAddDate(btn.dataset.pid); });
+    listEl().querySelectorAll(".tc-showup").forEach((btn) => {
+      btn.onclick = () => { const p = people.find((x) => x.id === btn.dataset.pid); closeModal(); if (window.openFlowForPerson) window.openFlowForPerson(p); };
+    });
+    listEl().querySelectorAll(".tc-sp-row").forEach((btn) => {
+      btn.onclick = () => {
+        const p = people.find((x) => x.id === btn.dataset.pid);
+        const rec = (p?.saved_plans || []).find((x) => x.id === btn.dataset.spid);
+        if (rec?.plan && window.renderSavedPlan) { closeModal(); window.renderSavedPlan(rec.plan); }
+      };
+    });
+  }
+
+  renderList();
+
   modalBody().querySelector(".tc-signout").onclick = async () => { await sb.auth.signOut(); closeModal(); };
+  const searchEl = modalBody().querySelector("#tcSearch");
+  if (searchEl) searchEl.oninput = () => { query = searchEl.value; renderList(); };
+  const sortEl = modalBody().querySelector("#tcSort");
+  if (sortEl) sortEl.onchange = () => { sortBy = sortEl.value; renderList(); };
+
+  // "Coming up" rows jump straight into showing up for that person.
+  modalBody().querySelectorAll(".tc-cu-row").forEach((btn) => {
+    btn.onclick = () => { const p = people.find((x) => x.id === btn.dataset.pid); closeModal(); if (window.openFlowForPerson) window.openFlowForPerson(p); };
+  });
+
+  // Add-someone: reveal the form only when asked, so browsing stays calm.
+  const addForm = modalBody().querySelector("#tcAddForm");
+  const addToggle = modalBody().querySelector("#tcAddToggle");
+  const showAdd = (on) => { addForm.style.display = on ? "" : "none"; addToggle.style.display = on ? "none" : ""; if (on) modalBody().querySelector("#np_name").focus(); };
+  addToggle.onclick = () => showAdd(true);
+  modalBody().querySelector("#np_cancel").onclick = () => showAdd(false);
+  if (!people.length) showAdd(true); // first-run: don't hide the only action
   modalBody().querySelector("#np_save").onclick = async () => {
     const name = modalBody().querySelector("#np_name").value.trim();
     const msg = modalBody().querySelector("#np_msg");
@@ -204,41 +378,32 @@ function renderHome(people) {
       renderHome(await loadPeople());
     } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }
   };
-  modalBody().querySelectorAll(".tc-add-date").forEach((btn) => { btn.onclick = () => openAddDate(btn.dataset.pid); });
-  // Launch the plan flow already knowing who it's for.
-  modalBody().querySelectorAll(".tc-showup").forEach((btn) => {
-    btn.onclick = () => {
-      const p = people.find((x) => x.id === btn.dataset.pid);
-      closeModal();
-      if (window.openFlowForPerson) window.openFlowForPerson(p);
-    };
-  });
-  // Re-open a previously saved plan.
-  modalBody().querySelectorAll(".tc-sp-row").forEach((btn) => {
-    btn.onclick = () => {
-      const p = people.find((x) => x.id === btn.dataset.pid);
-      const rec = (p?.saved_plans || []).find((x) => x.id === btn.dataset.spid);
-      if (rec?.plan && window.renderSavedPlan) { closeModal(); window.renderSavedPlan(rec.plan); }
-    };
-  });
 }
 
 function openAddDate(personId) {
   const kindOpts = KINDS.map((k) => `<option value="${k.v}">${k.label}</option>`).join("");
+  const leadOpts = LEADS.map((l) => `<option value="${l.v}"${l.v === 7 ? " selected" : ""}>${l.label}</option>`).join("");
   const box = document.createElement("div");
   box.className = "block tc-addwrap";
   box.innerHTML = `
-    <h4>Add a date</h4>
+    <h4>Add a date or reminder</h4>
+    <p class="tc-help-sm">A recurring date like a birthday, or a one-time nudge to reach out — say, to check in a few weeks from now.</p>
     <select id="kd_kind" class="tc-select">${kindOpts}</select>
-    <input type="text" id="kd_label" placeholder="Label (e.g. Birthday, Work anniversary)" style="margin-top:10px;" />
+    <input type="text" id="kd_label" placeholder="Label (e.g. Birthday, or “Check in after her move”)" style="margin-top:10px;" />
     <input type="date" id="kd_date" style="margin-top:10px;" />
     <label class="k-remind" style="margin-top:10px;"><input type="checkbox" id="kd_recurs" checked /> Happens every year</label>
-    <div class="nav"><button class="link-btn" id="kd_cancel">Cancel</button><button class="cta" id="kd_save">Save date →</button></div>
+    <label class="tc-field-label" for="kd_lead">Remind me</label>
+    <select id="kd_lead" class="tc-select">${leadOpts}</select>
+    <div class="nav"><button class="link-btn" id="kd_cancel">Cancel</button><button class="cta" id="kd_save">Save →</button></div>
     <div class="k-msg" id="kd_msg"></div>`;
   const card = modalBody().querySelector(`.block[data-pid="${personId}"]`);
   card.appendChild(box);
-  const kindEl = box.querySelector("#kd_kind"), labelEl = box.querySelector("#kd_label"), recEl = box.querySelector("#kd_recurs");
-  const syncKind = () => { const k = KINDS.find((x) => x.v === kindEl.value); if (k && k.v !== "custom") labelEl.value = k.label; recEl.checked = !!k?.recurs; };
+  const kindEl = box.querySelector("#kd_kind"), labelEl = box.querySelector("#kd_label"), recEl = box.querySelector("#kd_recurs"), leadEl = box.querySelector("#kd_lead");
+  const syncKind = () => {
+    const k = KINDS.find((x) => x.v === kindEl.value);
+    if (k && k.v !== "custom" && k.v !== "moment") labelEl.value = k.label;
+    recEl.checked = !!k?.recurs;
+  };
   syncKind(); kindEl.onchange = syncKind;
   box.querySelector("#kd_cancel").onclick = () => box.remove();
   box.querySelector("#kd_save").onclick = async () => {
@@ -246,7 +411,7 @@ function openAddDate(personId) {
     const label = labelEl.value.trim(), event_date = box.querySelector("#kd_date").value;
     if (!label || !event_date) { msg.className = "k-msg bad"; msg.textContent = "A label and a date are both needed."; return; }
     msg.className = "k-msg"; msg.textContent = "Saving…";
-    try { await addKeyDate(personId, { label, kind: kindEl.value, event_date, recurs: recEl.checked }); renderHome(await loadPeople()); }
+    try { await addKeyDate(personId, { label, kind: kindEl.value, event_date, recurs: recEl.checked, lead_days: Number(leadEl.value) }); renderHome(await loadPeople()); }
     catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save."; }
   };
 }
@@ -273,14 +438,18 @@ async function mountSaveToPerson(stageEl, plan) {
 
   const people = await loadPeople();
   const opts = people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
+  const followups = (plan.follow_up || []).filter((f) => Number.isFinite(f.days_from_now) && f.days_from_now > 0);
+  const followupOpt = followups.length ? `
+    <label class="k-remind" style="margin-top:12px;"><input type="checkbox" id="tcRemindFollow" checked /> Also remind me to follow through — we'll gently nudge you the morning each of this plan's ${followups.length} “keep showing up” date${followups.length > 1 ? "s" : ""} arrives</label>` : "";
   card.innerHTML = `
     <h4>Keep this plan with your people</h4>
-    <p class="k-sub">Save it to ${recipient ? esc(recipient) : "someone"}, and add their key dates so we can remind you.</p>
+    <p class="k-sub">Save it to ${recipient ? esc(recipient) : "someone"}, and we'll remind you at just the right time to follow through.</p>
     <select id="tcPersonSel" class="tc-select">
       <option value="__new">➕ New person${recipient ? `: ${esc(recipient)}` : ""}</option>
       ${opts}
     </select>
     <input type="text" id="tcNewName" placeholder="Their name" value="${esc(recipient)}" style="margin-top:10px;" />
+    ${followupOpt}
     <div class="nav"><span></span><button class="cta" id="tcSavePlan">Save to my people →</button></div>
     <div class="k-msg" id="tcSaveMsg"></div>`;
   insert(card, anchor, stageEl);
@@ -304,7 +473,15 @@ async function mountSaveToPerson(stageEl, plan) {
         personId = person.id;
       }
       await savePlan(personId, plan, occasion);
-      msg.className = "k-msg ok"; msg.textContent = "Saved ✓ — open “People I care about” to add their key dates and turn on reminders.";
+      let reminderCount = 0;
+      const wantFollow = card.querySelector("#tcRemindFollow");
+      if (wantFollow && wantFollow.checked) {
+        reminderCount = await addPlanFollowups(personId, plan);
+      }
+      msg.className = "k-msg ok";
+      msg.textContent = reminderCount
+        ? `Saved ✓ — we'll nudge you on ${reminderCount} date${reminderCount > 1 ? "s" : ""} to follow through. Find them under “People I care about”.`
+        : "Saved ✓ — open “People I care about” to add their dates and turn on reminders.";
       card.querySelector("#tcSavePlan").textContent = "Saved ✓";
       card.querySelector("#tcSavePlan").disabled = true;
     } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }

@@ -1012,10 +1012,14 @@ function hub() {
   h1,h2{font-family:'Fraunces',Georgia,serif;font-weight:500}
   .wrap{max-width:900px;margin:0 auto;padding:0 22px}
   .bar{padding:20px 0}
-  .brand{font-family:'Fraunces',serif;font-size:20px;font-weight:600;color:var(--ink);text-decoration:none}
+  .brand{font-family:'Fraunces',serif;font-size:20px;font-weight:600;color:var(--ink);text-decoration:none;display:inline-flex;gap:9px;align-items:center}
+  .brand svg{width:22px;height:22px}
   .hero{text-align:center;padding:26px 0 8px}
   .hero h1{font-size:clamp(28px,4.6vw,42px);margin:0 0 10px}
   .hero p{color:var(--soft);max-width:52ch;margin:0 auto;font-size:17px}
+  .hcta{text-align:center;margin:22px 0 4px}
+  .hcta a{display:inline-block;background:var(--clay);color:#fff;text-decoration:none;padding:13px 30px;border-radius:999px;font-weight:700;font-size:16px;box-shadow:0 10px 30px rgba(90,60,25,.14)}
+  .hcta .sub{display:block;font-size:13px;color:var(--soft);margin-top:9px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin:26px 0 40px}
   .card{background:var(--cloud);border:1px solid var(--line);border-radius:18px;padding:20px;text-decoration:none;color:var(--ink);box-shadow:0 10px 30px rgba(80,60,30,.05);transition:transform .12s}
   .card:hover{transform:translateY(-2px)}
@@ -1032,10 +1036,11 @@ function hub() {
 <div id="bg" aria-hidden="true"></div>
 ${TRACKER}
 <div class="wrap">
-  <div class="bar"><a class="brand" href="/">🤍 Thoughts Count</a></div>
+  <div class="bar"><a class="brand" href="/"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg>Thoughts Count</a></div>
   <div class="hero">
     <h1>What to say &amp; do when it matters</h1>
     <p>Honest, practical guidance for life's big moments — the hard ones and the joyful ones. Real words, and gestures that actually help.</p>
+    <div class="hcta"><a href="/">Get a plan for your situation →</a><span class="sub">Free · no account needed · personal to your relationship</span></div>
   </div>
   <div class="grid">${cards}</div>
   <footer>Thoughts Count — helping good intentions become meaningful actions.</footer>

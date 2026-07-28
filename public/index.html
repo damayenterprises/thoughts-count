@@ -108,6 +108,26 @@
   .tc-sp-label { font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 7px; }
   .tc-sp-row { display: block; width: 100%; text-align: left; background: var(--paper-2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 13px; margin-bottom: 6px; font-family: inherit; font-size: 14px; color: var(--sage-deep); cursor: pointer; transition: border-color .15s ease; }
   .tc-sp-row:hover { border-color: var(--sage); }
+  /* companion: coming-up strip, search/sort controls, per-card next-date */
+  .tc-comingup { background: var(--blush); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; margin: 4px 0 16px; }
+  .tc-cu-label { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--sage-deep); font-weight: 700; margin-bottom: 8px; }
+  .tc-cu-row { display: flex; align-items: baseline; gap: 12px; width: 100%; text-align: left; background: none; border: none; border-top: 1px dashed var(--line); padding: 9px 2px; font-family: inherit; cursor: pointer; color: var(--ink); }
+  .tc-cu-row:first-of-type { border-top: none; }
+  .tc-cu-when { flex: 0 0 auto; font-weight: 700; color: var(--clay-deep); font-size: 13.5px; min-width: 92px; }
+  .tc-cu-who { flex: 1; min-width: 0; font-size: 14.5px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .tc-cu-go { flex: 0 0 auto; font-size: 13px; font-weight: 700; color: var(--sage-deep); opacity: 0; transition: opacity .15s ease; }
+  .tc-cu-row:hover .tc-cu-go, .tc-cu-row:focus-visible .tc-cu-go { opacity: 1; }
+  /* Touch devices have no hover — always show the cue so it isn't invisible on phones. */
+  @media (hover: none) { .tc-cu-go { opacity: 1; } }
+  .tc-controls { display: flex; gap: 10px; margin: 0 0 14px; }
+  .tc-controls #tcSearch { flex: 1; min-width: 0; }
+  .tc-controls .tc-select { width: auto; flex: 0 0 auto; padding: 10px 12px; font-size: 14px; }
+  @media (max-width: 480px) { .tc-controls { flex-direction: column; } .tc-controls .tc-select { width: 100%; } }
+  .tc-next { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--ink); background: #e4ecdb; border-radius: 999px; padding: 4px 12px; margin-bottom: 4px; }
+  .tc-next b { color: var(--clay-deep); font-weight: 700; }
+  .tc-next-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); flex: 0 0 auto; }
+  .tc-help-sm { font-size: 13px; color: var(--ink-soft); margin: -4px 0 12px; line-height: 1.5; }
+  .tc-field-label { display: block; margin: 12px 0 6px; font-size: 13.5px; color: var(--ink-soft); }
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0 30px; }
 
   /* ---------- hero ---------- */
@@ -359,14 +379,14 @@
     <p class="lead">A new baby or a hard week, a big promotion or just because — tell us what's happening and who they are to you, and we'll help you find the words, the gesture, and the perfect way to show you care.</p>
     <p class="gets">You'll get: <b>what to say</b> · <b>what to do</b> · <b>what to send</b> · <b>how to keep showing up</b></p>
     <button class="cta" onclick="openFlow()">Help me show up →</button>
-    <div class="reassure">No account needed · <b>Your details stay private</b> · Free to try</div>
+    <div class="reassure">No account needed · <b>Free to try</b> · Ready in about a minute</div>
   </section>
 
   <div class="trust">
     <div class="trust-inner">
       <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/></svg>A calm place to think it through</div>
       <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path stroke="#c28a63" d="M9 12l2 2 4-4"/></svg>Your details stay yours</div>
-      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16m0 0c-1.5-2-4-3-6.5-3V7C8 7 10.5 8 12 10c1.5-2 4-3 6.5-3v10c-2.5 0-5 1-6.5 3Z"/></svg>Personal to every moment</div>
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16m0 0c-1.5-2-4-3-6.5-3V7C8 7 10.5 8 12 10c1.5-2 4-3 6.5-3v10c-2.5 0-5 1-6.5 3Z"/></svg>Made for your person, not a template</div>
     </div>
   </div>
 
@@ -473,6 +493,7 @@ const picks = {};      // selected chips per step (kept separate from free text)
 let idx = 0;
 let currentPlan = null;
 let flowPerson = null; // set when the flow was launched from a saved person
+let genTimer = null;   // drives the gentle progress + rotating lines while a plan generates
 function firstName(n){ return String(n||'').trim().split(/\s+/)[0] || 'them'; }
 const scrim = document.getElementById('scrim');
 const stage = document.getElementById('stage');
@@ -506,7 +527,7 @@ window.openFlowForPerson = openFlowForPerson;
 // Re-open a previously saved plan for viewing.
 function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; renderPlan(plan); }
 window.renderSavedPlan = renderSavedPlan;
-function closeFlow(){ scrim.classList.remove('open'); document.body.style.overflow=''; }
+function closeFlow(){ stopGenProgress(); scrim.classList.remove('open'); document.body.style.overflow=''; }
 scrim.addEventListener('click', e => { if (e.target === scrim) closeFlow(); });
 function setProgress(p){ fill.style.width = p + '%'; }
 
@@ -535,13 +556,18 @@ function renderStep(){
       ${s.extra ? `<label style="display:block;margin-top:14px;font-size:13.5px;color:var(--ink-soft);">${s.extra.label}</label>
       ${s.extra.hint ? `<p style="margin:3px 0 0;font-size:12.5px;line-height:1.5;color:#b3a58c;">${s.extra.hint}</p>` : ''}
       <input type="text" id="extrafield" style="margin-top:6px;" placeholder="${s.extra.placeholder}" value="${(answers[s.extra.key]||'').replace(/"/g,'&quot;')}" />` : ''}
+      <div class="k-msg bad" id="stepMsg" style="display:none;margin-top:14px;"></div>
       <div class="nav">
         <button class="link-btn" id="backBtn" ${idx===0?'disabled':''}>← Back</button>
         <button class="cta" id="nextBtn">${idx === STEPS.length-1 ? 'Create my plan →' : 'Continue →'}</button>
       </div>
     </div>`;
+  // Advancing/going back re-renders into the same scrollable overlay — reset it to
+  // the top so the user always lands on the new question, never mid-page or on the
+  // footer below the panel (a real problem on mobile).
+  scrim.scrollTop = 0;
   const ta = document.getElementById('freetext');
-  ta.focus();
+  ta.focus({ preventScroll: true });
   // Chips set selection state only — they never write into the free-text box,
   // so a tapped chip and typed detail can't collide. Both are combined at send.
   stage.querySelectorAll('.pick').forEach(btn => {
@@ -556,12 +582,22 @@ function renderStep(){
       btn.setAttribute('aria-pressed', String(on));
     });
   });
+  // Hide the "tell us a little first" nudge as soon as they start giving us something.
+  const stepMsg = document.getElementById('stepMsg');
+  const clearStepMsg = () => { if (stepMsg) stepMsg.style.display = 'none'; ta.style.borderColor = ''; };
+  ta.addEventListener('input', clearStepMsg);
+  stage.querySelectorAll('.pick').forEach(b => b.addEventListener('click', clearStepMsg));
   document.getElementById('backBtn').onclick = () => { save(); if(idx>0){idx--; renderStep();} };
   document.getElementById('nextBtn').onclick = () => {
     save();
     const s2 = STEPS[idx];
     const hasMoment = (picks.moment && picks.moment.length) || answers.moment;
-    if ((s2.key === 'moment') && !hasMoment){ ta.focus(); ta.style.borderColor = '#c28a63'; return; }
+    if ((s2.key === 'moment') && !hasMoment){
+      ta.style.borderColor = '#c28a63';
+      if (stepMsg){ stepMsg.textContent = 'Tell us a little about the moment first — even a few words is enough to start.'; stepMsg.style.display = 'block'; }
+      ta.focus({ preventScroll: true });
+      return;
+    }
     if (idx < STEPS.length-1){ idx++; renderStep(); } else generate();
   };
 }
@@ -586,8 +622,32 @@ function buildPayload(){
   return p;
 }
 
+// A gentle, honest sense of motion while the plan generates (~30s). The bar eases
+// toward — but never reaches — 95%, and the caption rotates through what we're
+// actually weighing, so the wait feels considered rather than stuck at 100%.
+function startGenProgress(){
+  stopGenProgress();
+  const lines = [
+    'Taking a moment to weigh what would truly help.',
+    'Finding words that sound like you, not a card.',
+    'Thinking through gestures that fit this relationship.',
+    'Looking for lovely local options near them.',
+    'Almost there — putting your plan together.',
+  ];
+  let pct = 12, li = 0, tick = 0;
+  setProgress(pct);
+  const lineEl = () => document.getElementById('genLine');
+  genTimer = setInterval(() => {
+    tick++;
+    pct += Math.max(0.5, (95 - pct) * 0.045); // ease toward 95, never past it
+    if (pct > 95) pct = 95;
+    setProgress(pct);
+    if (tick % 6 === 0 && li < lines.length - 1){ li++; const el = lineEl(); if (el){ el.style.opacity = 0; setTimeout(() => { el.textContent = lines[li]; el.style.opacity = 1; }, 220); } }
+  }, 800);
+}
+function stopGenProgress(){ if (genTimer){ clearInterval(genTimer); genTimer = null; } }
+
 async function generate(){
-  setProgress(100);
   stage.innerHTML = `
     <div class="loading">
       <svg class="lantern" viewBox="0 0 120 130" aria-hidden="true">
@@ -599,8 +659,10 @@ async function generate(){
         <circle cx="60" cy="66" r="10" fill="#ffd691"/>
       </svg>
       <p class="big">Thinking it through…</p>
-      <p class="lines">Taking a moment to weigh what would truly help. This usually takes about half a minute.</p>
+      <p class="lines" id="genLine" style="transition:opacity .25s ease;">Taking a moment to weigh what would truly help. This usually takes about half a minute.</p>
     </div>`;
+  scrim.scrollTop = 0;
+  startGenProgress();
   const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
   try {
     const kick = await fetch('/api/generate', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ jobId, answers: buildPayload(), sid: window.__tcSid, test: window.__tcTest }) });
@@ -622,6 +684,7 @@ async function generate(){
 }
 
 function renderError(msg){
+  stopGenProgress();
   stage.innerHTML = `
     <div class="panel-body">
       <div class="err">${escapeHtml(msg)}</div>
@@ -763,6 +826,7 @@ const MORE_PLACES = [
 
 function renderPlan(p){
   currentPlan = p;
+  stopGenProgress(); setProgress(100);
   try { window.tcTrack && tcTrack('plan_viewed'); } catch(e){}
   const li = arr => (arr||[]).map(x => `<li>${escapeHtml(x)}</li>`).join('');
   const icon = d => `<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#5f6c4c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;

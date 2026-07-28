@@ -245,12 +245,21 @@ function pickVaried(arr, n) {
   return arr[Math.floor(Math.random() * Math.min(n, arr.length))];
 }
 
+// A stable identity for a resolved place, so the same business can't be attached to
+// two different gift ideas in one plan (e.g. a "coffee shop" idea and a "gift card to
+// a cafe" idea both landing on the same shop, which reads as a glitch).
+function placeKey(p) {
+  return p.id || `${p.displayName?.text || ""}|${p.formattedAddress || ""}`;
+}
+
 // From up to a handful of Google Places matches, pick the *loved* one — not just
 // Google's top relevance hit. A Bayesian average pulls thinly-reviewed shops toward
 // a neutral prior so a 5.0 with 3 reviews can't beat a 4.6 with 400. Prefer places
 // clearing a basic quality floor; if none do, still return the best available
 // (better a real business than nothing — the client has a map-search fallback too).
-function pickBestPlace(places) {
+// `used` (optional Set) holds place keys already attached to another idea; we skip
+// them and take the next-best distinct business, so two tiles never show the same shop.
+function pickBestPlace(places, used) {
   if (!Array.isArray(places) || !places.length) return null;
   const PRIOR_MEAN = 4.2, PRIOR_WEIGHT = 20;
   const scored = places.map((p) => {
@@ -262,7 +271,12 @@ function pickBestPlace(places) {
   const qualified = scored.filter((s) => s.r != null && s.r >= 4.0 && s.c >= 15);
   const pool = qualified.length ? qualified : scored;
   pool.sort((a, b) => b.score - a.score);
-  return pool[0].p;
+  for (const s of pool) {
+    if (used && used.has(placeKey(s.p))) continue;
+    if (used) used.add(placeKey(s.p));
+    return s.p;
+  }
+  return null; // every good match is already used elsewhere → let the map-search fallback show
 }
 
 // For each "online" gift idea, attach a real product (photo, price, direct link).
@@ -337,6 +351,7 @@ async function shoppingLookup(query, key) {
 async function enrichLocalIdeas(plan, location, key) {
   if (!plan || !Array.isArray(plan.gift_ideas)) return;
   const locals = plan.gift_ideas.filter((g) => g.locality === "local").slice(0, 2);
+  const used = new Set(); // businesses already attached, so two ideas never share one
   for (const g of locals) {
     try {
       const res = await fetch("https://places.googleapis.com/v1/places:searchText", {
@@ -344,13 +359,13 @@ async function enrichLocalIdeas(plan, location, key) {
         headers: {
           "Content-Type": "application/json",
           "X-Goog-Api-Key": key,
-          "X-Goog-FieldMask": "places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.photos",
+          "X-Goog-FieldMask": "places.id,places.displayName,places.formattedAddress,places.rating,places.userRatingCount,places.googleMapsUri,places.websiteUri,places.photos",
         },
         body: JSON.stringify({ textQuery: `${g.search_query} near ${location}`, maxResultCount: 5 }),
       });
       if (!res.ok) continue;
       const data = await res.json();
-      const p0 = pickBestPlace(data.places);
+      const p0 = pickBestPlace(data.places, used);
       if (!p0) continue;
       g.local_place = {
         name: p0.displayName?.text || "",
