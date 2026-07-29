@@ -195,9 +195,14 @@ function renderCheckInbox(email) {
 
 /* ---------------- data ---------------- */
 async function loadPeople() {
+  // Personal circle ONLY — never the book-of-business roster (TC-46 Fix 1). The roster
+  // (roster.js) shows contact_kind='contact'; this intimate list must stay personal, or
+  // an import would flood "People I care about" with every client. contact_kind is NOT
+  // NULL DEFAULT 'personal', so a plain equality is correct (no legacy NULLs exist).
   const { data, error } = await sb
     .from("people")
     .select("id,name,relationship,notes,location,created_at,key_dates(id,label,kind,event_date,recurs,lead_days),saved_plans(id,plan_title,occasion,created_at,plan)")
+    .eq("contact_kind", "personal")
     .order("created_at", { ascending: true });
   if (error) { console.error(error); return []; }
   return data || [];
