@@ -183,10 +183,13 @@ export async function runImport({ supa, userId, filename, rows, source = "csv", 
   for (let i = 0; i < total; i++) {
     try {
       const r = await upsertPerson({ supa, userId, row: rows[i], source, batchId });
-      if (r.action === "inserted") added++;
+      // A placement crossover (a business row that matched a personal person) is
+      // represented SOLELY by "to review" — never also counted as "already in your
+      // roster" (it wasn't on the roster, and one person mustn't land in two buckets).
+      if (r.placement) needs_review++;
+      else if (r.action === "inserted") added++;
       else if (r.action === "updated" || r.action === "unchanged") updated++;
       else if (r.action === "review") needs_review++;
-      if (r.placement) needs_review++; // a cross-kind merge that needs a placement decision
     } catch (err) {
       // Carry the error — the user never gets homework. Log and keep going.
       skipped++;
