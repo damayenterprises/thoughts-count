@@ -114,15 +114,29 @@ async function handleFile(file) {
 }
 
 // CSV/TSV/semicolon → raw matrix (header:false), delimiter auto-detected, quotes handled.
-function readDelimited(file) {
+// We decode the bytes ourselves first so non-UTF-8 exports (Windows-1252/Latin-1, very
+// common from CRMs) don't mojibake accented names like "José Muñoz".
+async function readDelimited(file) {
+  const text = await decodeText(file);
   return new Promise((resolve, reject) => {
-    Papa.parse(file, {
+    Papa.parse(text, {
       header: false,
       skipEmptyLines: "greedy",
       complete: (res) => resolve(res.data || []),
       error: reject,
     });
   });
+}
+
+// Best-effort text decode: honor a BOM, else try strict UTF-8 and fall back to
+// Windows-1252 when the bytes aren't valid UTF-8 (so accented names survive).
+async function decodeText(file) {
+  const buf = new Uint8Array(await file.arrayBuffer());
+  if (buf[0] === 0xef && buf[1] === 0xbb && buf[2] === 0xbf) return new TextDecoder("utf-8").decode(buf.subarray(3));
+  if (buf[0] === 0xff && buf[1] === 0xfe) return new TextDecoder("utf-16le").decode(buf.subarray(2));
+  if (buf[0] === 0xfe && buf[1] === 0xff) return new TextDecoder("utf-16be").decode(buf.subarray(2));
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+  catch { return new TextDecoder("windows-1252").decode(buf); }
 }
 
 // .xlsx/.xls → first non-empty sheet as a raw matrix.
