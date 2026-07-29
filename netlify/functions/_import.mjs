@@ -237,33 +237,43 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     return { action: "updated", personId: existingId };
   }
 
-  // 3) Fuzzy name match → propose only. Hold the incoming row for a one-tap decision;
-  //    do NOT create a duplicate person (T6 resolves it: merge or keep-both).
-  const fuzzy = await fuzzyMatch(supa, userId, n.name);
-  if (fuzzy) {
+  // 3) Fuzzy name match → propose only (never auto-merge). BUT apply identifier-first
+  //    dedup: step 2 already proved this row's email/phone matched NObody, so a name-only
+  //    similarity to a person who has a DIFFERENT known identifier means they are simply
+  //    different people who share a common name — insert as new, don't ask. We only raise
+  //    a review candidate when we genuinely can't tell them apart: at least one side is
+  //    identifier-poor (no email/phone) AND the surnames match (kills "David May" vs
+  //    "David Kay", "Chris P" vs "Chris Q" while still flagging real near-dups on the same
+  //    surname like "Sara/Sarah Johnson", "Michael/Mike Brown", "Jane Doe/Jane Ann Doe").
+  const incomingHasId = n.identifiers.length > 0;
+  const candidates = await fuzzyMatch(supa, userId, n.name);
+  const ambiguous = (candidates || []).find(
+    (c) => (!incomingHasId || !c.has_identifier) && sameSurname(n.name, c.name)
+  );
+  if (ambiguous) {
     // Idempotency: if we already proposed this same pair, don't ask twice on re-upload.
     const { data: existingRc } = await supa
       .from("review_candidates")
       .select("id")
       .eq("user_id", userId)
-      .eq("existing_person_id", fuzzy.person_id)
+      .eq("existing_person_id", ambiguous.person_id)
       .eq("incoming->>natural_key", n.natural_key)
       .maybeSingle();
     if (existingRc?.id) {
-      return { action: "unchanged", personId: fuzzy.person_id, candidateId: existingRc.id };
+      return { action: "unchanged", personId: ambiguous.person_id, candidateId: existingRc.id };
     }
     const { data: rc } = await supa
       .from("review_candidates")
       .insert({
         user_id: userId,
         batch_id: batchId,
-        existing_person_id: fuzzy.person_id,
+        existing_person_id: ambiguous.person_id,
         incoming: { ...n, source },
-        score: fuzzy.score,
+        score: ambiguous.score,
       })
       .select("id")
       .single();
-    return { action: "review", personId: fuzzy.person_id, candidateId: rc?.id };
+    return { action: "review", personId: ambiguous.person_id, candidateId: rc?.id };
   }
 
   // 4) No match → insert a fresh person, its identifiers, its source row, its key dates.
@@ -368,14 +378,20 @@ async function addIdentifiers(supa, userId, personId, identifiers) {
 
 async function matchByIdentifier(supa, userId, identifiers) {
   if (!identifiers?.length) return null;
-  const ors = identifiers.map((i) => `and(type.eq.${i.type},value.eq.${i.value})`).join(",");
+  // Query by exact values with a parameterized .in() (NOT a string-interpolated .or()):
+  // an email/phone containing , ( ) would malform an interpolated filter and silently
+  // miss the match, splitting a person into a duplicate. Values are matched exactly, then
+  // we confirm the (type,value) pair to avoid an email that happens to equal a phone.
+  const values = identifiers.map((i) => i.value);
   const { data } = await supa
     .from("identifiers")
-    .select("person_id")
+    .select("person_id, type, value")
     .eq("user_id", userId)
-    .or(ors)
-    .limit(1);
-  return data?.[0]?.person_id || null;
+    .in("value", values);
+  if (!data?.length) return null;
+  const wanted = new Set(identifiers.map((i) => `${i.type} ${i.value}`));
+  const hit = data.find((r) => wanted.has(`${r.type} ${r.value}`));
+  return hit?.person_id || null;
 }
 
 async function fuzzyMatch(supa, userId, name) {
@@ -386,7 +402,15 @@ async function fuzzyMatch(supa, userId, name) {
     p_threshold: FUZZY_LOW,
   });
   if (error || !data?.length) return null;
-  return data[0]; // { person_id, name, score }
+  return data; // [{ person_id, name, score, has_identifier }] best-first
+}
+
+// Two names share a surname when their last token matches (case-insensitive, ≥2 chars —
+// so single-initial "surnames" like "Chris P" / "Chris Q" don't count as a match).
+export function sameSurname(a, b) {
+  const last = (s) => { const t = String(s || "").trim().split(/\s+/); return t.length ? t[t.length - 1].toLowerCase() : ""; };
+  const sa = last(a), sb = last(b);
+  return sa.length >= 2 && sa === sb;
 }
 
 // Provenance + idempotency row per source. Upserts on the source's natural key so a

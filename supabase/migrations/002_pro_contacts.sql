@@ -97,13 +97,17 @@ create policy own_review_candidates on review_candidates for all using (auth.uid
 -- calls this RPC (service-role, user_id passed explicitly). Scoped to book-of-
 -- business contacts only, so a CSV row never fuzzy-collides with the intimate
 -- personal circle — deterministic email/phone matches still converge across kinds.
+-- Returns has_identifier so the import can apply identifier-first dedup: a name-only
+-- similarity to a person who has a DIFFERENT known email/phone is not a duplicate.
+drop function if exists tc38_fuzzy_person_match(uuid, text, real);
 create or replace function tc38_fuzzy_person_match(
   p_user_id   uuid,
   p_name      text,
   p_threshold real default 0.4
-) returns table(person_id uuid, name text, score real)
+) returns table(person_id uuid, name text, score real, has_identifier boolean)
 language sql stable as $$
-  select id, name, similarity(name, p_name) as score
+  select id, name, similarity(name, p_name) as score,
+         (primary_email is not null or primary_phone is not null) as has_identifier
   from people
   where user_id = p_user_id
     and contact_kind = 'contact'
