@@ -17,6 +17,11 @@
 
 import crypto from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { sameSurname, firstNamesEquivalent } from "./_names.mjs";
+
+// Re-exported so existing importers (e.g. the test harness) keep resolving it from here
+// after the definition moved to _names.mjs (Spec A / A1b).
+export { sameSurname };
 
 // Fuzzy band: below LOW we treat as "no match" (insert new); at/above HIGH a name-only
 // match is still not trusted enough to auto-merge (deterministic identifiers do that),
@@ -458,13 +463,7 @@ async function fuzzyMatch(supa, userId, name) {
   return data; // [{ person_id, name, score, has_identifier }] best-first
 }
 
-// Two names share a surname when their last token matches (case-insensitive, ≥2 chars —
-// so single-initial "surnames" like "Chris P" / "Chris Q" don't count as a match).
-export function sameSurname(a, b) {
-  const last = (s) => { const t = String(s || "").trim().split(/\s+/); return t.length ? t[t.length - 1].toLowerCase() : ""; };
-  const sa = last(a), sb = last(b);
-  return sa.length >= 2 && sa === sb;
-}
+// (sameSurname + firstNamesEquivalent now live in _names.mjs — imported/re-exported above.)
 
 // Provenance + idempotency row per source. Upserts on the source's natural key so a
 // re-import short-circuits at step 1 next time.
