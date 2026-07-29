@@ -318,6 +318,9 @@ function buildRows() {
 }
 
 const MAX_PAYLOAD_BYTES = 5_200_000; // stay well under Netlify's ~6MB request-body limit
+// Keep inline to small files so it never hits the ~26–30s sync-function ceiling (V7);
+// larger imports use the background + poll path. Must match MAX_INLINE in import-commit.mjs.
+const INLINE_MAX = 25;
 
 async function commit() {
   const rows = buildRows();
@@ -336,10 +339,14 @@ async function commit() {
     const tk = await token();
     const auth = { "content-type": "application/json", authorization: "Bearer " + tk };
     let summary;
-    if (rows.length <= 200) {
-      const res = await fetch("/api/import/commit", { method: "POST", headers: auth, body: JSON.stringify({ filename: state.filename, rows }) });
-      if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Import failed.");
-      summary = await res.json();
+    if (rows.length <= INLINE_MAX) {
+      // Inline is one request with no progress events; creep the bar so it feels alive.
+      const creep = startCreep();
+      try {
+        const res = await fetch("/api/import/commit", { method: "POST", headers: auth, body: JSON.stringify({ filename: state.filename, rows }) });
+        if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "Import failed.");
+        summary = await res.json();
+      } finally { stopCreep(creep); }
       setBar(100);
     } else {
       const jobId = "imp_" + Math.random().toString(36).slice(2) + Date.now().toString(36);
@@ -354,6 +361,8 @@ async function commit() {
   }
 }
 function setBar(pct) { const b = body().querySelector("#tcPbar"); if (b) b.style.width = Math.max(8, Math.min(100, pct)) + "%"; }
+function startCreep() { let w = 8; setBar(w); return setInterval(() => { w = Math.min(90, w + 3); setBar(w); }, 600); }
+function stopCreep(id) { clearInterval(id); }
 async function pollImport(jobId) {
   const tk = await token();
   for (let i = 0; i < 600; i++) {

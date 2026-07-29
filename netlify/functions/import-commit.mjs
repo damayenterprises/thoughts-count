@@ -11,7 +11,11 @@
 import { requireUser, serviceClient, json } from "./_supabase.mjs";
 import { runImport } from "./_import.mjs";
 
-const MAX_INLINE = 200;
+// Inline commits run under the ~26–30s synchronous function limit. The dedup core does
+// several sequential Supabase round-trips per row (~0.3–0.6s/row), so ~50 rows already
+// approaches the ceiling and past ~55 returns a 504 (V7). Keep the inline path to small
+// files; anything larger uses the proven background + poll path (15-min budget).
+const MAX_INLINE = 25;
 
 export default async (req) => {
   if (req.method !== "POST") return json(405, { error: "Method not allowed" });
