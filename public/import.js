@@ -411,7 +411,7 @@ async function loadCandidates() {
   const ids = [...new Set((cands || []).map((c) => c.existing_person_id).filter(Boolean))];
   let byId = {};
   if (ids.length) {
-    const { data: ppl } = await SB.from("people").select("id, name, relationship, primary_email, primary_phone").in("id", ids);
+    const { data: ppl } = await SB.from("people").select("id, name, relationship, primary_email, primary_phone, contact_kind").in("id", ids);
     byId = Object.fromEntries((ppl || []).map((p) => [p.id, p]));
   }
   return (cands || []).map((c) => ({ ...c, existing: byId[c.existing_person_id] || null }));
@@ -458,6 +458,26 @@ function renderReview(cands) {
         <div class="k-msg" data-msg="${c.id}"></div>
       </div>`;
     }
+    // Cross-kind (TC-47): the imported contact looks like someone already in the PERSONAL
+    // circle. ONE three-way decision — same person (keep personal) · same person but they
+    // belong on the roster (move) · actually different people (keep both). We describe the
+    // existing person by where they truly live, and favor keeping them personal.
+    if (inc._crosskind) {
+      const nm = esc(c.existing?.name || inc.name || "This person");
+      const sub = inc.email || inc.phone || inc.relationship
+        ? `Looks like the same person you just imported — ${esc(inc.email || inc.phone || inc.relationship)}.`
+        : `Looks like the same person you just imported.`;
+      return `<div class="block tc-cand" data-id="${c.id}">
+        <div class="tc-cand-q">${nm} is already one of your personal people.</div>
+        <div class="tc-cand-sub" style="margin:2px 0 12px;">${sub} What would you like to do?</div>
+        <div class="tc-cand-actions tc-cand-actions-col">
+          <button class="cta tc-place-personal" data-id="${c.id}">Keep them in personal</button>
+          <button class="cta ghost tc-place-roster" data-id="${c.id}">Move them to my roster</button>
+          <button class="cta ghost tc-keep" data-id="${c.id}">These are different people — keep both</button>
+        </div>
+        <div class="k-msg" data-msg="${c.id}"></div>
+      </div>`;
+    }
     return `<div class="block tc-cand" data-id="${c.id}">
       <div class="tc-cand-q">Are these the same person?</div>
       <div class="tc-cand-pair">
@@ -472,11 +492,13 @@ function renderReview(cands) {
       <div class="k-msg" data-msg="${c.id}"></div>
     </div>`;
   }).join("");
-  const nPlace = cands.filter((c) => c.incoming?._placement).length;
-  const nDup = cands.length - nPlace;
-  const title = nDup && nPlace ? `A quick check (${cands.length})`
-    : nPlace ? `Where should they live? (${cands.length})`
-    : `Possible duplicates (${cands.length})`;
+  // Header count always equals the queue length (one card per pending review — no double
+  // counting of the old "same person? then placement" two-step). "Possible duplicates" only
+  // when every card is a plain contact↔contact dup; otherwise it's a gentle "quick check".
+  const nDup = cands.filter((c) => !c.incoming?._placement && !c.incoming?._crosskind).length;
+  const title = nDup === cands.length
+    ? `Possible duplicates (${cands.length})`
+    : `A quick check (${cands.length})`;
   show(`<div class="panel-body">
     <div class="q-eyebrow">One quick check</div>
     <h2 class="q-title" style="margin-bottom:4px;">${title}</h2>

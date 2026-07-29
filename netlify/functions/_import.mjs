@@ -283,13 +283,18 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     if (existingRc?.id) {
       return { action: "unchanged", personId: ambiguous.person_id, candidateId: existingRc.id };
     }
+    // If the matched person lives in a DIFFERENT kind (they're already in the personal
+    // circle), mark the review as cross-kind so the UI shows ONE three-way prompt
+    // (keep personal / move to roster / keep both) instead of "same person?" then a
+    // separate placement step. matched_kind drives the copy ("your personal people").
+    const crossKind = isPersonal(ambiguous);
     const { data: rc } = await supa
       .from("review_candidates")
       .insert({
         user_id: userId,
         batch_id: batchId,
         existing_person_id: ambiguous.person_id,
-        incoming: { ...n, source },
+        incoming: { ...n, source, ...(crossKind ? { _crosskind: true, _matched_kind: ambiguous.contact_kind } : {}) },
         score: ambiguous.score,
       })
       .select("id")
@@ -375,7 +380,11 @@ export async function resolveCandidate({ supa, userId, candidateId, action }) {
 
   const n = cand.incoming || {};
 
-  // Placement prompt: set where this person lives, lock it, clear the prompt.
+  const source = n.source || "csv";
+
+  // Deterministic placement prompt (identifier/natural-key match already converged the two
+  // records — definitely the same person, only their "home" is in question): two-way, set
+  // where they live, lock it, clear the prompt.
   if (n._placement) {
     if (action !== "move_to_roster" && action !== "keep_personal") return { ok: false, error: "Unknown action." };
     const kind = action === "move_to_roster" ? "contact" : "personal";
@@ -388,20 +397,37 @@ export async function resolveCandidate({ supa, userId, candidateId, action }) {
     return { ok: true, action, personId: cand.existing_person_id };
   }
 
-  const source = n.source || "csv";
-  let personId;
-  let placement = false;
+  // Cross-kind review (a book contact that name-matched someone already in the PERSONAL
+  // circle — uncertain, so we never auto-merged): ONE three-way decision, resolved here in
+  // a single step (no separate placement prompt). "keep both" means they're different people.
+  if (n._crosskind) {
+    let personId;
+    if (action === "keep_both") {
+      personId = await insertPerson(supa, userId, n, source, "contact");
+    } else if (action === "keep_personal" || action === "move_to_roster") {
+      personId = cand.existing_person_id;
+      await mergeIntoPerson(supa, userId, personId, n);
+      await touchSource(supa, userId, personId, source, { natural_key: n.natural_key });
+      const kind = action === "move_to_roster" ? "contact" : "personal";
+      await supa
+        .from("people")
+        .update({ contact_kind: kind, kind_locked: true, updated_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .eq("id", personId);
+    } else {
+      return { ok: false, error: "Unknown action." };
+    }
+    await supa.from("review_candidates").delete().eq("user_id", userId).eq("id", candidateId);
+    return { ok: true, action, personId };
+  }
 
+  // Plain within-kind duplicate prompt (contact ↔ contact): merge folds the held row into
+  // the matched person; keep_both promotes it to its own person.
+  let personId;
   if (action === "merge") {
     personId = cand.existing_person_id;
     await mergeIntoPerson(supa, userId, personId, n);
     await touchSource(supa, userId, personId, source, { natural_key: n.natural_key });
-    // A3 (TC-47→TC-44): if this "same people?" merge converged a book contact ONTO a
-    // person who lives in a different kind (e.g. someone in the personal circle), ask
-    // "business or personal?" now instead of silently deciding. maybeFlagPlacement self-
-    // guards: it no-ops when the person's kind already equals 'contact' or is kind_locked,
-    // so a plain within-roster merge raises nothing.
-    placement = await maybeFlagPlacement(supa, userId, personId, "contact", cand.batch_id);
   } else if (action === "keep_both") {
     personId = await insertPerson(supa, userId, n, source, "contact");
   } else {
@@ -409,7 +435,7 @@ export async function resolveCandidate({ supa, userId, candidateId, action }) {
   }
 
   await supa.from("review_candidates").delete().eq("user_id", userId).eq("id", candidateId);
-  return { ok: true, action, personId, placement };
+  return { ok: true, action, personId };
 }
 
 // Field-merge into an existing person: fill empty fields, never clobber a curated note.

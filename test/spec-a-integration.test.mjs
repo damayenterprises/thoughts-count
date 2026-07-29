@@ -42,7 +42,8 @@ const mk = (userId) => {
       .select("id, existing_person_id, incoming").eq("user_id", userId);
     const all = data || [];
     return {
-      dup: all.filter((r) => !r.incoming?._placement),
+      dup: all.filter((r) => !r.incoming?._placement && !r.incoming?._crosskind),
+      cross: all.filter((r) => r.incoming?._crosskind),
       placement: all.filter((r) => r.incoming?._placement),
     };
   };
@@ -99,31 +100,41 @@ async function main() {
     const j1 = await h.imp({ name: "Jordan Rivera", email: "jordan.rivera@work.com" });
     eq("TC-47: book import onto a personal person PROPOSES (no silent dup)", j1.action, "review");
     eq("TC-47: matched the personal person", j1.personId, jordan);
-    const jRev = (await h.reviews()).dup.find((r) => r.existing_person_id === jordan);
-    ok("TC-47: exactly one same-people review raised", !!jRev);
-    // merge → one person + placement prompt
-    const jMerge = await resolveCandidate({ supa, userId, candidateId: jRev.id, action: "merge" });
-    eq("TC-47: merge returns placement=true", jMerge.placement, true);
-    const afterMerge = await h.reviews();
-    eq("TC-47: dup review cleared after merge", afterMerge.dup.filter((r) => r.existing_person_id === jordan).length, 0);
-    eq("TC-47: placement prompt now pending", afterMerge.placement.filter((r) => r.existing_person_id === jordan).length, 1);
-    // answer placement → kind set + locked, prompt cleared
-    const placeRev = afterMerge.placement.find((r) => r.existing_person_id === jordan);
-    await resolveCandidate({ supa, userId, candidateId: placeRev.id, action: "move_to_roster" });
+    const jReviews = await h.reviews();
+    const jRev = jReviews.cross.find((r) => r.existing_person_id === jordan);
+    ok("TC-47: raised as a CROSS-KIND three-way review (not a plain dup)", !!jRev);
+    eq("TC-47: no separate placement prompt raised at import", jReviews.placement.filter((r) => r.existing_person_id === jordan).length, 0);
+    // ONE step: "keep personal" → merge + stays personal + locked, review cleared
+    const jResolve = await resolveCandidate({ supa, userId, candidateId: jRev.id, action: "keep_personal" });
+    eq("TC-47: keep_personal resolves to the same person", jResolve.personId, jordan);
+    const jAfter = await h.reviews();
+    eq("TC-47: review cleared in one step (no dup left)", jAfter.cross.filter((r) => r.existing_person_id === jordan).length, 0);
+    eq("TC-47: no placement prompt spawned (one-step)", jAfter.placement.filter((r) => r.existing_person_id === jordan).length, 0);
     const jk = await h.kindOf(jordan);
-    eq("TC-47: placement sets contact_kind", jk.contact_kind, "contact");
-    eq("TC-47: placement locks the kind", jk.kind_locked, true);
-    eq("TC-47: placement prompt cleared", (await h.reviews()).placement.filter((r) => r.existing_person_id === jordan).length, 0);
-    // re-import same → deterministic (email now on the person), asks nothing
+    eq("TC-47: keep_personal keeps them personal", jk.contact_kind, "personal");
+    eq("TC-47: keep_personal locks the kind", jk.kind_locked, true);
+    // re-import same → deterministic (email now merged onto the person), asks nothing
     const jRe = await h.imp({ name: "Jordan Rivera", email: "jordan.rivera@work.com" });
     eq("TC-47: re-import converges silently (updated)", jRe.action, "updated");
     eq("TC-47: re-import raises no placement (kind_locked)", jRe.placement, false);
 
-    // keep-both variant
+    // move_to_roster variant → same person, reclassified to roster + locked
+    const drew = await h.seedPersonal("Drew Patel");
+    const d1 = await h.imp({ name: "Drew Patel", email: "drew.patel@work.com" });
+    const dRev = (await h.reviews()).cross.find((r) => r.existing_person_id === drew);
+    ok("TC-47 move: cross-kind three-way raised", !!dRev);
+    await resolveCandidate({ supa, userId, candidateId: dRev.id, action: "move_to_roster" });
+    const dk = await h.kindOf(drew);
+    eq("TC-47 move: reclassified to roster (contact)", dk.contact_kind, "contact");
+    eq("TC-47 move: kind locked", dk.kind_locked, true);
+    eq("TC-47 move: one person only (merged, not duplicated)", (await h.reviews()).cross.filter((r) => r.existing_person_id === drew).length, 0);
+
+    // keep-both variant → two people, no re-ask
     const casey = await h.seedPersonal("Casey Lin");
     const kb = await h.imp({ name: "Casey Lin", email: "casey.lin@work.com" });
-    eq("TC-47 keep-both: proposes", kb.action, "review");
-    const kbRev = (await h.reviews()).dup.find((r) => r.existing_person_id === casey);
+    eq("TC-47 keep-both: proposes (cross-kind)", kb.action, "review");
+    const kbRev = (await h.reviews()).cross.find((r) => r.existing_person_id === casey);
+    ok("TC-47 keep-both: raised as cross-kind", !!kbRev);
     const before2 = await h.peopleCount();
     await resolveCandidate({ supa, userId, candidateId: kbRev.id, action: "keep_both" });
     eq("TC-47 keep-both: yields a second person", await h.peopleCount(), before2 + 1);
