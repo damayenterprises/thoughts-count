@@ -52,3 +52,35 @@
   from = "/api/send-digest"
   to = "/.netlify/functions/send-digest"
   status = 200
+
+# --- TC-38 Pro contact import (smart CSV + dedup) ---
+
+# Propose a column mapping (heuristics + small model call for the ambiguous remainder)
+[[redirects]]
+  from = "/api/import/analyze"
+  to = "/.netlify/functions/import-analyze"
+  status = 200
+
+# Commit a mapped import inline (small files)
+[[redirects]]
+  from = "/api/import/commit"
+  to = "/.netlify/functions/import-commit"
+  status = 200
+
+# Commit a mapped import in the background (large files)
+[[redirects]]
+  from = "/api/import/commit-background"
+  to = "/.netlify/functions/import-commit-background"
+  status = 200
+
+# Poll a background import's progress
+[[redirects]]
+  from = "/api/import/status"
+  to = "/.netlify/functions/import-status"
+  status = 200
+
+# Resolve one "possible duplicate" (merge / keep both)
+[[redirects]]
+  from = "/api/review/resolve"
+  to = "/.netlify/functions/review-resolve"
+  status = 200

@@ -93,7 +93,7 @@ async function boot() {
   mountAuthBtn();
   renderAuthBtn();
 
-  window.TCCompanion = { isSignedIn: () => !!user, mountSaveToPerson, openHome, openSignIn };
+  window.TCCompanion = { isSignedIn: () => !!user, mountSaveToPerson, openHome, openSignIn, refreshAuthBtn: renderAuthBtn };
 }
 
 /* ---------------- top-bar auth button ---------------- */
@@ -105,7 +105,12 @@ function renderAuthBtn() {
   const slot = document.getElementById("authSlot");
   if (!slot) return;
   if (user) {
-    slot.innerHTML = `<button class="tc-authbtn" id="tcHomeBtn">♡ People I care about</button>`;
+    // Pro users get a small entry point to their full book-of-business roster (TC-38).
+    const pro = !!(window.TCRoster && window.TCRoster.isPro && window.TCRoster.isPro());
+    const rosterBtn = pro ? `<button class="tc-authbtn ghost" id="tcRosterBtn" style="margin-right:8px;">☰ My roster</button>` : "";
+    slot.innerHTML = rosterBtn + `<button class="tc-authbtn" id="tcHomeBtn">♡ People I care about</button>`;
+    const rb = slot.querySelector("#tcRosterBtn");
+    if (rb) rb.onclick = () => window.TCRoster.open();
     slot.querySelector("#tcHomeBtn").onclick = openHome;
   } else {
     slot.innerHTML = `<button class="tc-authbtn ghost" id="tcSignInBtn">Sign in</button>`;

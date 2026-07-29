@@ -10,6 +10,7 @@
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
-    "@supabase/supabase-js": "^2.110.8"
+    "@supabase/supabase-js": "^2.110.8",
+    "libphonenumber-js": "^1.13.9"
   }
 }
