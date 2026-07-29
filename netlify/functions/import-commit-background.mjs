@@ -12,27 +12,27 @@ import { runImport } from "./_import.mjs";
 
 export default async (req) => {
   const store = getStore("imports");
-  let jobId;
+  let jobId, key = null;
   try {
     const body = await req.json();
     jobId = body?.jobId;
     if (!jobId) return new Response("missing jobId", { status: 400 });
 
-    // Auth can't be returned synchronously from a background function, so surface any
-    // problem through the polled record.
+    // Auth can't be returned synchronously from a background function. If it fails we
+    // can't namespace a record (no user_id) — return quietly; the client's own poll is
+    // authed and will surface the sign-in problem. On success, namespace the blob key by
+    // the verified user_id so no one else can read this job's status (V#5).
     const auth = await requireUser(req);
-    if (auth.error) {
-      await store.setJSON(jobId, { status: "error", error: auth.error });
-      return new Response("ok", { status: 202 });
-    }
+    if (auth.error) return new Response("ok", { status: 202 });
+    key = `${auth.userId}/${jobId}`;
 
     const rows = Array.isArray(body?.rows) ? body.rows : [];
     if (!rows.length) {
-      await store.setJSON(jobId, { status: "error", error: "No rows to import." });
+      await store.setJSON(key, { status: "error", error: "No rows to import." });
       return new Response("ok", { status: 202 });
     }
 
-    await store.setJSON(jobId, { status: "running", progress: { done: 0, total: rows.length } });
+    await store.setJSON(key, { status: "running", progress: { done: 0, total: rows.length } });
 
     const supa = serviceClient();
     const summary = await runImport({
@@ -42,16 +42,16 @@ export default async (req) => {
       rows,
       source: "csv",
       onProgress: async (done, total) => {
-        await store.setJSON(jobId, { status: "running", progress: { done, total } });
+        await store.setJSON(key, { status: "running", progress: { done, total } });
       },
     });
 
-    await store.setJSON(jobId, { status: "done", result: summary });
+    await store.setJSON(key, { status: "done", result: summary });
     return new Response("ok", { status: 202 });
   } catch (err) {
     console.error("import-commit-background failed", err);
     try {
-      if (jobId) await store.setJSON(jobId, { status: "error", error: "We couldn't finish that import. Please try again." });
+      if (key) await store.setJSON(key, { status: "error", error: "We couldn't finish that import. Please try again." });
     } catch {}
     return new Response("ok", { status: 202 });
   }
