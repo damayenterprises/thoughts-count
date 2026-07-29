@@ -8,6 +8,7 @@
 // for RLS-safe reads and its JWT for the authenticated import endpoints.
 
 import Papa from "https://esm.sh/papaparse@5.4.1";
+import * as XLSX from "https://esm.sh/xlsx@0.18.5";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
@@ -71,10 +72,10 @@ function pickView() {
     <h2 class="q-title" style="margin-bottom:4px;">Bring your people in</h2>
     <p class="q-help">Drop in a file from anywhere — a CRM export, a spreadsheet, your contacts. Any columns, any order. We'll figure out the rest.</p>
     <label class="tc-drop" id="tcDrop">
-      <input type="file" id="tcFile" accept=".csv,text/csv,.txt" hidden />
+      <input type="file" id="tcFile" accept=".csv,.tsv,.txt,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden />
       <div class="tc-drop-ic">＋</div>
-      <div class="tc-drop-main">Choose a CSV file</div>
-      <div class="tc-drop-sub">or drag it here · no template needed, we map the columns for you</div>
+      <div class="tc-drop-main">Choose a CSV or Excel file</div>
+      <div class="tc-drop-sub">or drag it here · .csv or .xlsx, with or without a header row — we map the columns for you</div>
     </label>
     <div class="k-msg" id="tcImpMsg"></div>
   </div>`;
@@ -91,20 +92,89 @@ function wirePick() {
 
 function msg(text, cls = "") { const m = body().querySelector("#tcImpMsg"); if (m) { m.className = "k-msg " + cls; m.textContent = text; } }
 
-function handleFile(file) {
+async function handleFile(file) {
   msg("Reading your file…");
-  Papa.parse(file, {
-    header: true,
-    skipEmptyLines: "greedy",
-    complete: async (res) => {
-      const rows = (res.data || []).filter((r) => Object.values(r).some((v) => String(v ?? "").trim() !== ""));
-      const headers = (res.meta?.fields || []).map((h) => String(h ?? "").trim());
-      if (!headers.length || !rows.length) { msg("That file looked empty — try another export.", "bad"); return; }
-      state = { headers, rows, filename: file.name, mapping: {} };
-      await analyze();
-    },
-    error: () => msg("We couldn't read that file. A .csv export works best.", "bad"),
+  try {
+    const name = (file.name || "").toLowerCase();
+    const isExcel = name.endsWith(".xlsx") || name.endsWith(".xls") ||
+      (file.type || "").includes("spreadsheetml") || (file.type || "").includes("ms-excel");
+    // Parse to a raw matrix (array of cell-arrays) — one shape for CSV and Excel alike.
+    const matrix = isExcel ? await readExcel(file) : await readDelimited(file);
+    const clean = (matrix || []).filter((r) => r.some((c) => String(c ?? "").trim() !== ""));
+    if (!clean.length) { msg("We couldn't find any rows in that file — try another export.", "bad"); return; }
+
+    const { headers, rows } = shapeMatrix(clean);
+    if (!headers.length || !rows.length) { msg("We couldn't find any contacts in that file.", "bad"); return; }
+    state = { headers, rows, filename: file.name, mapping: {} };
+    await analyze();
+  } catch (e) {
+    console.error("file read failed", e);
+    msg("We couldn't read that file. A .csv or .xlsx export works best.", "bad");
+  }
+}
+
+// CSV/TSV/semicolon → raw matrix (header:false), delimiter auto-detected, quotes handled.
+function readDelimited(file) {
+  return new Promise((resolve, reject) => {
+    Papa.parse(file, {
+      header: false,
+      skipEmptyLines: "greedy",
+      complete: (res) => resolve(res.data || []),
+      error: reject,
+    });
   });
+}
+
+// .xlsx/.xls → first non-empty sheet as a raw matrix.
+async function readExcel(file) {
+  const wb = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  for (const sheetName of wb.SheetNames) {
+    const m = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { header: 1, blankrows: false, defval: "" });
+    if (m.some((r) => r.some((c) => String(c ?? "").trim() !== ""))) return m;
+  }
+  return [];
+}
+
+// Decide header row vs data, and turn the matrix into header + object-rows the rest of
+// the pipeline consumes. If row 1 already looks like DATA (an email/phone/date sits in
+// it), the file is headerless — we synthesize "Column A/B/…" so the first contact isn't
+// eaten as column names (V#2). Header names are made unique so duplicate headers don't
+// collide.
+function shapeMatrix(matrix) {
+  const width = Math.max(...matrix.map((r) => r.length));
+  const headerless = looksLikeDataRow(matrix[0]);
+  const rawHeaders = headerless
+    ? Array.from({ length: width }, (_, i) => `Column ${colLetter(i)}`)
+    : (matrix[0] || []).map((h) => String(h ?? "").trim());
+  const headers = uniquify(rawHeaders.map((h, i) => h || `Column ${colLetter(i)}`), width);
+  const dataRows = headerless ? matrix : matrix.slice(1);
+  const rows = dataRows.map((cells) => {
+    const o = {};
+    headers.forEach((h, i) => { o[h] = cells[i] != null ? String(cells[i]) : ""; });
+    return o;
+  }).filter((o) => Object.values(o).some((v) => String(v).trim() !== ""));
+  return { headers, rows };
+}
+
+// A row is DATA (not headers) if any cell holds an email, a phone, or a date — a real
+// header row never does. This is what saves the first contact in a headerless file.
+function looksLikeDataRow(row) {
+  if (!row) return false;
+  return row.some((c) => {
+    const v = String(c ?? "").trim();
+    if (!v) return false;
+    return EMAIL_RE.test(v) || DATE_RE.test(v) || (PHONE_RE.test(v) && v.replace(/\D/g, "").length >= 7);
+  });
+}
+function colLetter(i) { let s = ""; i += 1; while (i > 0) { const r = (i - 1) % 26; s = String.fromCharCode(65 + r) + s; i = Math.floor((i - 1) / 26); } return s; }
+function uniquify(names, width) {
+  const out = [], seen = {};
+  for (let i = 0; i < width; i++) {
+    let base = names[i] || `Column ${colLetter(i)}`;
+    if (seen[base]) { seen[base]++; out.push(`${base} (${seen[base]})`); }
+    else { seen[base] = 1; out.push(base); }
+  }
+  return out;
 }
 
 /* ---------------- client heuristics (pre-filter; server is authoritative) ---------------- */
@@ -233,8 +303,16 @@ function buildRows() {
   });
 }
 
+const MAX_PAYLOAD_BYTES = 5_200_000; // stay well under Netlify's ~6MB request-body limit
+
 async function commit() {
   const rows = buildRows();
+  // V#6: guard the request size so a genuinely huge file gets a clear message, not an
+  // opaque "failed to start". (Roughly ~25–30k contacts; realistic books are far smaller.)
+  if (JSON.stringify(rows).length > MAX_PAYLOAD_BYTES) {
+    msg(`This file is a little too large to bring in all at once (~${rows.length} contacts). For now, split it into two smaller files and import each — we'll still dedupe across them.`, "bad");
+    return;
+  }
   show(`<div class="panel-body"><div class="q-eyebrow">Bringing them in</div>
     <h2 class="q-title" style="margin-bottom:6px;">Importing your contacts…</h2>
     <p class="q-help">Matching against anyone you already have, so nobody's doubled up.</p>
@@ -263,10 +341,11 @@ async function commit() {
 }
 function setBar(pct) { const b = body().querySelector("#tcPbar"); if (b) b.style.width = Math.max(8, Math.min(100, pct)) + "%"; }
 async function pollImport(jobId) {
+  const tk = await token();
   for (let i = 0; i < 600; i++) {
     await new Promise((r) => setTimeout(r, 1200));
     let rec;
-    try { rec = await (await fetch("/api/import/status?job_id=" + encodeURIComponent(jobId), { cache: "no-store" })).json(); } catch { continue; }
+    try { rec = await (await fetch("/api/import/status?job_id=" + encodeURIComponent(jobId), { cache: "no-store", headers: { authorization: "Bearer " + tk } })).json(); } catch { continue; }
     if (rec.status === "running" && rec.progress) setBar(Math.round((rec.progress.done / Math.max(1, rec.progress.total)) * 100));
     if (rec.status === "done") return rec.result;
     if (rec.status === "error") throw new Error(rec.error || "Import failed.");
