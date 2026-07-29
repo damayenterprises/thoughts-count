@@ -17,6 +17,9 @@ create extension if not exists fuzzystrmatch;
 alter table people add column if not exists contact_kind  text not null default 'personal'; -- personal | contact
 alter table people add column if not exists primary_email  text;
 alter table people add column if not exists primary_phone  text;  -- E.164
+-- TC-44: once the user has answered "business or personal?" for a person, lock the kind
+-- so a re-import never re-asks (a contact import matching a personal person prompts once).
+alter table people add column if not exists kind_locked   boolean not null default false;
 create index if not exists idx_people_kind on people(user_id, contact_kind);
 create index if not exists idx_people_name_trgm on people using gin (name gin_trgm_ops);
 

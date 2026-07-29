@@ -186,6 +186,7 @@ export async function runImport({ supa, userId, filename, rows, source = "csv", 
       if (r.action === "inserted") added++;
       else if (r.action === "updated" || r.action === "unchanged") updated++;
       else if (r.action === "review") needs_review++;
+      if (r.placement) needs_review++; // a cross-kind merge that needs a placement decision
     } catch (err) {
       // Carry the error — the user never gets homework. Log and keep going.
       skipped++;
@@ -224,7 +225,8 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     if (cs?.person_id) {
       await mergeIntoPerson(supa, userId, cs.person_id, n);
       await touchSource(supa, userId, cs.person_id, source, { natural_key: n.natural_key });
-      return { action: "updated", personId: cs.person_id };
+      const placement = await maybeFlagPlacement(supa, userId, cs.person_id, contactKind, batchId);
+      return { action: "updated", personId: cs.person_id, placement };
     }
   }
 
@@ -234,7 +236,8 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     await mergeIntoPerson(supa, userId, existingId, n);
     await addIdentifiers(supa, userId, existingId, n.identifiers);
     await touchSource(supa, userId, existingId, source, { natural_key: n.natural_key });
-    return { action: "updated", personId: existingId };
+    const placement = await maybeFlagPlacement(supa, userId, existingId, contactKind, batchId);
+    return { action: "updated", personId: existingId, placement };
   }
 
   // 3) Fuzzy name match → propose only (never auto-merge). BUT apply identifier-first
@@ -306,10 +309,43 @@ async function insertPerson(supa, userId, n, source, contactKind = "contact") {
   return person.id;
 }
 
-// Resolve one review candidate. 'merge' folds the held row into the matched person;
-// 'keep_both' promotes it to its own person. Either way we record a contact_source for
-// the incoming natural key, so re-uploading that same row later is a silent no-op rather
-// than re-proposing the same question.
+// A book-of-business import can match (by email/phone) someone already in the user's
+// PERSONAL circle. We merge them into ONE person (already done by the caller), then — per
+// TC-44 — ask the user where that person should live rather than silently deciding. This
+// records a one-tap "placement" prompt, once per person (kind_locked remembers the answer
+// so a re-import never re-asks). Returns true when a placement is pending for this person.
+async function maybeFlagPlacement(supa, userId, personId, intendedKind, batchId) {
+  const { data: p } = await supa
+    .from("people")
+    .select("name, contact_kind, kind_locked")
+    .eq("user_id", userId)
+    .eq("id", personId)
+    .single();
+  if (!p || p.kind_locked || p.contact_kind === intendedKind) return false;
+
+  const { data: existing } = await supa
+    .from("review_candidates")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("existing_person_id", personId)
+    .eq("incoming->>_placement", "true")
+    .maybeSingle();
+  if (existing?.id) return true; // already pending — surface it, don't duplicate
+
+  await supa.from("review_candidates").insert({
+    user_id: userId,
+    batch_id: batchId,
+    existing_person_id: personId,
+    incoming: { _placement: true, name: p.name, matched_kind: p.contact_kind },
+    score: null,
+  });
+  return true;
+}
+
+// Resolve one review candidate. Duplicate prompts: 'merge' folds the held row into the
+// matched person, 'keep_both' promotes it to its own person. Placement prompts (TC-44):
+// 'move_to_roster' / 'keep_personal' set the person's contact_kind and lock it. Either
+// way the prompt is cleared and re-uploads won't re-ask.
 export async function resolveCandidate({ supa, userId, candidateId, action }) {
   const { data: cand } = await supa
     .from("review_candidates")
@@ -320,6 +356,20 @@ export async function resolveCandidate({ supa, userId, candidateId, action }) {
   if (!cand) return { ok: false, error: "That item was already resolved." };
 
   const n = cand.incoming || {};
+
+  // Placement prompt: set where this person lives, lock it, clear the prompt.
+  if (n._placement) {
+    if (action !== "move_to_roster" && action !== "keep_personal") return { ok: false, error: "Unknown action." };
+    const kind = action === "move_to_roster" ? "contact" : "personal";
+    await supa
+      .from("people")
+      .update({ contact_kind: kind, kind_locked: true, updated_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("id", cand.existing_person_id);
+    await supa.from("review_candidates").delete().eq("user_id", userId).eq("id", candidateId);
+    return { ok: true, action, personId: cand.existing_person_id };
+  }
+
   const source = n.source || "csv";
   let personId;
 
