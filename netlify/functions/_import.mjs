@@ -248,19 +248,29 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     return { action: "updated", personId: existingId, placement };
   }
 
-  // 3) Fuzzy name match → propose only (never auto-merge). BUT apply identifier-first
-  //    dedup: step 2 already proved this row's email/phone matched NObody, so a name-only
-  //    similarity to a person who has a DIFFERENT known identifier means they are simply
-  //    different people who share a common name — insert as new, don't ask. We only raise
-  //    a review candidate when we genuinely can't tell them apart: at least one side is
-  //    identifier-poor (no email/phone) AND the surnames match (kills "David May" vs
-  //    "David Kay", "Chris P" vs "Chris Q" while still flagging real near-dups on the same
-  //    surname like "Sara/Sarah Johnson", "Michael/Mike Brown", "Jane Doe/Jane Ann Doe").
+  // 3) Name-based review → PROPOSE only (never auto-merge, never reject, never silently
+  //    duplicate). We're past step 2, so this row's email/phone matched NOBODY — it shares
+  //    no identifier with anyone. We raise AT MOST ONE review candidate; the first matching
+  //    reason wins, in priority order:
+  //      (a) Cross-kind (TC-47): the incoming contact is name-equivalent to a PERSONAL person
+  //          (someone already in the intimate circle). Converge them; the "business or
+  //          personal?" placement prompt follows on merge (see resolveCandidate → A3).
+  //      (b) Same-name near-dup (TC-46 Fix 2): name-equivalent to another contact, EVEN when
+  //          both carry different identifiers. name-equivalence = sameSurname AND first names
+  //          equivalent (exact / nickname / spelling-close) — this is the Fix-2 re-opening.
+  //      (c) Existing identifier-poor rule (TC-38 — condition UNCHANGED): at least one side
+  //          has no email/phone AND surnames match. The "genuinely can't tell them apart" net
+  //          (kills "David May"/"David Kay", "Chris P"/"Chris Q"; still catches "Jane Doe"/
+  //          "Jane Ann Doe"). Kept so id-poor near-dups fire even when first names aren't
+  //          name-equivalent. Reasons (b)/(c) overlap by design.
   const incomingHasId = n.identifiers.length > 0;
-  const candidates = await fuzzyMatch(supa, userId, n.name);
-  const ambiguous = (candidates || []).find(
-    (c) => (!incomingHasId || !c.has_identifier) && sameSurname(n.name, c.name)
-  );
+  const candidates = (await fuzzyMatch(supa, userId, n.name)) || [];
+  const isPersonal = (c) => c.contact_kind && c.contact_kind !== "contact";
+  const nameEquiv = (c) => sameSurname(n.name, c.name) && firstNamesEquivalent(n.name, c.name);
+  const ambiguous =
+    candidates.find((c) => isPersonal(c) && nameEquiv(c)) ||                                 // (a) cross-kind
+    candidates.find((c) => !isPersonal(c) && nameEquiv(c)) ||                                // (b) near-dup
+    candidates.find((c) => (!incomingHasId || !c.has_identifier) && sameSurname(n.name, c.name)); // (c) id-poor
   if (ambiguous) {
     // Idempotency: if we already proposed this same pair, don't ask twice on re-upload.
     const { data: existingRc } = await supa
@@ -357,7 +367,7 @@ async function maybeFlagPlacement(supa, userId, personId, intendedKind, batchId)
 export async function resolveCandidate({ supa, userId, candidateId, action }) {
   const { data: cand } = await supa
     .from("review_candidates")
-    .select("id, existing_person_id, incoming")
+    .select("id, existing_person_id, incoming, batch_id")
     .eq("user_id", userId)
     .eq("id", candidateId)
     .maybeSingle();
@@ -380,11 +390,18 @@ export async function resolveCandidate({ supa, userId, candidateId, action }) {
 
   const source = n.source || "csv";
   let personId;
+  let placement = false;
 
   if (action === "merge") {
     personId = cand.existing_person_id;
     await mergeIntoPerson(supa, userId, personId, n);
     await touchSource(supa, userId, personId, source, { natural_key: n.natural_key });
+    // A3 (TC-47→TC-44): if this "same people?" merge converged a book contact ONTO a
+    // person who lives in a different kind (e.g. someone in the personal circle), ask
+    // "business or personal?" now instead of silently deciding. maybeFlagPlacement self-
+    // guards: it no-ops when the person's kind already equals 'contact' or is kind_locked,
+    // so a plain within-roster merge raises nothing.
+    placement = await maybeFlagPlacement(supa, userId, personId, "contact", cand.batch_id);
   } else if (action === "keep_both") {
     personId = await insertPerson(supa, userId, n, source, "contact");
   } else {
@@ -392,7 +409,7 @@ export async function resolveCandidate({ supa, userId, candidateId, action }) {
   }
 
   await supa.from("review_candidates").delete().eq("user_id", userId).eq("id", candidateId);
-  return { ok: true, action, personId };
+  return { ok: true, action, personId, placement };
 }
 
 // Field-merge into an existing person: fill empty fields, never clobber a curated note.
@@ -460,7 +477,7 @@ async function fuzzyMatch(supa, userId, name) {
     p_threshold: FUZZY_LOW,
   });
   if (error || !data?.length) return null;
-  return data; // [{ person_id, name, score, has_identifier }] best-first
+  return data; // [{ person_id, name, score, has_identifier, contact_kind }] best-first (migration 003)
 }
 
 // (sameSurname + firstNamesEquivalent now live in _names.mjs — imported/re-exported above.)
