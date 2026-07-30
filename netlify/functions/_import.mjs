@@ -17,7 +17,7 @@
 
 import crypto from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
-import { sameSurname, firstNamesEquivalent } from "./_names.mjs";
+import { sameSurname, firstNamesEquivalent, levenshtein } from "./_names.mjs";
 
 // Re-exported so existing importers (e.g. the test harness) keep resolving it from here
 // after the definition moved to _names.mjs (Spec A / A1b).
@@ -229,36 +229,320 @@ export async function runImport({ supa, userId, filename, rows, source = "csv", 
     .single();
   if (bErr) throw bErr;
   const batchId = batch.id;
-
-  let added = 0, updated = 0, needs_review = 0, skipped = 0;
   const total = rows.length;
-  for (let i = 0; i < total; i++) {
-    try {
-      const r = await upsertPerson({ supa, userId, row: rows[i], source, batchId });
-      // A placement crossover (a business row that matched a personal person) is
-      // represented SOLELY by "to review" — never also counted as "already in your
-      // roster" (it wasn't on the roster, and one person mustn't land in two buckets).
-      if (r.placement) needs_review++;
-      else if (r.action === "inserted") added++;
-      else if (r.action === "updated" || r.action === "unchanged") updated++;
-      else if (r.action === "review") needs_review++;
-    } catch (err) {
-      // Carry the error — the user never gets homework. Log and keep going.
-      skipped++;
-      console.error(`import row ${i} failed`, err?.message || err);
-    }
-    if (onProgress && (i % 25 === 0 || i === total - 1)) {
-      try { await onProgress(i + 1, total); } catch {}
-    }
-  }
+  // Coarse progress (Spec C): the phases are few now (prefetch → resolve → bulk write), so
+  // report 3 checkpoints as a fraction of total. The bar surface (import.js) is unchanged.
+  const bump = async (frac) => {
+    if (!onProgress) return;
+    try { await onProgress(Math.min(total, Math.max(1, Math.ceil(total * frac))), total); } catch {}
+  };
+
+  // Spec C (TC-45): prefetch once → resolve in memory → bulk write. IDENTICAL decisions to
+  // the per-row path (upsertPerson), just batched, so a 200-contact import is a handful of
+  // queries instead of hundreds of sequential round-trips. upsertPerson stays live as the
+  // single-row path (review "keep both" must NOT re-run dedup — see resolveCandidate).
+  const maps = await prefetch(supa, userId, source);
+  await bump(0.15);
+
+  const { counts, queues } = resolveBatch({ userId, rows, source, batchId, maps });
+  await bump(0.6);
+
+  await flushBatch(supa, queues);
+  await bump(1);
 
   await supa
     .from("import_batches")
-    .update({ added, updated, needs_review })
+    .update({ added: counts.added, updated: counts.updated, needs_review: counts.needs_review })
     .eq("user_id", userId)
     .eq("id", batchId);
 
-  return { batch_id: batchId, added, updated, needs_review, skipped };
+  return { batch_id: batchId, ...counts };
+}
+
+// ---------- Spec C bulk path: prefetch → resolve → flush (TC-45) ----------
+
+// C1 — Prefetch. One query per table, per user: everything the resolver would otherwise
+// hit the DB for row-by-row. Returns the same lookups upsertPerson uses, as in-memory maps.
+async function prefetch(supa, userId, source) {
+  const people = new Map();       // id → mutable person obj (fields merge/placement/fuzzy read)
+  const surnames = new Map();     // surnameKey → [obj] (fuzzy candidate feeder, incl. in-batch)
+  const byNaturalKey = new Map(); // natural_key → obj (source-scoped idempotency, step 1)
+  const byIdentifier = new Map(); // `${type} ${value}` → obj (deterministic convergence, step 2)
+  const keyDates = new Map();     // person id → Set('kind|event_date|precision')
+  const proposedPairs = new Set();    // `${existing_person_id}|${natural_key}` (don't re-ask)
+  const placementPending = new Set(); // person ids that already have a placement queued
+
+  const addSurname = (obj) => {
+    const k = surnameKey(obj.name);
+    if (!k) return;
+    const arr = surnames.get(k); if (arr) arr.push(obj); else surnames.set(k, [obj]);
+  };
+
+  const { data: ppl, error: pErr } = await supa
+    .from("people")
+    .select("id, name, contact_kind, kind_locked, relationship, notes, location, primary_email, primary_phone")
+    .eq("user_id", userId);
+  if (pErr) throw pErr;
+  for (const p of ppl || []) {
+    const obj = { ...p, isNew: false };
+    people.set(p.id, obj);
+    addSurname(obj);
+  }
+
+  const { data: ids } = await supa
+    .from("identifiers").select("person_id, type, value").eq("user_id", userId);
+  for (const r of ids || []) {
+    const obj = people.get(r.person_id);
+    if (obj) byIdentifier.set(`${r.type} ${r.value}`, obj);
+  }
+
+  const { data: srcs } = await supa
+    .from("contact_sources").select("person_id, natural_key").eq("user_id", userId).eq("source", source);
+  for (const r of srcs || []) {
+    if (r.natural_key == null) continue;
+    const obj = people.get(r.person_id);
+    if (obj) byNaturalKey.set(r.natural_key, obj);
+  }
+
+  const { data: kds } = await supa
+    .from("key_dates").select("person_id, kind, event_date, date_precision").eq("user_id", userId);
+  for (const r of kds || []) {
+    const set = keyDates.get(r.person_id) || new Set();
+    set.add(`${r.kind}|${r.event_date}|${r.date_precision || "day"}`);
+    keyDates.set(r.person_id, set);
+  }
+
+  const { data: rcs } = await supa
+    .from("review_candidates").select("existing_person_id, incoming").eq("user_id", userId);
+  for (const r of rcs || []) {
+    const inc = r.incoming || {};
+    if (inc._placement) { if (r.existing_person_id) placementPending.add(r.existing_person_id); }
+    else if (inc.natural_key && r.existing_person_id) proposedPairs.add(`${r.existing_person_id}|${inc.natural_key}`);
+  }
+
+  return { people, surnames, byNaturalKey, byIdentifier, keyDates, proposedPairs, placementPending, addSurname };
+}
+
+// C2 — In-memory resolver. Walk every row through the SAME ordered logic as upsertPerson,
+// against the prefetched maps, queuing writes instead of issuing them. Intra-batch
+// convergence is automatic: each resolved row updates the maps in place, so row N sees the
+// person row M (earlier in the file) just created or converged onto. Pure/synchronous — no
+// I/O in the loop, which is the whole point (the old path did several round-trips per row).
+function resolveBatch({ userId, rows, source, batchId, maps }) {
+  const { people, surnames, byNaturalKey, byIdentifier, keyDates, proposedPairs, placementPending, addSurname } = maps;
+
+  const newPeople = [];          // person objs for the bulk insert (shared by reference)
+  const peopleUpdates = new Map(); // existing id → field-fill patch
+  const identifierInserts = [];  // { person, type, value }
+  const sourceUpserts = [];      // { person, source, natural_key }
+  const keyDateInserts = [];     // { person, label, kind, event_date, date_precision, recurs }
+  const candidateInserts = [];   // { person(existing), batch_id, incoming, score }
+  const placementInserts = [];   // { person, batch_id, incoming, score }
+
+  const counts = { added: 0, updated: 0, needs_review: 0, skipped: 0 };
+
+  const queueIdentifiers = (obj, identifiers) => {
+    for (const idf of identifiers) {
+      const key = `${idf.type} ${idf.value}`;
+      if (byIdentifier.has(key)) continue; // already attached to a person (prefetch or this batch)
+      byIdentifier.set(key, obj);
+      identifierInserts.push({ person: obj, type: idf.type, value: idf.value });
+    }
+  };
+  const queueKeyDates = (obj, kds) => {
+    if (!kds?.length) return;
+    let set = keyDates.get(obj.id); if (!set) { set = new Set(); keyDates.set(obj.id, set); }
+    for (const kd of kds) {
+      if (!kd.event_date) continue;
+      const sig = `${kd.kind}|${kd.event_date}|${kd.date_precision || "day"}`;
+      if (set.has(sig)) continue;
+      set.add(sig);
+      keyDateInserts.push({ person: obj, label: kd.label, kind: kd.kind || "custom", event_date: kd.event_date, date_precision: kd.date_precision || "day", recurs: !!kd.recurs });
+    }
+  };
+  const touchSourceMem = (obj, naturalKey) => {
+    byNaturalKey.set(naturalKey, obj);
+    sourceUpserts.push({ person: obj, source, natural_key: naturalKey });
+  };
+  // Field-fill mirror of mergeIntoPerson: fill empties only, never clobber a curated field.
+  // Existing people record a patch (bulk UPDATE later); new people mutate in place (they're
+  // inserted carrying the value, so no separate update is needed).
+  const mergeMem = (obj, n) => {
+    const patch = {};
+    const fill = (field, val) => {
+      if (val && !(obj[field] && String(obj[field]).trim())) { obj[field] = val; if (!obj.isNew) patch[field] = val; }
+    };
+    fill("relationship", n.relationship);
+    fill("notes", n.notes);
+    fill("location", n.location);
+    fill("primary_email", n.email);
+    fill("primary_phone", n.phone);
+    fill("name", n.name);
+    if (!obj.isNew && Object.keys(patch).length) {
+      peopleUpdates.set(obj.id, { ...(peopleUpdates.get(obj.id) || {}), ...patch });
+    }
+    queueIdentifiers(obj, n.identifiers);
+    queueKeyDates(obj, n.key_dates);
+  };
+  // Mirror of maybeFlagPlacement: a CSV row (intendedKind 'contact') that converged onto a
+  // still-unlocked PERSONAL person raises a one-tap placement, once per person.
+  const maybePlacement = (obj) => {
+    const intendedKind = "contact";
+    if (obj.kind_locked || obj.contact_kind === intendedKind) return false;
+    if (placementPending.has(obj.id)) return true;
+    placementPending.add(obj.id);
+    placementInserts.push({ person: obj, batch_id: batchId, incoming: { _placement: true, name: obj.name, matched_kind: obj.contact_kind }, score: null });
+    return true;
+  };
+
+  for (let i = 0; i < rows.length; i++) {
+    try {
+      const n = normalizeRow(rows[i]);
+
+      // 1) Natural-key idempotency (this source).
+      const nkHit = byNaturalKey.get(n.natural_key);
+      if (nkHit) {
+        mergeMem(nkHit, n);
+        touchSourceMem(nkHit, n.natural_key);
+        if (maybePlacement(nkHit)) counts.needs_review++; else counts.updated++;
+        continue;
+      }
+
+      // 2) Deterministic identifier convergence (email/phone).
+      let idHit = null;
+      for (const idf of n.identifiers) { const o = byIdentifier.get(`${idf.type} ${idf.value}`); if (o) { idHit = o; break; } }
+      if (idHit) {
+        mergeMem(idHit, n);
+        touchSourceMem(idHit, n.natural_key);
+        if (maybePlacement(idHit)) counts.needs_review++; else counts.updated++;
+        continue;
+      }
+
+      // 3) Fuzzy name → PROPOSE only. Candidate feeder = same-surname index (prefetched +
+      //    in-batch new people), which is decision-equivalent to the RPC (every branch in
+      //    pickAmbiguous requires sameSurname) and, unlike the RPC, sees in-batch rows.
+      const incomingHasId = n.identifiers.length > 0;
+      const candidates = fuzzyCandidates(n.name, surnames);
+      const ambiguous = pickAmbiguous(n, candidates, incomingHasId);
+      if (ambiguous) {
+        const pairKey = `${ambiguous.person_id}|${n.natural_key}`;
+        if (proposedPairs.has(pairKey)) { counts.updated++; continue; } // already proposed → unchanged
+        proposedPairs.add(pairKey);
+        const crossKind = ambiguous.contact_kind && ambiguous.contact_kind !== "contact";
+        candidateInserts.push({
+          person: ambiguous._obj,
+          batch_id: batchId,
+          incoming: { ...n, source, ...(crossKind ? { _crosskind: true, _matched_kind: ambiguous.contact_kind } : {}) },
+          score: null, // fed from the surname index, not the trigram RPC — non-behavioral, never displayed (verified)
+        });
+        counts.needs_review++;
+        continue;
+      }
+
+      // 4) No match → a fresh person. Client-generated id so every queued child row (and any
+      //    later row that converges onto this person) references a real id with no remap.
+      const obj = {
+        id: crypto.randomUUID(), name: n.name, contact_kind: "contact",
+        relationship: n.relationship, notes: n.notes, location: n.location,
+        primary_email: n.email, primary_phone: n.phone, kind_locked: false, isNew: true,
+      };
+      people.set(obj.id, obj);
+      addSurname(obj);
+      newPeople.push(obj);
+      queueIdentifiers(obj, n.identifiers);
+      touchSourceMem(obj, n.natural_key);
+      queueKeyDates(obj, n.key_dates);
+      counts.added++;
+    } catch (err) {
+      // One bad row never blocks the batch (parity with the row path).
+      counts.skipped++;
+      console.error(`import row ${i} failed`, err?.message || err);
+    }
+  }
+
+  return { counts, queues: { userId, newPeople, peopleUpdates, identifierInserts, sourceUpserts, keyDateInserts, candidateInserts, placementInserts } };
+}
+
+// Same-surname fuzzy candidates, ordered by descending name-similarity then name (parity
+// guard #2: .find() in pickAmbiguous surfaces the same existing_person_id the RPC's
+// score-desc order would). Rows are shaped exactly like the RPC's so pickAmbiguous is
+// byte-identical across the row and bulk paths. Capped at 25 to match the RPC's limit.
+function fuzzyCandidates(name, surnames) {
+  if (!name) return [];
+  const bucket = surnames.get(surnameKey(name));
+  if (!bucket || !bucket.length) return [];
+  const sim = (a, b) => { a = a.toLowerCase(); b = b.toLowerCase(); const m = Math.max(a.length, b.length) || 1; return 1 - levenshtein(a, b) / m; };
+  return bucket
+    .map((o) => ({ person_id: o.id, name: o.name, has_identifier: !!(o.primary_email || o.primary_phone), contact_kind: o.contact_kind, _obj: o }))
+    .sort((x, y) => sim(name, y.name) - sim(name, x.name) || (x.name < y.name ? -1 : x.name > y.name ? 1 : 0))
+    .slice(0, 25);
+}
+
+// C3 — Bulk writer. Batched inserts/upserts in FK-safe order (people → their identifiers/
+// sources/key_dates → converged-existing field-fill → review candidates → placements).
+// Queues are de-duped by conflict key so a single upsert never double-affects a row.
+const BULK_CHUNK = 500; // stay well under PostgREST payload limits; chunk anything larger
+
+async function insertChunks(supa, table, rows, opts) {
+  for (let i = 0; i < rows.length; i += BULK_CHUNK) {
+    const chunk = rows.slice(i, i + BULK_CHUNK);
+    const { error } = opts ? await supa.from(table).upsert(chunk, opts) : await supa.from(table).insert(chunk);
+    if (error) throw error;
+  }
+}
+
+async function flushBatch(supa, q) {
+  const userId = q.userId;
+
+  // 1) New people first (the FK parent). Strip in-memory-only fields to real columns.
+  const peopleRows = q.newPeople.map((o) => ({
+    id: o.id, user_id: userId, name: o.name, contact_kind: o.contact_kind,
+    relationship: o.relationship, notes: o.notes, location: o.location,
+    primary_email: o.primary_email, primary_phone: o.primary_phone, kind_locked: o.kind_locked,
+  }));
+  await insertChunks(supa, "people", peopleRows);
+
+  // 2) Identifiers / contact_sources / key_dates. Dedupe by conflict key first so one
+  //    upsert statement never affects the same conflict target twice.
+  const idSeen = new Set();
+  const idRows = [];
+  for (const r of q.identifierInserts) {
+    const k = `${r.type} ${r.value}`; if (idSeen.has(k)) continue; idSeen.add(k);
+    idRows.push({ user_id: userId, person_id: r.person.id, type: r.type, value: r.value });
+  }
+  await insertChunks(supa, "identifiers", idRows, { onConflict: "user_id,type,value", ignoreDuplicates: true });
+
+  const srcSeen = new Set();
+  const srcRows = [];
+  for (const r of q.sourceUpserts) {
+    const k = `${r.source} ${r.natural_key}`; if (srcSeen.has(k)) continue; srcSeen.add(k);
+    srcRows.push({ user_id: userId, person_id: r.person.id, source: r.source, natural_key: r.natural_key, last_seen_at: new Date().toISOString() });
+  }
+  await insertChunks(supa, "contact_sources", srcRows, { onConflict: "user_id,source,natural_key" });
+
+  const kdRows = q.keyDateInserts.map((r) => ({
+    user_id: userId, person_id: r.person.id, label: r.label, kind: r.kind,
+    event_date: r.event_date, date_precision: r.date_precision, recurs: r.recurs,
+  }));
+  await insertChunks(supa, "key_dates", kdRows);
+
+  // 3) Field-fill updates for converged EXISTING people (patch-only, mirrors mergeIntoPerson).
+  //    Idempotent re-uploads produce an empty patch set → zero updates.
+  const now = new Date().toISOString();
+  const updates = [...q.peopleUpdates.entries()];
+  for (let i = 0; i < updates.length; i += 25) {
+    await Promise.all(updates.slice(i, i + 25).map(async ([id, patch]) => {
+      const { error } = await supa.from("people").update({ ...patch, updated_at: now }).eq("user_id", userId).eq("id", id);
+      if (error) throw error;
+    }));
+  }
+
+  // 4) Review candidates (dedup + cross-kind), then placements. Both reference people(id),
+  //    valid after step 1. The queues were already de-duped in memory (proposedPairs /
+  //    placementPending), so "don't re-propose the same pair" + "one placement per person" hold.
+  const toRc = (r) => ({ user_id: userId, batch_id: r.batch_id, existing_person_id: r.person.id, incoming: r.incoming, score: r.score });
+  await insertChunks(supa, "review_candidates", q.candidateInserts.map(toRc));
+  await insertChunks(supa, "review_candidates", q.placementInserts.map(toRc));
 }
 
 // ---------- the upsert ----------
@@ -316,12 +600,7 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
   //          via (a) (e.g. personal "Jane Doe" + "Jane Ann Doe" — same first name). (b)/(c) overlap by design.
   const incomingHasId = n.identifiers.length > 0;
   const candidates = (await fuzzyMatch(supa, userId, n.name)) || [];
-  const isPersonal = (c) => c.contact_kind && c.contact_kind !== "contact";
-  const nameEquiv = (c) => sameSurname(n.name, c.name) && firstNamesEquivalent(n.name, c.name);
-  const ambiguous =
-    candidates.find((c) => isPersonal(c) && nameEquiv(c)) ||                                 // (a) cross-kind
-    candidates.find((c) => !isPersonal(c) && nameEquiv(c)) ||                                // (b) near-dup
-    candidates.find((c) => !isPersonal(c) && (!incomingHasId || !c.has_identifier) && sameSurname(n.name, c.name)); // (c) id-poor (within-kind)
+  const ambiguous = pickAmbiguous(n, candidates, incomingHasId);
   if (ambiguous) {
     // Idempotency: if we already proposed this same pair, don't ask twice on re-upload.
     const { data: existingRc } = await supa
@@ -555,6 +834,34 @@ async function fuzzyMatch(supa, userId, name) {
   });
   if (error || !data?.length) return null;
   return data; // [{ person_id, name, score, has_identifier, contact_kind }] best-first (migration 003)
+}
+
+// The step-3 decision — which (if any) fuzzy candidate this row should PROPOSE a review
+// against. Extracted verbatim from upsertPerson so the row path AND the bulk path (Spec C)
+// make byte-identical decisions from the same candidate shape. `candidates` are
+// { person_id, name, score, has_identifier, contact_kind } in surface order (RPC: score
+// desc; bulk: name-similarity desc — same tiebreak intent). The three branches, in
+// priority order, ALL require sameSurname (nameEquiv folds it in; branch (c) states it) —
+// which is exactly why the bulk path can feed this from a same-surname index and stay
+// equivalent (Spec C / TC-45). See upsertPerson step 3 for the full reasoning per branch.
+export function pickAmbiguous(n, candidates, incomingHasId) {
+  const isPersonal = (c) => c.contact_kind && c.contact_kind !== "contact";
+  const nameEquiv = (c) => sameSurname(n.name, c.name) && firstNamesEquivalent(n.name, c.name);
+  return (
+    candidates.find((c) => isPersonal(c) && nameEquiv(c)) ||                                 // (a) cross-kind
+    candidates.find((c) => !isPersonal(c) && nameEquiv(c)) ||                                // (b) near-dup
+    candidates.find((c) => !isPersonal(c) && (!incomingHasId || !c.has_identifier) && sameSurname(n.name, c.name)) || // (c) id-poor
+    null
+  );
+}
+
+// The surname bucket key — lowercased LAST whitespace-run token, the SAME rule the SQL RPC
+// and JS sameSurname use (sameSurname additionally requires ≥2 chars, re-checked in
+// pickAmbiguous; the index itself buckets on the bare token). This is the candidate feeder
+// for the bulk path: two rows share a bucket iff they could ever be a same-surname match.
+export function surnameKey(name) {
+  const t = String(name || "").trim().split(/\s+/);
+  return t.length ? t[t.length - 1].toLowerCase() : "";
 }
 
 // (sameSurname + firstNamesEquivalent now live in _names.mjs — imported/re-exported above.)
