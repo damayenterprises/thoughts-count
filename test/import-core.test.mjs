@@ -4,7 +4,7 @@
 import assert from "node:assert/strict";
 import {
   normalizeEmail, normalizePhone, normalizeDate, normalizeName,
-  naturalKey, normalizeRow, sameSurname,
+  naturalKey, normalizeRow, sameSurname, normalizeDateParts,
 } from "../netlify/functions/_import.mjs";
 
 let pass = 0, fail = 0;
@@ -53,6 +53,21 @@ t("different emails → different keys", () => {
   assert.notEqual(naturalKey({ email: "a@b.com" }), naturalKey({ email: "c@d.com" }));
 });
 
+console.log("\n# normalizeDateParts (TC-43: preserve partials honestly, never invent a day)");
+t("year only → Jan-1 placeholder, year precision", () => assert.deepEqual(normalizeDateParts("2021"), { value: "2021-01-01", precision: "year" }));
+t("year-month dash → month precision", () => assert.deepEqual(normalizeDateParts("2020-06"), { value: "2020-06-01", precision: "month" }));
+t("year/month single-digit → month precision", () => assert.deepEqual(normalizeDateParts("2020/6"), { value: "2020-06-01", precision: "month" }));
+t("month/year numeric → month precision", () => assert.deepEqual(normalizeDateParts("6/2020"), { value: "2020-06-01", precision: "month" }));
+t("month name → month precision", () => assert.deepEqual(normalizeDateParts("June 2020"), { value: "2020-06-01", precision: "month" }));
+t("month abbrev + dot → month precision", () => assert.deepEqual(normalizeDateParts("Sep. 2019"), { value: "2019-09-01", precision: "month" }));
+t("full ISO date → day precision", () => assert.deepEqual(normalizeDateParts("2019-04-02"), { value: "2019-04-02", precision: "day" }));
+t("full US date → day precision", () => assert.deepEqual(normalizeDateParts("4/2/2019"), { value: "2019-04-02", precision: "day" }));
+t("invalid month partial → null", () => assert.equal(normalizeDateParts("13/2020"), null));
+t("month>12 in yyyy-mm → null", () => assert.equal(normalizeDateParts("2020-13"), null));
+t("bad month name → null", () => assert.equal(normalizeDateParts("Zap 2020"), null));
+t("junk → null", () => assert.equal(normalizeDateParts("hello"), null));
+t("empty/null → null", () => { assert.equal(normalizeDateParts(""), null); assert.equal(normalizeDateParts(null), null); });
+
 console.log("\n# normalizeRow (shaping)");
 t("builds name from first+last when no full name", () => {
   const n = normalizeRow({ first_name: "Jane", last_name: "Doe", email: "JANE@x.com" });
@@ -71,9 +86,16 @@ t("falls back to email local-part for name", () => {
 t("last resort name = 'Unknown contact'", () => {
   assert.equal(normalizeRow({ notes: "hi" }).name, "Unknown contact");
 });
-t("partial key_date is dropped (not fabricated)", () => {
-  const n = normalizeRow({ name: "Al", key_dates: [{ kind: "birthday", date: "2021" }] });
+t("partial key_date is PRESERVED with precision (TC-43, not fabricated to a day)", () => {
+  const n = normalizeRow({ name: "Al", key_dates: [{ kind: "custom", label: "Client since", date: "2021" }] });
+  assert.equal(n.key_dates.length, 1);
+  assert.equal(n.key_dates[0].event_date, "2021-01-01"); // placeholder day, never shown/nudged
+  assert.equal(n.key_dates[0].date_precision, "year");
+});
+t("unparseable key_date still drops that entry, never the person (TC-43)", () => {
+  const n = normalizeRow({ name: "Al", key_dates: [{ kind: "custom", label: "x", date: "nope" }] });
   assert.equal(n.key_dates.length, 0);
+  assert.equal(n.name, "Al");
 });
 t("valid key_date kept + normalized", () => {
   const n = normalizeRow({ name: "Al", key_dates: [{ kind: "birthday", date: "6/5/1990" }] });
