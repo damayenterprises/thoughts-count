@@ -4,6 +4,7 @@
 // plan flow is never affected.
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { formatKeyDate, isPartialDate } from "/_dates.js";
 
 let sb = null, user = null;
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -53,6 +54,7 @@ function relativeWhen(days) {
 function soonestDate(person) {
   let best = null;
   for (const kd of person.key_dates || []) {
+    if (isPartialDate(kd.date_precision)) continue; // partials have no real day → never "coming up"
     const occ = nextOccurrence(kd.event_date, kd.recurs);
     if (!occ) continue;
     const days = daysUntil(occ);
@@ -201,7 +203,7 @@ async function loadPeople() {
   // NULL DEFAULT 'personal', so a plain equality is correct (no legacy NULLs exist).
   const { data, error } = await sb
     .from("people")
-    .select("id,name,relationship,notes,location,created_at,key_dates(id,label,kind,event_date,recurs,lead_days),saved_plans(id,plan_title,occasion,created_at,plan)")
+    .select("id,name,relationship,notes,location,created_at,key_dates(id,label,kind,event_date,date_precision,recurs,lead_days),saved_plans(id,plan_title,occasion,created_at,plan)")
     .eq("contact_kind", "personal")
     .order("created_at", { ascending: true });
   if (error) { console.error(error); return []; }
@@ -264,6 +266,10 @@ async function openHome() {
 }
 
 function dateLine(d) {
+  // TC-43: a partial ("2021" / "June 2020") shows only what was given — no invented day,
+  // no relative-when hint (it never nudges), no "yearly".
+  const partial = formatKeyDate(d.event_date, d.date_precision);
+  if (partial) return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${esc(partial)}</span></div>`;
   const dt = new Date(d.event_date + "T00:00:00");
   const nice = dt.toLocaleDateString(undefined, { month: "short", day: "numeric", ...(d.recurs ? {} : { year: "numeric" }) });
   const occ = nextOccurrence(d.event_date, d.recurs);
@@ -282,7 +288,10 @@ function personCard(p) {
     ? `<div class="tc-next"><span class="tc-next-dot"></span>${esc(next.label)} — <b>${relativeWhen(next.days)}</b></div>`
     : "";
   const dates = (p.key_dates || []).slice().sort((a, b) => {
-    const oa = nextOccurrence(a.event_date, a.recurs), ob = nextOccurrence(b.event_date, b.recurs);
+    // Partials have no real upcoming day → sort as no-occurrence (with past/undated), so
+    // they never masquerade as an imminent date among full dates.
+    const oa = isPartialDate(a.date_precision) ? null : nextOccurrence(a.event_date, a.recurs);
+    const ob = isPartialDate(b.date_precision) ? null : nextOccurrence(b.event_date, b.recurs);
     return (oa ? daysUntil(oa) : 9e9) - (ob ? daysUntil(ob) : 9e9);
   });
   return `

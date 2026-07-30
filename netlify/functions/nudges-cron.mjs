@@ -42,7 +42,12 @@ export default async () => {
   try {
     const { data: dates, error } = await supabase
       .from("key_dates")
-      .select("id, user_id, person_id, label, event_date, recurs, lead_days, people(name)");
+      // TC-43: only day-precise dates nudge. Month/year-precision partials (imported
+      // "June 2020" / "2021") carry a placeholder day we must never fire an anniversary
+      // on. Legacy rows default to 'day', so this is a no-op for everything imported
+      // before partials were preserved.
+      .select("id, user_id, person_id, label, event_date, recurs, lead_days, people(name)")
+      .eq("date_precision", "day");
     if (error) throw error;
 
     const emailCache = new Map();

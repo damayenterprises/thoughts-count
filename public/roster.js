@@ -10,6 +10,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { openImport } from "/import.js";
+import { formatKeyDate, isPartialDate } from "/_dates.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -51,6 +52,7 @@ function whenLabel(occ, days) {
 function soonestDate(p) {
   let best = null;
   for (const kd of p.key_dates || []) {
+    if (isPartialDate(kd.date_precision)) continue; // partials have no real day → never "coming up"
     const occ = nextOccurrence(kd.event_date, kd.recurs);
     if (!occ) continue;
     const days = daysUntil(occ);
@@ -114,7 +116,7 @@ async function openRoster() {
 async function reload() {
   const { data, error } = await sb
     .from("people")
-    .select("id,name,relationship,notes,location,created_at,contact_kind,primary_email,primary_phone,key_dates(id,label,kind,event_date,recurs,lead_days)")
+    .select("id,name,relationship,notes,location,created_at,contact_kind,primary_email,primary_phone,key_dates(id,label,kind,event_date,date_precision,recurs,lead_days)")
     .eq("contact_kind", "contact")
     .order("created_at", { ascending: false });
   if (error) { console.error(error); body().innerHTML = `<div class="panel-body"><p class="k-msg bad">We couldn't load your roster. Please try again.</p></div>`; return; }
@@ -218,11 +220,24 @@ function toggleDetail(id) {
   const p = people.find((x) => x.id === id);
   if (!p) return;
   const dates = (p.key_dates || []).slice().sort((a, b) => {
-    const oa = nextOccurrence(a.event_date, a.recurs), ob = nextOccurrence(b.event_date, b.recurs);
+    // Partials have no real upcoming day → sort as no-occurrence, so they never masquerade
+    // as an imminent date among full dates.
+    const oa = isPartialDate(a.date_precision) ? null : nextOccurrence(a.event_date, a.recurs);
+    const ob = isPartialDate(b.date_precision) ? null : nextOccurrence(b.event_date, b.recurs);
     return (oa ? daysUntil(oa) : 9e9) - (ob ? daysUntil(ob) : 9e9);
   });
   const dateHtml = dates.length
-    ? dates.map((d) => { const occ = nextOccurrence(d.event_date, d.recurs); const soon = occ ? daysUntil(occ) : null; return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${soon != null ? whenLabel(occ, soon) : (d.recurs ? "yearly" : "past")}</span></div>`; }).join("")
+    ? dates.map((d) => {
+        // TC-43: partial ("2021" / "June 2020") shows only what was given — no invented day.
+        const partial = formatKeyDate(d.event_date, d.date_precision);
+        if (partial) return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${esc(partial)}</span></div>`;
+        const occ = nextOccurrence(d.event_date, d.recurs); const soon = occ ? daysUntil(occ) : null;
+        // A one-time date already in the past shows its real date (e.g. "Apr 2, 2019") — the
+        // same value the companion view shows — instead of a vague "past". Recurring → "yearly".
+        const when = soon != null ? whenLabel(occ, soon)
+          : (d.recurs ? "yearly" : new Date(d.event_date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }));
+        return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${esc(when)}</span></div>`;
+      }).join("")
     : `<div class="tc-empty">No dates yet.</div>`;
   const contact = [p.primary_email, p.primary_phone].filter(Boolean).map(esc).join(" · ");
   el.innerHTML = `

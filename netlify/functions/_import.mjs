@@ -85,6 +85,47 @@ export function normalizeDate(raw) {
   return null;
 }
 
+// TC-43: preserve a PARTIAL date instead of dropping it. Returns
+// { value:'YYYY-MM-DD', precision:'day'|'month'|'year' } | null. We still never invent
+// a day the user didn't give — partials store a placeholder (month→day 1, year→Jan 1)
+// flagged by precision, so display shows only what was given ("June 2020" / "2021") and
+// the nudge engine skips anything not day-precise. Truly unparseable → null (row still
+// loads, never a hard failure). normalizeDate() above stays as-is for string callers.
+export function normalizeDateParts(raw) {
+  if (!raw) return null;
+  const s = String(raw).trim();
+  if (!s) return null;
+
+  // Year only: "2021".
+  let m = /^(\d{4})$/.exec(s);
+  if (m) { const v = iso(+m[1], 1, 1); return v ? { value: v, precision: "year" } : null; }
+
+  // Year + month, numeric: "2020-06", "2020/6".
+  m = /^(\d{4})[-\/](\d{1,2})$/.exec(s);
+  if (m) { const v = iso(+m[1], +m[2], 1); return v ? { value: v, precision: "month" } : null; }
+
+  // Month + year, numeric: "6/2020".
+  m = /^(\d{1,2})[-\/](\d{4})$/.exec(s);
+  if (m) { const v = iso(+m[2], +m[1], 1); return v ? { value: v, precision: "month" } : null; }
+
+  // Month name + year: "June 2020", "Jun 2020". Resolve the month from a static map (NOT
+  // Date.parse) so a tz boundary can't shift "June 1" back into May.
+  m = /^([A-Za-z]{3,9})\.?\s+(\d{4})$/.exec(s);
+  if (m) {
+    const mo = monthFromName(m[1]);
+    if (mo) { const v = iso(+m[2], mo, 1); return v ? { value: v, precision: "month" } : null; }
+  }
+
+  // Full date → reuse the existing parser; partial guards there won't trip on a full date.
+  const full = normalizeDate(s);
+  return full ? { value: full, precision: "day" } : null;
+}
+
+const MONTHS = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+function monthFromName(w) {
+  return MONTHS[String(w).slice(0, 3).toLowerCase()] || null;
+}
+
 function pivotYear(yr) {
   if (yr >= 100) return yr;
   return yr <= 30 ? 2000 + yr : 1900 + yr;
@@ -124,12 +165,18 @@ export function normalizeRow(row = {}) {
 
   const key_dates = Array.isArray(row.key_dates)
     ? row.key_dates
-        .map((kd) => ({
-          kind: kd.kind || "custom",
-          label: normalizeName(kd.label) || labelForKind(kd.kind),
-          event_date: normalizeDate(kd.date ?? kd.event_date),
-          recurs: kd.recurs ?? isRecurringKind(kd.kind),
-        }))
+        .map((kd) => {
+          // TC-43: capture the precision so partials are preserved (not dropped) and
+          // never nudge until they carry a real day.
+          const parts = normalizeDateParts(kd.date ?? kd.event_date);
+          return {
+            kind: kd.kind || "custom",
+            label: normalizeName(kd.label) || labelForKind(kd.kind),
+            event_date: parts ? parts.value : null,
+            date_precision: parts ? parts.precision : null,
+            recurs: kd.recurs ?? isRecurringKind(kd.kind),
+          };
+        })
         .filter((kd) => kd.event_date)
     : [];
 
@@ -528,24 +575,28 @@ async function touchSource(supa, userId, personId, source, { natural_key = null,
   );
 }
 
-// Attach key dates to a person without duplicating: skip any (kind,event_date) it already
-// has. These feed the existing nudge engine across the whole roster.
+// Attach key dates to a person without duplicating: skip any (kind,event_date,precision)
+// it already has. Precision is part of the dedup key (TC-43) so a placeholder "2020"
+// (2020-01-01/year) and a genuine 2020-01-01/day stay distinct — the real Jan-1 date must
+// keep nudging even alongside a year-only partial. These feed the roster-wide nudge engine
+// (day-precise rows only — see nudges-cron).
 export async function upsertKeyDates(supa, userId, personId, keyDates) {
   if (!keyDates?.length) return;
   const { data: existing } = await supa
     .from("key_dates")
-    .select("kind, event_date")
+    .select("kind, event_date, date_precision")
     .eq("user_id", userId)
     .eq("person_id", personId);
-  const seen = new Set((existing || []).map((k) => `${k.kind}|${k.event_date}`));
+  const seen = new Set((existing || []).map((k) => `${k.kind}|${k.event_date}|${k.date_precision || "day"}`));
   const rows = keyDates
-    .filter((kd) => kd.event_date && !seen.has(`${kd.kind}|${kd.event_date}`))
+    .filter((kd) => kd.event_date && !seen.has(`${kd.kind}|${kd.event_date}|${kd.date_precision || "day"}`))
     .map((kd) => ({
       user_id: userId,
       person_id: personId,
       label: kd.label,
       kind: kd.kind || "custom",
       event_date: kd.event_date,
+      date_precision: kd.date_precision || "day",
       recurs: !!kd.recurs,
     }));
   if (rows.length) await supa.from("key_dates").insert(rows);
