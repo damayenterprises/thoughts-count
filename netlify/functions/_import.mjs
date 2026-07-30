@@ -617,7 +617,7 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     // circle), mark the review as cross-kind so the UI shows ONE three-way prompt
     // (keep personal / move to roster / keep both) instead of "same person?" then a
     // separate placement step. matched_kind drives the copy ("your personal people").
-    const crossKind = isPersonal(ambiguous);
+    const crossKind = ambiguous.contact_kind && ambiguous.contact_kind !== "contact";
     const { data: rc } = await supa
       .from("review_candidates")
       .insert({
