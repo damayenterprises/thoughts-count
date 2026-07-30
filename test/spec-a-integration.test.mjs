@@ -141,6 +141,23 @@ async function main() {
     const kbRe = await h.imp({ name: "Casey Lin", email: "casey.lin@work.com" });
     ok("TC-47 keep-both: re-import asks nothing", kbRe.action === "updated" || kbRe.action === "unchanged", `(got ${kbRe.action})`);
 
+    // cross-kind FALSE-POSITIVE guard (Validator R2): a book contact that merely SHARES A
+    // SURNAME with a personal person (different first name) must NOT raise a cross-kind
+    // prompt. Personal people are always id-poor, and the surname branch is now live, so this
+    // is the exact case that regressed. Only name-equivalence (branch a) may go cross-kind.
+    await h.seedPersonal("Jane Smith");
+    await h.seedPersonal("Tom Patel");
+    await h.seedPersonal("Mary Jones");
+    for (const [nm, em] of [["Bob Smith", "bob.smith@work.com"], ["Alan Patel", "alan.patel@work.com"], ["Rex Jones", "rex.jones@work.com"]]) {
+      const r = await h.imp({ name: nm, email: em });
+      eq(`x-kind guard: "${nm}" (shares surname w/ personal, diff first name) inserts, no prompt`, r.action, "inserted");
+    }
+    // …but a genuine id-poor cross-kind near-dup (same first name) STILL routes via branch (a)
+    const jane = await h.seedPersonal("Jane Doe");
+    const jd = await h.imp({ name: "Jane Ann Doe" });   // name-only, same first name + surname
+    eq("x-kind guard: real id-poor cross-kind near-dup still proposes", jd.action, "review");
+    ok("x-kind guard: …and it's a cross-kind three-way", !!(await h.reviews()).cross.find((r) => r.existing_person_id === jane));
+
     // ---------- TC-46 Fix 2: same-name / DIFFERENT emails both sides ----------
     console.log("\n# TC-46 Fix 2 (different emails on both sides → one gentle review)");
     const fix2 = [

@@ -258,11 +258,15 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
   //      (b) Same-name near-dup (TC-46 Fix 2): name-equivalent to another contact, EVEN when
   //          both carry different identifiers. name-equivalence = sameSurname AND first names
   //          equivalent (exact / nickname / spelling-close) — this is the Fix-2 re-opening.
-  //      (c) Existing identifier-poor rule (TC-38 — condition UNCHANGED): at least one side
-  //          has no email/phone AND surnames match. The "genuinely can't tell them apart" net
-  //          (kills "David May"/"David Kay", "Chris P"/"Chris Q"; still catches "Jane Doe"/
-  //          "Jane Ann Doe"). Kept so id-poor near-dups fire even when first names aren't
-  //          name-equivalent. Reasons (b)/(c) overlap by design.
+  //      (c) Existing identifier-poor rule (TC-38): at least one side has no email/phone AND
+  //          surnames match — the "genuinely can't tell them apart" net (kills "David May"/
+  //          "David Kay", "Chris P"/"Chris Q"; still catches "Jane Doe"/"Jane Ann Doe").
+  //          Scoped to NON-personal (contact) candidates: cross-kind proposals must come only
+  //          from name-equivalence (a), never bare surname — otherwise, now that the surname
+  //          branch is live, every imported contact sharing a surname with a personal person
+  //          (who is always id-poor) would falsely prompt "is your client the same as your
+  //          family member?" (Validator R2). A legit id-poor cross-kind near-dup keeps firing
+  //          via (a) (e.g. personal "Jane Doe" + "Jane Ann Doe" — same first name). (b)/(c) overlap by design.
   const incomingHasId = n.identifiers.length > 0;
   const candidates = (await fuzzyMatch(supa, userId, n.name)) || [];
   const isPersonal = (c) => c.contact_kind && c.contact_kind !== "contact";
@@ -270,7 +274,7 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
   const ambiguous =
     candidates.find((c) => isPersonal(c) && nameEquiv(c)) ||                                 // (a) cross-kind
     candidates.find((c) => !isPersonal(c) && nameEquiv(c)) ||                                // (b) near-dup
-    candidates.find((c) => (!incomingHasId || !c.has_identifier) && sameSurname(n.name, c.name)); // (c) id-poor
+    candidates.find((c) => !isPersonal(c) && (!incomingHasId || !c.has_identifier) && sameSurname(n.name, c.name)); // (c) id-poor (within-kind)
   if (ambiguous) {
     // Idempotency: if we already proposed this same pair, don't ask twice on re-upload.
     const { data: existingRc } = await supa
