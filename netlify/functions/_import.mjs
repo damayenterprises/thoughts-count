@@ -17,6 +17,11 @@
 
 import crypto from "node:crypto";
 import { parsePhoneNumberFromString } from "libphonenumber-js";
+import { sameSurname, firstNamesEquivalent } from "./_names.mjs";
+
+// Re-exported so existing importers (e.g. the test harness) keep resolving it from here
+// after the definition moved to _names.mjs (Spec A / A1b).
+export { sameSurname };
 
 // Fuzzy band: below LOW we treat as "no match" (insert new); at/above HIGH a name-only
 // match is still not trusted enough to auto-merge (deterministic identifiers do that),
@@ -183,7 +188,11 @@ export async function runImport({ supa, userId, filename, rows, source = "csv", 
   for (let i = 0; i < total; i++) {
     try {
       const r = await upsertPerson({ supa, userId, row: rows[i], source, batchId });
-      if (r.action === "inserted") added++;
+      // A placement crossover (a business row that matched a personal person) is
+      // represented SOLELY by "to review" — never also counted as "already in your
+      // roster" (it wasn't on the roster, and one person mustn't land in two buckets).
+      if (r.placement) needs_review++;
+      else if (r.action === "inserted") added++;
       else if (r.action === "updated" || r.action === "unchanged") updated++;
       else if (r.action === "review") needs_review++;
     } catch (err) {
@@ -224,7 +233,8 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     if (cs?.person_id) {
       await mergeIntoPerson(supa, userId, cs.person_id, n);
       await touchSource(supa, userId, cs.person_id, source, { natural_key: n.natural_key });
-      return { action: "updated", personId: cs.person_id };
+      const placement = await maybeFlagPlacement(supa, userId, cs.person_id, contactKind, batchId);
+      return { action: "updated", personId: cs.person_id, placement };
     }
   }
 
@@ -234,22 +244,37 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     await mergeIntoPerson(supa, userId, existingId, n);
     await addIdentifiers(supa, userId, existingId, n.identifiers);
     await touchSource(supa, userId, existingId, source, { natural_key: n.natural_key });
-    return { action: "updated", personId: existingId };
+    const placement = await maybeFlagPlacement(supa, userId, existingId, contactKind, batchId);
+    return { action: "updated", personId: existingId, placement };
   }
 
-  // 3) Fuzzy name match → propose only (never auto-merge). BUT apply identifier-first
-  //    dedup: step 2 already proved this row's email/phone matched NObody, so a name-only
-  //    similarity to a person who has a DIFFERENT known identifier means they are simply
-  //    different people who share a common name — insert as new, don't ask. We only raise
-  //    a review candidate when we genuinely can't tell them apart: at least one side is
-  //    identifier-poor (no email/phone) AND the surnames match (kills "David May" vs
-  //    "David Kay", "Chris P" vs "Chris Q" while still flagging real near-dups on the same
-  //    surname like "Sara/Sarah Johnson", "Michael/Mike Brown", "Jane Doe/Jane Ann Doe").
+  // 3) Name-based review → PROPOSE only (never auto-merge, never reject, never silently
+  //    duplicate). We're past step 2, so this row's email/phone matched NOBODY — it shares
+  //    no identifier with anyone. We raise AT MOST ONE review candidate; the first matching
+  //    reason wins, in priority order:
+  //      (a) Cross-kind (TC-47): the incoming contact is name-equivalent to a PERSONAL person
+  //          (someone already in the intimate circle). Converge them; the "business or
+  //          personal?" placement prompt follows on merge (see resolveCandidate → A3).
+  //      (b) Same-name near-dup (TC-46 Fix 2): name-equivalent to another contact, EVEN when
+  //          both carry different identifiers. name-equivalence = sameSurname AND first names
+  //          equivalent (exact / nickname / spelling-close) — this is the Fix-2 re-opening.
+  //      (c) Existing identifier-poor rule (TC-38): at least one side has no email/phone AND
+  //          surnames match — the "genuinely can't tell them apart" net (kills "David May"/
+  //          "David Kay", "Chris P"/"Chris Q"; still catches "Jane Doe"/"Jane Ann Doe").
+  //          Scoped to NON-personal (contact) candidates: cross-kind proposals must come only
+  //          from name-equivalence (a), never bare surname — otherwise, now that the surname
+  //          branch is live, every imported contact sharing a surname with a personal person
+  //          (who is always id-poor) would falsely prompt "is your client the same as your
+  //          family member?" (Validator R2). A legit id-poor cross-kind near-dup keeps firing
+  //          via (a) (e.g. personal "Jane Doe" + "Jane Ann Doe" — same first name). (b)/(c) overlap by design.
   const incomingHasId = n.identifiers.length > 0;
-  const candidates = await fuzzyMatch(supa, userId, n.name);
-  const ambiguous = (candidates || []).find(
-    (c) => (!incomingHasId || !c.has_identifier) && sameSurname(n.name, c.name)
-  );
+  const candidates = (await fuzzyMatch(supa, userId, n.name)) || [];
+  const isPersonal = (c) => c.contact_kind && c.contact_kind !== "contact";
+  const nameEquiv = (c) => sameSurname(n.name, c.name) && firstNamesEquivalent(n.name, c.name);
+  const ambiguous =
+    candidates.find((c) => isPersonal(c) && nameEquiv(c)) ||                                 // (a) cross-kind
+    candidates.find((c) => !isPersonal(c) && nameEquiv(c)) ||                                // (b) near-dup
+    candidates.find((c) => !isPersonal(c) && (!incomingHasId || !c.has_identifier) && sameSurname(n.name, c.name)); // (c) id-poor (within-kind)
   if (ambiguous) {
     // Idempotency: if we already proposed this same pair, don't ask twice on re-upload.
     const { data: existingRc } = await supa
@@ -262,13 +287,18 @@ export async function upsertPerson({ supa, userId, row, source = "csv", batchId 
     if (existingRc?.id) {
       return { action: "unchanged", personId: ambiguous.person_id, candidateId: existingRc.id };
     }
+    // If the matched person lives in a DIFFERENT kind (they're already in the personal
+    // circle), mark the review as cross-kind so the UI shows ONE three-way prompt
+    // (keep personal / move to roster / keep both) instead of "same person?" then a
+    // separate placement step. matched_kind drives the copy ("your personal people").
+    const crossKind = isPersonal(ambiguous);
     const { data: rc } = await supa
       .from("review_candidates")
       .insert({
         user_id: userId,
         batch_id: batchId,
         existing_person_id: ambiguous.person_id,
-        incoming: { ...n, source },
+        incoming: { ...n, source, ...(crossKind ? { _crosskind: true, _matched_kind: ambiguous.contact_kind } : {}) },
         score: ambiguous.score,
       })
       .select("id")
@@ -306,23 +336,98 @@ async function insertPerson(supa, userId, n, source, contactKind = "contact") {
   return person.id;
 }
 
-// Resolve one review candidate. 'merge' folds the held row into the matched person;
-// 'keep_both' promotes it to its own person. Either way we record a contact_source for
-// the incoming natural key, so re-uploading that same row later is a silent no-op rather
-// than re-proposing the same question.
+// A book-of-business import can match (by email/phone) someone already in the user's
+// PERSONAL circle. We merge them into ONE person (already done by the caller), then — per
+// TC-44 — ask the user where that person should live rather than silently deciding. This
+// records a one-tap "placement" prompt, once per person (kind_locked remembers the answer
+// so a re-import never re-asks). Returns true when a placement is pending for this person.
+async function maybeFlagPlacement(supa, userId, personId, intendedKind, batchId) {
+  const { data: p } = await supa
+    .from("people")
+    .select("name, contact_kind, kind_locked")
+    .eq("user_id", userId)
+    .eq("id", personId)
+    .single();
+  if (!p || p.kind_locked || p.contact_kind === intendedKind) return false;
+
+  const { data: existing } = await supa
+    .from("review_candidates")
+    .select("id")
+    .eq("user_id", userId)
+    .eq("existing_person_id", personId)
+    .eq("incoming->>_placement", "true")
+    .maybeSingle();
+  if (existing?.id) return true; // already pending — surface it, don't duplicate
+
+  await supa.from("review_candidates").insert({
+    user_id: userId,
+    batch_id: batchId,
+    existing_person_id: personId,
+    incoming: { _placement: true, name: p.name, matched_kind: p.contact_kind },
+    score: null,
+  });
+  return true;
+}
+
+// Resolve one review candidate. Duplicate prompts: 'merge' folds the held row into the
+// matched person, 'keep_both' promotes it to its own person. Placement prompts (TC-44):
+// 'move_to_roster' / 'keep_personal' set the person's contact_kind and lock it. Either
+// way the prompt is cleared and re-uploads won't re-ask.
 export async function resolveCandidate({ supa, userId, candidateId, action }) {
   const { data: cand } = await supa
     .from("review_candidates")
-    .select("id, existing_person_id, incoming")
+    .select("id, existing_person_id, incoming, batch_id")
     .eq("user_id", userId)
     .eq("id", candidateId)
     .maybeSingle();
   if (!cand) return { ok: false, error: "That item was already resolved." };
 
   const n = cand.incoming || {};
-  const source = n.source || "csv";
-  let personId;
 
+  const source = n.source || "csv";
+
+  // Deterministic placement prompt (identifier/natural-key match already converged the two
+  // records — definitely the same person, only their "home" is in question): two-way, set
+  // where they live, lock it, clear the prompt.
+  if (n._placement) {
+    if (action !== "move_to_roster" && action !== "keep_personal") return { ok: false, error: "Unknown action." };
+    const kind = action === "move_to_roster" ? "contact" : "personal";
+    await supa
+      .from("people")
+      .update({ contact_kind: kind, kind_locked: true, updated_at: new Date().toISOString() })
+      .eq("user_id", userId)
+      .eq("id", cand.existing_person_id);
+    await supa.from("review_candidates").delete().eq("user_id", userId).eq("id", candidateId);
+    return { ok: true, action, personId: cand.existing_person_id };
+  }
+
+  // Cross-kind review (a book contact that name-matched someone already in the PERSONAL
+  // circle — uncertain, so we never auto-merged): ONE three-way decision, resolved here in
+  // a single step (no separate placement prompt). "keep both" means they're different people.
+  if (n._crosskind) {
+    let personId;
+    if (action === "keep_both") {
+      personId = await insertPerson(supa, userId, n, source, "contact");
+    } else if (action === "keep_personal" || action === "move_to_roster") {
+      personId = cand.existing_person_id;
+      await mergeIntoPerson(supa, userId, personId, n);
+      await touchSource(supa, userId, personId, source, { natural_key: n.natural_key });
+      const kind = action === "move_to_roster" ? "contact" : "personal";
+      await supa
+        .from("people")
+        .update({ contact_kind: kind, kind_locked: true, updated_at: new Date().toISOString() })
+        .eq("user_id", userId)
+        .eq("id", personId);
+    } else {
+      return { ok: false, error: "Unknown action." };
+    }
+    await supa.from("review_candidates").delete().eq("user_id", userId).eq("id", candidateId);
+    return { ok: true, action, personId };
+  }
+
+  // Plain within-kind duplicate prompt (contact ↔ contact): merge folds the held row into
+  // the matched person; keep_both promotes it to its own person.
+  let personId;
   if (action === "merge") {
     personId = cand.existing_person_id;
     await mergeIntoPerson(supa, userId, personId, n);
@@ -402,16 +507,10 @@ async function fuzzyMatch(supa, userId, name) {
     p_threshold: FUZZY_LOW,
   });
   if (error || !data?.length) return null;
-  return data; // [{ person_id, name, score, has_identifier }] best-first
+  return data; // [{ person_id, name, score, has_identifier, contact_kind }] best-first (migration 003)
 }
 
-// Two names share a surname when their last token matches (case-insensitive, ≥2 chars —
-// so single-initial "surnames" like "Chris P" / "Chris Q" don't count as a match).
-export function sameSurname(a, b) {
-  const last = (s) => { const t = String(s || "").trim().split(/\s+/); return t.length ? t[t.length - 1].toLowerCase() : ""; };
-  const sa = last(a), sb = last(b);
-  return sa.length >= 2 && sa === sb;
-}
+// (sameSurname + firstNamesEquivalent now live in _names.mjs — imported/re-exported above.)
 
 // Provenance + idempotency row per source. Upserts on the source's natural key so a
 // re-import short-circuits at step 1 next time.

@@ -16,8 +16,9 @@ export default async (req) => {
   try { body = await req.json(); } catch { return json(400, { error: "Invalid request." }); }
   const candidateId = body?.candidate_id;
   const action = body?.action;
+  const VALID = ["merge", "keep_both", "move_to_roster", "keep_personal"];
   if (!candidateId) return json(400, { error: "Missing candidate." });
-  if (action !== "merge" && action !== "keep_both") return json(400, { error: "Invalid action." });
+  if (!VALID.includes(action)) return json(400, { error: "Invalid action." });
 
   try {
     const supa = serviceClient();

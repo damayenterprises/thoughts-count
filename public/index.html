@@ -1082,6 +1082,8 @@ function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'
   .tc-cand-vs { display: flex; align-items: center; color: var(--sage); font-size: 18px; }
   .tc-cand-actions { display: flex; gap: 8px; margin-top: 14px; }
   .tc-cand-actions .cta { flex: 1; justify-content: center; padding: 12px 16px; font-size: 14.5px; }
+  /* Cross-kind three-way prompt: stack the three choices, favored "keep personal" on top. */
+  .tc-cand-actions-col { flex-direction: column; }
   @media (max-width: 520px) { .tc-cand-pair { flex-direction: column; } .tc-cand-vs { justify-content: center; } .tc-cand-actions { flex-direction: column; } .tc-map-row { flex-wrap: wrap; } .tc-map-arrow { display: none; } .tc-map-col, .tc-map-field { flex-basis: 100%; } }
 </style>
 <script type="module" src="/companion.js"></script>
