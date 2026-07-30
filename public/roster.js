@@ -232,7 +232,11 @@ function toggleDetail(id) {
         const partial = formatKeyDate(d.event_date, d.date_precision);
         if (partial) return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${esc(partial)}</span></div>`;
         const occ = nextOccurrence(d.event_date, d.recurs); const soon = occ ? daysUntil(occ) : null;
-        return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${soon != null ? whenLabel(occ, soon) : (d.recurs ? "yearly" : "past")}</span></div>`;
+        // A one-time date already in the past shows its real date (e.g. "Apr 2, 2019") — the
+        // same value the companion view shows — instead of a vague "past". Recurring → "yearly".
+        const when = soon != null ? whenLabel(occ, soon)
+          : (d.recurs ? "yearly" : new Date(d.event_date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }));
+        return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${esc(when)}</span></div>`;
       }).join("")
     : `<div class="tc-empty">No dates yet.</div>`;
   const contact = [p.primary_email, p.primary_phone].filter(Boolean).map(esc).join(" · ");
