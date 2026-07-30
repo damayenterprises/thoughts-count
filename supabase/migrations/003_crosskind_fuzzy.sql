@@ -56,9 +56,14 @@ language sql stable as $$
       -- trigram band (spelling variants: Sara/Sarah, Jon/John)
       similarity(name, p_name) >= p_threshold
       -- OR same surname (feeds the JS nickname/diminutive check: Bill/William, Sam/Samuel,
-      -- which score ~0 on trigram). Surname = lowercased last whitespace token of each name.
-      or lower(split_part(name, ' ', array_length(regexp_split_to_array(trim(name), '\s+'), 1)))
-         = lower(split_part(p_name, ' ', array_length(regexp_split_to_array(trim(p_name), '\s+'), 1)))
+      -- which score ~0 on trigram). Surname = lowercased LAST token after splitting on a
+      -- whitespace run, the SAME split both sides + the same rule as JS sameSurname. NOTE:
+      -- the pattern is the POSIX class '[[:space:]]+', NOT '\s+' — a literal '\s+' did NOT
+      -- match whitespace here (backslash escaping through the SQL executor), so the whole
+      -- surname branch was silently dead; the bracket class needs no backslash and is
+      -- immune to that. (Also fixes the earlier split_part-on-single-space inconsistency.)
+      or lower((regexp_split_to_array(trim(name),   '[[:space:]]+'))[array_length(regexp_split_to_array(trim(name),   '[[:space:]]+'), 1)])
+         = lower((regexp_split_to_array(trim(p_name), '[[:space:]]+'))[array_length(regexp_split_to_array(trim(p_name), '[[:space:]]+'), 1)])
     )
   order by score desc
   limit 25;  -- surname net can return several; JS applies firstNamesEquivalent + guards

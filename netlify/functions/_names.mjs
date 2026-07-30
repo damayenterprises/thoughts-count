@@ -109,15 +109,20 @@ export function levenshtein(a, b) {
   return prev[b.length];
 }
 
-// The spelling-fuzzy gate: a small edit-distance relative to the name length. ≤2 absolute
-// edits AND ≤ ~0.34 of the longer name keeps short-name noise down (rejects "Kim/Tim"-type
-// coincidences) while catching real typo/spelling variants.
+// The spelling-fuzzy gate: a small edit-distance relative to the name length. A match needs
+// ALL of: ≤2 absolute edits, ≤~0.34 of the longer name, AND the longer name ≥4 chars. The
+// length floor is what actually kills 3-letter coincidences ("Kim"/"Tim", "Jan"/"Jon" —
+// distance 1, ratio 0.33) that the ratio alone lets through, while still catching real
+// variants (Jon/John len 4, Sara/Sarah, Sofia/Sophia len 6).
 const MAX_EDITS = 2;
 const MAX_EDIT_RATIO = 0.34;
+const MIN_LEN = 4; // longer name must reach this, or a 1-edit 3-letter pair falsely matches
 function spellingClose(fa, fb) {
   const d = levenshtein(fa, fb);
   if (d === 0 || d > MAX_EDITS) return false;
-  return d / Math.max(fa.length, fb.length) <= MAX_EDIT_RATIO;
+  const longer = Math.max(fa.length, fb.length);
+  if (longer < MIN_LEN) return false;
+  return d / longer <= MAX_EDIT_RATIO;
 }
 
 // Are two people's FIRST names equivalent? Accepts full names OR bare first names (it

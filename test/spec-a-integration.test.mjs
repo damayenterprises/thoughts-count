@@ -159,6 +159,14 @@ async function main() {
       const ids = await h.identifiersFor(s.personId);
       eq(`Fix2 [${c.label}] merged person carries both emails`, ids.length, 2);
     }
+    // surname-branch regression guard (Validator R1 fix b): "Bill Ng"/"William Ng" has a
+    // full-name trigram of ~0.27 (< the 0.4 RPC floor), so it can ONLY be surfaced by the
+    // migration's same-surname UNION branch. If that branch is dead (the old '\s+' bug), no
+    // candidate comes back and this silently inserts a duplicate instead of asking.
+    await h.imp({ name: "Bill Ng", email: "bill.ng@ex.com" });
+    const ng = await h.imp({ name: "William Ng", email: "william.ng@ex.com" });
+    eq("surname-branch: low-trigram nickname pair still raises a review", ng.action, "review");
+
     // negative: same surname, unrelated first names, both have emails → NO review
     await h.imp({ name: "Bob Kent", email: "bob.kent@ex.com" });
     const neg = await h.imp({ name: "Bill Kent", email: "bill.kent@ex.com" });
