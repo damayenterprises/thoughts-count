@@ -548,10 +548,17 @@ function openFlowForPerson(person){
   for (const k in picks) delete picks[k];
   if (person){
     answers.name = person.name || '';
-    // Auto-select the matching relationship chip (step 2); free text is the fallback.
+    // Auto-select the matching relationship chip (step 2); free text is the fallback. Uses the
+    // conservative, direction-aware matcher, with an exact-label fallback if the module didn't
+    // load. Anything ambiguous → no chip, and the free text still carries the relationship.
     const rel = (person.relationship || '').trim();
     const relStep = STEPS.find(s => s.key === 'relationship');
-    const match = rel && relStep ? relStep.picks.find(p => p.toLowerCase() === rel.toLowerCase()) : null;
+    let match = null;
+    if (rel && relStep){
+      match = window.matchRelationshipChip
+        ? window.matchRelationshipChip(rel, relStep.picks)
+        : (relStep.picks.find(p => p.toLowerCase() === rel.toLowerCase()) || null);
+    }
     if (match) picks.relationship = [match];
     else if (rel) answers.relationship = rel;
     // Pre-fill "what are they like?" (step 3) from the memory, and hand the same remembered
@@ -1122,6 +1129,11 @@ function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'
   .tc-cand-actions-col { flex-direction: column; }
   @media (max-width: 520px) { .tc-cand-pair { flex-direction: column; } .tc-cand-vs { justify-content: center; } .tc-cand-actions { flex-direction: column; } .tc-map-row { flex-wrap: wrap; } .tc-map-arrow { display: none; } .tc-map-col, .tc-map-field { flex-basis: 100%; } }
 </style>
+<script type="module">
+  // Expose the relationship-chip matcher (TC-49 UX fix #4) to the non-module intake script.
+  import { matchRelationshipChip } from '/_relationship.js';
+  window.matchRelationshipChip = matchRelationshipChip;
+</script>
 <script type="module" src="/companion.js"></script>
 <script type="module" src="/roster.js"></script>
 </body>
