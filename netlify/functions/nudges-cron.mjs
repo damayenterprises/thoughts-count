@@ -46,7 +46,7 @@ export default async () => {
       // "June 2020" / "2021") carry a placeholder day we must never fire an anniversary
       // on. Legacy rows default to 'day', so this is a no-op for everything imported
       // before partials were preserved.
-      .select("id, user_id, person_id, label, event_date, recurs, lead_days, people(name)")
+      .select("id, user_id, person_id, label, event_date, recurs, lead_days, people(name, deleted_at)")
       .eq("date_precision", "day");
     if (error) throw error;
 
@@ -54,6 +54,9 @@ export default async () => {
 
     for (const kd of dates || []) {
       checked++;
+      // TC-49: a hard-deleted person is gone from every read and nudge. Their key_dates may
+      // still exist (tombstoned via people.deleted_at), so skip any date whose person is gone.
+      if (kd.people?.deleted_at) continue;
       const lead = Number.isFinite(kd.lead_days) ? kd.lead_days : DEFAULT_LEAD_DAYS;
       const occ = nextOccurrence(kd.event_date, kd.recurs, today);
       if (!occ) continue;                         // one-off already in the past

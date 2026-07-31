@@ -11,6 +11,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { openImport } from "/import.js";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
+import { mountNoticed, mountPersonDelete, exportUserData } from "/_memory.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -118,6 +119,7 @@ async function reload() {
     .from("people")
     .select("id,name,relationship,notes,location,created_at,contact_kind,primary_email,primary_phone,key_dates(id,label,kind,event_date,date_precision,recurs,lead_days)")
     .eq("contact_kind", "contact")
+    .is("deleted_at", null) // hard-deleted people (TC-49) never reappear in any read
     .order("created_at", { ascending: false });
   if (error) { console.error(error); body().innerHTML = `<div class="panel-body"><p class="k-msg bad">We couldn't load your roster. Please try again.</p></div>`; return; }
   people = data || [];
@@ -153,6 +155,7 @@ function render() {
     <div class="tc-ros-top">
       <div><div class="q-eyebrow">Book of business</div><h2 class="q-title" style="margin:2px 0 0;">${total} ${total === 1 ? "person" : "people"}</h2></div>
       <div class="tc-ros-actions">
+        <button class="tc-authbtn ghost" id="tcExportBtn">Export my data</button>
         <button class="tc-authbtn" id="tcImportBtn">＋ Import contacts</button>
       </div>
     </div>`;
@@ -164,6 +167,7 @@ function render() {
       </div></div>`;
     body().querySelector("#tcImportBtn").onclick = launchImport;
     body().querySelector("#tcImportBtn2").onclick = launchImport;
+    wireExport();
     return;
   }
 
@@ -186,6 +190,7 @@ function render() {
   body().innerHTML = head + controls + `<div id="tcRosList" class="tc-ros-list">${rows}</div>` + pager + `</div>`;
 
   body().querySelector("#tcImportBtn").onclick = launchImport;
+  wireExport();
   const searchEl = body().querySelector("#tcRosSearch");
   if (searchEl) searchEl.oninput = () => { query = searchEl.value; page = 0; render(); const s = body().querySelector("#tcRosSearch"); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } };
   const sortEl = body().querySelector("#tcRosSort");
@@ -207,6 +212,17 @@ function rowHtml(p) {
       <div class="tc-ros-right">${chip}<span class="tc-ros-caret">▾</span></div>
     </div>
     <div class="tc-ros-detail" data-detail="${p.id}" hidden></div>`;
+}
+
+// "Export my data" (TC-49) — the user owns their memory and can take it any time.
+function wireExport() {
+  const btn = body().querySelector("#tcExportBtn");
+  if (!btn) return;
+  btn.onclick = async () => {
+    btn.disabled = true; const prev = btn.textContent; btn.textContent = "Preparing…";
+    try { await exportUserData(sb, user); } catch (e) { console.error("export failed", e); }
+    btn.disabled = false; btn.textContent = prev;
+  };
 }
 
 function wireRows() {
@@ -244,7 +260,9 @@ function toggleDetail(id) {
     ${contact ? `<div class="tc-ros-contact">${contact}</div>` : ""}
     ${p.notes ? `<p class="tc-ros-notes">${esc(p.notes)}</p>` : ""}
     <div class="tc-dates">${dateHtml}</div>
-    <button class="cta tc-ros-showup" data-id="${p.id}">♡ Help me show up for ${esc(firstName(p.name))}</button>`;
+    <div class="tc-noticed-mount"></div>
+    <button class="cta tc-ros-showup" data-id="${p.id}">♡ Help me show up for ${esc(firstName(p.name))}</button>
+    <div class="tc-persondel-mount"></div>`;
   el.hidden = false;
   rowEl?.classList.add("open");
   el.querySelector(".tc-ros-showup").onclick = () => {
@@ -252,6 +270,11 @@ function toggleDetail(id) {
     closeScrim();
     if (window.openFlowForPerson) window.openFlowForPerson(person);
   };
+  // "Things you've noticed" (TC-49) — loaded lazily per person on expand (the roster can be
+  // hundreds of people, so we never bulk-fetch facts here).
+  mountNoticed(el.querySelector(".tc-noticed-mount"), sb, p);
+  // Whole-person hard-delete (TC-49) — on removal, reload the roster so the row disappears.
+  mountPersonDelete(el.querySelector(".tc-persondel-mount"), sb, p, { onDeleted: () => reload() });
 }
 
 /* ---------- entry points ---------- */

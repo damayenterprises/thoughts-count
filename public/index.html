@@ -108,6 +108,30 @@
   .tc-sp-label { font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 7px; }
   .tc-sp-row { display: block; width: 100%; text-align: left; background: var(--paper-2); border: 1px solid var(--line); border-radius: 12px; padding: 9px 13px; margin-bottom: 6px; font-family: inherit; font-size: 14px; color: var(--sage-deep); cursor: pointer; transition: border-color .15s ease; }
   .tc-sp-row:hover { border-color: var(--sage); }
+  /* TC-49: "Things you've noticed" (memory) + sovereignty controls */
+  .tc-noticed { margin-top: 14px; }
+  .tc-noticed-head { font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 7px; }
+  .tc-noticed-list { display: flex; flex-direction: column; }
+  .tc-noticed-row { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 14.5px; padding: 7px 0; border-bottom: 1px dashed var(--line); }
+  .tc-noticed-row:last-child { border-bottom: none; }
+  .tc-noticed-txt { flex: 1; min-width: 0; }
+  .tc-noticed-tools { flex: 0 0 auto; white-space: nowrap; }
+  .tc-noticed-tools .link-btn, .tc-noticed-confirm .link-btn { font-size: 13px; padding: 2px 4px; color: var(--ink-soft); }
+  .tc-noticed-tools .link-btn:hover, .tc-noticed-confirm .link-btn:hover { color: var(--clay-deep); }
+  .tc-noticed-confirm { font-size: 13px; color: var(--ink-soft); }
+  .tc-noticed-empty { padding: 4px 0 2px; }
+  .tc-noticed-add { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  .tc-noticed-input, .tc-noticed-editinput { padding: 9px 12px; font-size: 14px; border-radius: 11px; }
+  .tc-noticed-add .link-btn.tc-noticed-save { flex: 0 0 auto; color: var(--sage-deep); font-weight: 700; }
+  .tc-noticed-editinput { width: 100%; }
+  .tc-noticed-msg:empty { display: none; }
+  /* whole-person delete: a deliberately quiet danger control */
+  .tc-persondel-mount { margin-top: 12px; text-align: center; }
+  .tc-person-del { color: var(--ink-soft) !important; font-size: 13px !important; }
+  .tc-person-del:hover { color: var(--clay-deep) !important; }
+  .tc-person-del-confirm { font-size: 13.5px; color: var(--ink); }
+  .tc-person-del-confirm .link-btn { font-size: 13.5px; padding: 2px 4px; }
+  .tc-person-del-confirm .tc-person-del-yes { color: var(--clay-deep) !important; font-weight: 700; }
   /* companion: coming-up strip, search/sort controls, per-card next-date */
   .tc-comingup { background: var(--blush); border: 1px solid var(--line); border-radius: 18px; padding: 14px 16px; margin: 4px 0 16px; }
   .tc-cu-label { font-size: 12px; letter-spacing: .05em; text-transform: uppercase; color: var(--sage-deep); font-weight: 700; margin-bottom: 8px; }

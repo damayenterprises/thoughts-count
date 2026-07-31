@@ -5,6 +5,7 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
+import { loadFactsFor, mountNoticed, mountPersonDelete, exportUserData } from "/_memory.js";
 
 let sb = null, user = null;
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -205,9 +206,17 @@ async function loadPeople() {
     .from("people")
     .select("id,name,relationship,notes,location,created_at,key_dates(id,label,kind,event_date,date_precision,recurs,lead_days),saved_plans(id,plan_title,occasion,created_at,plan)")
     .eq("contact_kind", "personal")
+    .is("deleted_at", null) // hard-deleted people (TC-49) never reappear in any read
     .order("created_at", { ascending: true });
   if (error) { console.error(error); return []; }
-  return data || [];
+  const people = data || [];
+  // Attach each person's "things you've noticed" (TC-49) in one grouped query — the personal
+  // circle is small, so a single bulk read keeps the cards instant without N round-trips.
+  try {
+    const byPerson = await loadFactsFor(sb, people.map((p) => p.id));
+    for (const p of people) p.facts = byPerson[p.id] || [];
+  } catch (e) { console.error("facts load failed", e); }
+  return people;
 }
 async function addPerson(p) {
   const { data, error } = await sb.from("people").insert({ user_id: user.id, ...p }).select().single();
@@ -303,8 +312,10 @@ function personCard(p) {
       ${p.notes ? `<p style="margin:8px 0 10px;">${esc(p.notes)}</p>` : ""}
       <div class="tc-dates">${dates.map(dateLine).join("") || `<div class="tc-empty">No dates yet — add one so we can gently remind you.</div>`}</div>
       <button class="tc-add-date link-btn" data-pid="${p.id}">+ Add a date or reminder</button>
+      <div class="tc-noticed-mount" data-pid="${p.id}"></div>
       ${savedHtml}
       <button class="cta tc-showup" data-pid="${p.id}">♡ Help me show up for ${esc(firstName(p.name))}</button>
+      <div class="tc-persondel-mount" data-pid="${p.id}"></div>
     </div>`;
 }
 
@@ -347,7 +358,7 @@ function renderHome(people) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
         <span class="tc-promise-txt">We'll <b>gently nudge you before every date that matters</b> — birthdays, anniversaries, hard days — so you're always ready to show up.</span>
       </div>
-      <p class="tc-account">Signed in as ${email} · <button class="link-btn tc-signout">Sign out</button></p>
+      <p class="tc-account">Signed in as ${email} · <button class="link-btn tc-export">Export my data</button> · <button class="link-btn tc-signout">Sign out</button></p>
       <div style="height:14px"></div>
       ${comingUp}
       ${controls}
@@ -386,6 +397,16 @@ function renderHome(people) {
   // (Re)attach handlers for the cards currently in the list.
   function wireCards() {
     listEl().querySelectorAll(".tc-add-date").forEach((btn) => { btn.onclick = () => openAddDate(btn.dataset.pid); });
+    // "Things you've noticed" (TC-49) — read/add/edit/delete, seeded from the bulk-loaded facts.
+    listEl().querySelectorAll(".tc-noticed-mount").forEach((el) => {
+      const p = people.find((x) => x.id === el.dataset.pid);
+      if (p) mountNoticed(el, sb, p, { facts: p.facts || [] });
+    });
+    // Whole-person hard-delete (TC-49) — on removal, refresh the home so the card disappears.
+    listEl().querySelectorAll(".tc-persondel-mount").forEach((el) => {
+      const p = people.find((x) => x.id === el.dataset.pid);
+      if (p) mountPersonDelete(el, sb, p, { onDeleted: async () => renderHome(await loadPeople()) });
+    });
     listEl().querySelectorAll(".tc-showup").forEach((btn) => {
       btn.onclick = () => { const p = people.find((x) => x.id === btn.dataset.pid); closeModal(); if (window.openFlowForPerson) window.openFlowForPerson(p); };
     });
@@ -401,6 +422,12 @@ function renderHome(people) {
   renderList();
 
   modalBody().querySelector(".tc-signout").onclick = async () => { await sb.auth.signOut(); closeModal(); };
+  const exportBtn = modalBody().querySelector(".tc-export");
+  if (exportBtn) exportBtn.onclick = async () => {
+    exportBtn.disabled = true; const prev = exportBtn.textContent; exportBtn.textContent = "Preparing…";
+    try { await exportUserData(sb, user); } catch (e) { console.error("export failed", e); }
+    exportBtn.disabled = false; exportBtn.textContent = prev;
+  };
   const searchEl = modalBody().querySelector("#tcSearch");
   if (searchEl) searchEl.oninput = () => { query = searchEl.value; renderList(); };
   const sortEl = modalBody().querySelector("#tcSort");
