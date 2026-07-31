@@ -84,3 +84,9 @@
   from = "/api/review/resolve"
   to = "/.netlify/functions/review-resolve"
   status = 200
+
+# --- TC-49 Relationship memory (facts) writes: create/edit/delete a fact, delete a person ---
+[[redirects]]
+  from = "/api/memory"
+  to = "/.netlify/functions/memory"
+  status = 200
