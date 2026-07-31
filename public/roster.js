@@ -12,6 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { openImport } from "/import.js";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { mountNoticed, mountPersonDelete, exportUserData, loadPersonFacts, noticedList } from "/_memory.js";
+import { mountQuickCapture, mountToReview, pendingCount } from "/_capture.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -19,6 +20,7 @@ const PAGE = 25;
 
 let sb = null, user = null;
 let people = [], query = "", sortBy = "next", page = 0;
+let reviewCount = 0; // captures waiting in To-Review (TC-50)
 
 /* ---------- date helpers (mirror companion.js / nudges-cron) ---------- */
 function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
@@ -123,8 +125,34 @@ async function reload() {
     .order("created_at", { ascending: false });
   if (error) { console.error(error); body().innerHTML = `<div class="panel-body"><p class="k-msg bad">We couldn't load your roster. Please try again.</p></div>`; return; }
   people = data || [];
+  try { reviewCount = await pendingCount(sb); } catch { reviewCount = 0; }
   page = 0;
   render();
+}
+
+/* ---------- quick capture + To-Review (TC-50) ---------- */
+function captureStripHtml() {
+  return `<div class="tc-capstrip" style="margin-top:14px;">
+      <div class="tc-qc-mount"></div>
+      <button class="link-btn tc-review-toggle" id="tcReviewToggle">To review${reviewCount ? `<span class="tc-badge-dot">${reviewCount}</span>` : ""}</button>
+      <div class="tc-review-panel" id="tcReviewPanel" hidden style="margin-top:10px;"></div>
+    </div>`;
+}
+async function refreshReviewBadge() {
+  try { reviewCount = await pendingCount(sb); } catch {}
+  const t = body().querySelector("#tcReviewToggle");
+  if (t) t.innerHTML = `To review${reviewCount ? `<span class="tc-badge-dot">${reviewCount}</span>` : ""}`;
+}
+function wireCaptureStrip() {
+  const qc = body().querySelector(".tc-qc-mount");
+  if (qc) mountQuickCapture(qc, sb, { contactKind: "contact", onChange: refreshReviewBadge });
+  const toggle = body().querySelector("#tcReviewToggle");
+  const panel = body().querySelector("#tcReviewPanel");
+  if (toggle && panel) toggle.onclick = () => {
+    if (!panel.hidden) { panel.hidden = true; return; }
+    panel.hidden = false;
+    mountToReview(panel, sb, { people, contactKind: "contact", onResolved: refreshReviewBadge });
+  };
 }
 
 function renderUpgrade() {
@@ -161,13 +189,14 @@ function render() {
     </div>`;
 
   if (!total) {
-    body().innerHTML = head + `<div class="tc-empty" style="padding:26px 0;text-align:center;">
+    body().innerHTML = head + captureStripHtml() + `<div class="tc-empty" style="padding:26px 0;text-align:center;">
         <p class="q-help" style="text-align:center;">No one here yet. Import a CSV from any CRM or spreadsheet — we'll map the columns and dedupe for you.</p>
         <button class="cta" id="tcImportBtn2">＋ Import your contacts</button>
       </div></div>`;
     body().querySelector("#tcImportBtn").onclick = launchImport;
     body().querySelector("#tcImportBtn2").onclick = launchImport;
     wireExport();
+    wireCaptureStrip();
     return;
   }
 
@@ -187,10 +216,11 @@ function render() {
       <button class="link-btn" id="tcNext"${page >= pages - 1 ? " disabled" : ""}>Next →</button>
     </div>` : "";
 
-  body().innerHTML = head + controls + `<div id="tcRosList" class="tc-ros-list">${rows}</div>` + pager + `</div>`;
+  body().innerHTML = head + captureStripHtml() + controls + `<div id="tcRosList" class="tc-ros-list">${rows}</div>` + pager + `</div>`;
 
   body().querySelector("#tcImportBtn").onclick = launchImport;
   wireExport();
+  wireCaptureStrip();
   const searchEl = body().querySelector("#tcRosSearch");
   if (searchEl) searchEl.oninput = () => { query = searchEl.value; page = 0; render(); const s = body().querySelector("#tcRosSearch"); if (s) { s.focus(); s.setSelectionRange(s.value.length, s.value.length); } };
   const sortEl = body().querySelector("#tcRosSort");

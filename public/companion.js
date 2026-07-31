@@ -6,6 +6,9 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
+import { mountQuickCapture, mountToReview, pendingCount } from "/_capture.js";
+
+let reviewCount = 0; // captures waiting in To-Review (TC-50)
 
 let sb = null, user = null;
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -281,7 +284,33 @@ async function openHome() {
   openModal();
   modalBody().innerHTML = `<div class="panel-body"><p class="q-help">Loading your people…</p></div>`;
   const people = await loadPeople();
+  try { reviewCount = await pendingCount(sb); } catch { reviewCount = 0; }
   renderHome(people);
+}
+
+/* ---------------- quick capture + To-Review (TC-50) ---------------- */
+function captureStripHtml() {
+  return `<div class="tc-capstrip">
+      <div class="tc-qc-mount"></div>
+      <button class="link-btn tc-review-toggle" id="tcReviewToggle">To review${reviewCount ? `<span class="tc-badge-dot">${reviewCount}</span>` : ""}</button>
+      <div class="tc-review-panel" id="tcReviewPanel" hidden style="margin-top:10px;"></div>
+    </div>`;
+}
+async function refreshReviewBadge() {
+  try { reviewCount = await pendingCount(sb); } catch {}
+  const t = modalBody().querySelector("#tcReviewToggle");
+  if (t) t.innerHTML = `To review${reviewCount ? `<span class="tc-badge-dot">${reviewCount}</span>` : ""}`;
+}
+function wireCaptureStrip(people) {
+  const qc = modalBody().querySelector(".tc-qc-mount");
+  if (qc) mountQuickCapture(qc, sb, { contactKind: "personal", onChange: refreshReviewBadge });
+  const toggle = modalBody().querySelector("#tcReviewToggle");
+  const panel = modalBody().querySelector("#tcReviewPanel");
+  if (toggle && panel) toggle.onclick = () => {
+    if (!panel.hidden) { panel.hidden = true; return; }
+    panel.hidden = false;
+    mountToReview(panel, sb, { people, contactKind: "personal", onResolved: refreshReviewBadge });
+  };
 }
 
 function dateLine(d) {
@@ -370,6 +399,7 @@ function renderHome(people) {
       <p class="tc-account">Signed in as ${email} · <button class="link-btn tc-export">Export my data</button> · <button class="link-btn tc-signout">Sign out</button></p>
       <div style="height:14px"></div>
       ${comingUp}
+      ${captureStripHtml()}
       ${controls}
       <div id="tcPeopleList"></div>
       <button class="cta ghost tc-addtoggle" id="tcAddToggle" style="width:100%;justify-content:center;margin-top:6px;">＋ Add someone</button>
@@ -429,6 +459,7 @@ function renderHome(people) {
   }
 
   renderList();
+  wireCaptureStrip(people);
 
   modalBody().querySelector(".tc-signout").onclick = async () => { await sb.auth.signOut(); closeModal(); };
   const exportBtn = modalBody().querySelector(".tc-export");
