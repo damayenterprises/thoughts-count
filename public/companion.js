@@ -5,11 +5,21 @@
 
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
-import { loadFactsFor, mountNoticed, mountPersonDelete, exportUserData } from "/_memory.js";
+import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
 
 let sb = null, user = null;
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
+
+// Launch the plan flow for a saved person, handing the intake their remembered memory so the
+// plan reads what we've noticed (not a notes blob) and step 3 pre-fills from it (TC-49). Facts
+// are re-read fresh so a note just added on the card is included.
+async function showUpFor(p) {
+  if (!p) return;
+  try { p.noticed = noticedList(await loadPersonFacts(sb, p.id)); }
+  catch (e) { console.error("noticed load failed", e); p.noticed = noticedList(p.facts || []); }
+  if (window.openFlowForPerson) window.openFlowForPerson(p);
+}
 
 const KINDS = [
   { v: "birthday", label: "Birthday", recurs: true },
@@ -309,7 +319,6 @@ function personCard(p) {
         <span>${esc(p.name)}${p.relationship ? ` <span class="tc-rel">· ${esc(p.relationship)}</span>` : ""}</span>
       </h4>
       ${nextHtml}
-      ${p.notes ? `<p style="margin:8px 0 10px;">${esc(p.notes)}</p>` : ""}
       <div class="tc-dates">${dates.map(dateLine).join("") || `<div class="tc-empty">No dates yet — add one so we can gently remind you.</div>`}</div>
       <button class="tc-add-date link-btn" data-pid="${p.id}">+ Add a date or reminder</button>
       <div class="tc-noticed-mount" data-pid="${p.id}"></div>
@@ -408,7 +417,7 @@ function renderHome(people) {
       if (p) mountPersonDelete(el, sb, p, { onDeleted: async () => renderHome(await loadPeople()) });
     });
     listEl().querySelectorAll(".tc-showup").forEach((btn) => {
-      btn.onclick = () => { const p = people.find((x) => x.id === btn.dataset.pid); closeModal(); if (window.openFlowForPerson) window.openFlowForPerson(p); };
+      btn.onclick = () => { const p = people.find((x) => x.id === btn.dataset.pid); closeModal(); showUpFor(p); };
     });
     listEl().querySelectorAll(".tc-sp-row").forEach((btn) => {
       btn.onclick = () => {
@@ -435,7 +444,7 @@ function renderHome(people) {
 
   // "Coming up" rows jump straight into showing up for that person.
   modalBody().querySelectorAll(".tc-cu-row").forEach((btn) => {
-    btn.onclick = () => { const p = people.find((x) => x.id === btn.dataset.pid); closeModal(); if (window.openFlowForPerson) window.openFlowForPerson(p); };
+    btn.onclick = () => { const p = people.find((x) => x.id === btn.dataset.pid); closeModal(); showUpFor(p); };
   });
 
   // Add-someone: reveal the form only when asked, so browsing stays calm.
@@ -451,7 +460,11 @@ function renderHome(people) {
     if (!name) { msg.className = "k-msg bad"; msg.textContent = "A name helps us make it personal."; return; }
     msg.className = "k-msg"; msg.textContent = "Saving…";
     try {
-      await addPerson({ name, relationship: modalBody().querySelector("#np_rel").value.trim() || null, notes: modalBody().querySelector("#np_notes").value.trim() || null });
+      // The "anything worth remembering" field is the on-ramp to the ONE memory store — it
+      // becomes this person's first noticed item, not a separate people.notes blob (TC-49).
+      const firstNote = modalBody().querySelector("#np_notes").value.trim();
+      const person = await addPerson({ name, relationship: modalBody().querySelector("#np_rel").value.trim() || null });
+      if (firstNote) { try { await createNote(sb, person.id, firstNote); } catch (e) { console.error("first note failed", e); } }
       renderHome(await loadPeople());
     } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }
   };
@@ -546,8 +559,12 @@ async function mountSaveToPerson(stageEl, plan) {
       if (personId === "__new") {
         const nm = nameEl.value.trim();
         if (!nm) { msg.className = "k-msg bad"; msg.textContent = "A name helps us keep it personal."; return; }
-        const person = await addPerson({ name: nm, relationship: (ctx.relationship || "").trim() || null, notes: (ctx.about || "").trim() || null, location: (ctx.location || "").trim() || null });
+        const person = await addPerson({ name: nm, relationship: (ctx.relationship || "").trim() || null, location: (ctx.location || "").trim() || null });
         personId = person.id;
+        // What they told us about this person during intake becomes their first noticed item
+        // (the one memory store), not a separate people.notes blob (TC-49).
+        const about = (ctx.about || "").trim();
+        if (about) { try { await createNote(sb, personId, about); } catch (e) { console.error("intake note failed", e); } }
       }
       await savePlan(personId, plan, occasion);
       let reminderCount = 0;

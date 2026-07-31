@@ -11,7 +11,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { openImport } from "/import.js";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
-import { mountNoticed, mountPersonDelete, exportUserData } from "/_memory.js";
+import { mountNoticed, mountPersonDelete, exportUserData, loadPersonFacts, noticedList } from "/_memory.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -258,15 +258,17 @@ function toggleDetail(id) {
   const contact = [p.primary_email, p.primary_phone].filter(Boolean).map(esc).join(" · ");
   el.innerHTML = `
     ${contact ? `<div class="tc-ros-contact">${contact}</div>` : ""}
-    ${p.notes ? `<p class="tc-ros-notes">${esc(p.notes)}</p>` : ""}
     <div class="tc-dates">${dateHtml}</div>
     <div class="tc-noticed-mount"></div>
     <button class="cta tc-ros-showup" data-id="${p.id}">♡ Help me show up for ${esc(firstName(p.name))}</button>
     <div class="tc-persondel-mount"></div>`;
   el.hidden = false;
   rowEl?.classList.add("open");
-  el.querySelector(".tc-ros-showup").onclick = () => {
+  el.querySelector(".tc-ros-showup").onclick = async () => {
     const person = people.find((x) => x.id === id);
+    // Hand the plan their remembered memory (TC-49) so recorded facts inform the plan and
+    // step 3 pre-fills from what we've noticed, not a notes blob.
+    try { if (person) person.noticed = noticedList(await loadPersonFacts(sb, person.id)); } catch (e) { console.error("noticed load failed", e); }
     closeScrim();
     if (window.openFlowForPerson) window.openFlowForPerson(person);
   };

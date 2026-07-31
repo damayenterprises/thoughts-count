@@ -73,6 +73,16 @@ async function main() {
     const { data: delRow } = await supa.from("facts").select("deleted_at").eq("id", r1.fact.id).single();
     ok("delete: deleted_at is stamped", !!delRow?.deleted_at);
 
+    // ---------- free-form notes are append-only (unified-store fix) ----------
+    console.log("\n# notes are append-only (never supersede each other)");
+    const nA = await insertFact(supa, userId, { personId: maria, subject: "them", relation: "note", object: "loves the farmers market", source: "typed" });
+    const nB = await insertFact(supa, userId, { personId: maria, subject: "them", relation: "note", object: "allergic to shellfish", source: "typed" });
+    eq("notes: a second note does NOT supersede the first", nB.superseded, false);
+    const noteRows = (await activeFacts(userId, maria)).filter((f) => f.relation === "note");
+    eq("notes: both distinct notes stay active", noteRows.length, 2);
+    // clean these two up so later counts stay predictable
+    await deleteFact(supa, userId, nA.fact.id); await deleteFact(supa, userId, nB.fact.id);
+
     // ---------- supersession: "recovered" replaces "sick" (spec §3 AC) ----------
     console.log("\n# supersession (recovered supersedes sick)");
     const sickR = await insertFact(supa, userId, { personId: maria, subject: "dad", relation: "health_status", object: "sick", factClass: "EPISODIC", source: "typed" });

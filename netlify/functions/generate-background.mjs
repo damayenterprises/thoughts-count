@@ -198,18 +198,30 @@ function buildUserMessage(a) {
   const voice = (a?.voice || "").trim();
   const constraints = (a?.constraints || "").trim();
   const location = (a?.location || "").trim();
-  if (!moment && !about) return null;
-  return [
+  // The saved person's remembered memory (TC-49) — durable things the user noticed over time
+  // (e.g. "allergic to shellfish", "loves hiking"). These must genuinely shape the plan.
+  const facts = Array.isArray(a?.facts) ? a.facts.map((f) => String(f || "").trim()).filter(Boolean) : [];
+  if (!moment && !about && !facts.length) return null;
+  const lines = [
     "Here is what I'm navigating. Please build me a complete action plan.",
     "",
     `WHAT HAPPENED: ${moment || "(not specified)"}`,
     `THEIR NAME: ${name || "(not specified — don't invent one)"}`,
     `WHO THIS PERSON IS TO ME: ${relationship || "(not specified)"}`,
     `ABOUT THEM / OUR RELATIONSHIP: ${about || "(not specified)"}`,
+  ];
+  if (facts.length) {
+    lines.push(
+      "WHAT I'VE NOTICED / THEY'VE SHARED (remembered over time — use these to make it truly personal):",
+      ...facts.map((f) => `- ${f}`),
+    );
+  }
+  lines.push(
     `WHAT FEELS AUTHENTIC TO ME: ${voice || "(not specified)"}`,
     `MY TIME & BUDGET: ${constraints || "(not specified)"}`,
     `THEIR AREA (for local ideas): ${location || "(not specified)"}`,
-  ].join("\n");
+  );
+  return lines.join("\n");
 }
 
 async function safeText(res) {

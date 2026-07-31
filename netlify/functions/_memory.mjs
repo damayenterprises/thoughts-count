@@ -53,20 +53,28 @@ export async function insertFact(supa, userId, input) {
   const factClass = input.factClass || "DURABLE";
   const confidence = input.confidence != null ? input.confidence : 1.0;
 
-  // Find the current OPEN fact on the same (owner-object, subject, relation), if any.
+  // Free-form notes ("relation: note") are APPEND-ONLY journal entries — a person can have
+  // many, and a new one never retires an earlier one. Supersession is only for structured,
+  // single-valued attributes (health_status, job, birthday…), where a new value replaces the
+  // prior one. So we only run the supersession lookup for non-note relations.
+  const superseding = relation !== "note";
   const scopeCol = personId ? "person_id" : "household_id";
   const scopeVal = personId || householdId;
-  const { data: openRows, error: selErr } = await supa
-    .from("facts")
-    .select("id, object, confidence")
-    .eq("user_id", userId)
-    .eq(scopeCol, scopeVal)
-    .eq("subject", subject)
-    .eq("relation", relation)
-    .is("valid_to", null)
-    .is("deleted_at", null);
-  if (selErr) throw selErr;
-  const existing = (openRows || [])[0] || null;
+  let existing = null;
+  if (superseding) {
+    // Find the current OPEN fact on the same (owner-object, subject, relation), if any.
+    const { data: openRows, error: selErr } = await supa
+      .from("facts")
+      .select("id, object, confidence")
+      .eq("user_id", userId)
+      .eq(scopeCol, scopeVal)
+      .eq("subject", subject)
+      .eq("relation", relation)
+      .is("valid_to", null)
+      .is("deleted_at", null);
+    if (selErr) throw selErr;
+    existing = (openRows || [])[0] || null;
+  }
 
   // Same value already on file → reinforce confidence, don't duplicate (spec §3).
   if (existing && norm(existing.object) === norm(object)) {

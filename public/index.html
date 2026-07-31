@@ -548,8 +548,17 @@ function openFlowForPerson(person){
   for (const k in picks) delete picks[k];
   if (person){
     answers.name = person.name || '';
-    answers.relationship = person.relationship || '';
-    answers.about = person.notes || '';
+    // Auto-select the matching relationship chip (step 2); free text is the fallback.
+    const rel = (person.relationship || '').trim();
+    const relStep = STEPS.find(s => s.key === 'relationship');
+    const match = rel && relStep ? relStep.picks.find(p => p.toLowerCase() === rel.toLowerCase()) : null;
+    if (match) picks.relationship = [match];
+    else if (rel) answers.relationship = rel;
+    // Pre-fill "what are they like?" (step 3) from the memory, and hand the same remembered
+    // items to the plan engine so recorded facts actually inform the plan (TC-49).
+    const noticed = Array.isArray(person.noticed) ? person.noticed : [];
+    answers.about = noticed.join('. ');
+    answers.facts = noticed;
     answers.location = person.location || '';
   }
   window.__tcFlowPersonId = person ? person.id : null;
@@ -651,6 +660,9 @@ function composeAnswer(key){
 function buildPayload(){
   const p = { ...answers };
   ['moment','relationship','about','voice','constraints'].forEach(k => { p[k] = composeAnswer(k); });
+  // Pass the saved person's remembered items (TC-49) so the engine reads the memory directly,
+  // not just whatever survived in the editable "about" box.
+  if (Array.isArray(answers.facts) && answers.facts.length) p.facts = answers.facts; else delete p.facts;
   return p;
 }
 

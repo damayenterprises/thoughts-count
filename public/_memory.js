@@ -21,6 +21,12 @@ function noticedLine(f) {
   return GENERIC_SUBJECT.has(subj.toLowerCase()) ? body : `${subj} — ${body}`;
 }
 
+// The person's noticed items as plain strings — used to pre-fill the intake and to hand the
+// remembered context to the plan engine (spec: recorded facts must actually inform the plan).
+export function noticedList(facts) {
+  return (facts || []).map(noticedLine).filter((s) => s && s.trim());
+}
+
 /* ---------------- reads (RLS-scoped anon) ---------------- */
 
 // A person's ACTIVE, undeleted notes — exactly what the card shows (open + not hard-deleted),
@@ -66,6 +72,15 @@ async function memoryPost(sb, body) {
   const json = await res.json().catch(() => ({}));
   if (!res.ok) throw new Error(json.error || "Something went wrong. Please try again.");
   return json;
+}
+
+// Save a free-text observation as a noticed item. This is the single shared write behind BOTH
+// the "add someone → anything worth remembering" on-ramp and the person-card add field, so
+// they are one store, not two look-alike boxes. Notes are append-only (never supersede).
+export async function createNote(sb, personId, text) {
+  const object = String(text || "").trim();
+  if (!object) return null;
+  return memoryPost(sb, { op: "create_fact", personId, subject: "them", relation: "note", object, source: "typed", factClass: "DURABLE" });
 }
 
 /* ---------------- "Things you've noticed" (read / add / edit / delete) ---------------- */
@@ -207,7 +222,7 @@ export function mountPersonDelete(container, sb, person, { onDeleted } = {}) {
 // memory and can take it any time.
 export async function exportUserData(sb, user) {
   const [{ data: people }, { data: facts }, { data: dates }, { data: plans }, { data: households }] = await Promise.all([
-    sb.from("people").select("id,name,relationship,notes,location,contact_kind,household_id,created_at").is("deleted_at", null),
+    sb.from("people").select("id,name,relationship,location,contact_kind,household_id,created_at").is("deleted_at", null),
     sb.from("facts").select("id,person_id,household_id,subject,relation,object,event_date,valid_from,valid_to,created_at").is("deleted_at", null),
     sb.from("key_dates").select("id,person_id,label,kind,event_date,recurs,lead_days,source_fact_id"),
     sb.from("saved_plans").select("id,person_id,plan_title,occasion,plan,created_at"),
