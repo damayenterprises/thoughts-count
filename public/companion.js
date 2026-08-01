@@ -6,9 +6,10 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
-import { mountQuickCapture, mountToReview, pendingCount } from "/_capture.js";
+import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard } from "/_capture.js";
 
-let reviewCount = 0; // captures waiting in To-Review (TC-50)
+let reviewCount = 0;   // captures waiting in To-Review (TC-50)
+let reviewOpen = false; // keep the To-Review panel open across confirms
 
 let sb = null, user = null;
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -282,6 +283,7 @@ async function addPlanFollowups(personId, plan) {
 async function openHome() {
   if (!user) { openSignIn(); return; }
   openModal();
+  reviewOpen = false; // a fresh open of "People I care about" starts with the review panel closed
   modalBody().innerHTML = `<div class="panel-body"><p class="q-help">Loading your people…</p></div>`;
   const people = await loadPeople();
   try { reviewCount = await pendingCount(sb); } catch { reviewCount = 0; }
@@ -289,28 +291,46 @@ async function openHome() {
 }
 
 /* ---------------- quick capture + To-Review (TC-50) ---------------- */
-function captureStripHtml() {
+// Reload the whole "Your People" home from the DB (people + review count) and re-render, so a
+// capture's new fact / new person shows immediately — no manual reload (UX gate). `highlightId`
+// flashes the affected card so the user sees where it landed.
+async function reloadHome(opts = {}) {
+  try { reviewCount = await pendingCount(sb); } catch {}
+  renderHome(await loadPeople(), opts);
+}
+// The quick-capture ("Note something") door + the To-Review toggle/panel. Only shown once the
+// user has someone saved — the empty state leads with "Add someone" (progressive disclosure).
+function captureStripHtml(people) {
+  if (!people.length) return "";
   return `<div class="tc-capstrip">
+      ${qcHintHtml()}
       <div class="tc-qc-mount"></div>
       <button class="link-btn tc-review-toggle" id="tcReviewToggle">To review${reviewCount ? `<span class="tc-badge-dot">${reviewCount}</span>` : ""}</button>
       <div class="tc-review-panel" id="tcReviewPanel" hidden style="margin-top:10px;"></div>
     </div>`;
 }
-async function refreshReviewBadge() {
-  try { reviewCount = await pendingCount(sb); } catch {}
-  const t = modalBody().querySelector("#tcReviewToggle");
-  if (t) t.innerHTML = `To review${reviewCount ? `<span class="tc-badge-dot">${reviewCount}</span>` : ""}`;
+function reviewToggleHtml() {
+  return `To review${reviewCount ? `<span class="tc-badge-dot">${reviewCount}</span>` : ""}`;
 }
 function wireCaptureStrip(people) {
+  wireQcHint(modalBody());
   const qc = modalBody().querySelector(".tc-qc-mount");
-  if (qc) mountQuickCapture(qc, sb, { contactKind: "personal", onChange: refreshReviewBadge });
+  // A quick capture just wrote a fact (Level A) or queued one (Level B) — reload so it shows.
+  if (qc) mountQuickCapture(qc, sb, { contactKind: "personal", onChange: () => reloadHome() });
   const toggle = modalBody().querySelector("#tcReviewToggle");
   const panel = modalBody().querySelector("#tcReviewPanel");
-  if (toggle && panel) toggle.onclick = () => {
-    if (!panel.hidden) { panel.hidden = true; return; }
-    panel.hidden = false;
-    mountToReview(panel, sb, { people, contactKind: "personal", onResolved: refreshReviewBadge });
+  if (!toggle || !panel) return;
+  const openPanel = () => {
+    reviewOpen = true; panel.hidden = false;
+    mountToReview(panel, sb, {
+      people, contactKind: "personal",
+      // After a confirm/reassign: refresh the badge, and reload the home so the new/updated card
+      // appears + flashes — while keeping the review panel open for any remaining items.
+      onResolved: (res) => reloadHome({ highlightId: res && res.personId, keepReviewOpen: true }),
+    });
   };
+  toggle.onclick = () => { if (panel.hidden) openPanel(); else { reviewOpen = false; panel.hidden = true; } };
+  if (reviewOpen && reviewCount) openPanel(); // survive a reloadHome mid-review
 }
 
 function dateLine(d) {
@@ -357,7 +377,7 @@ function personCard(p) {
     </div>`;
 }
 
-function renderHome(people) {
+function renderHome(people, opts = {}) {
   const email = esc(user.email || "");
   let sortBy = "next", query = "";
 
@@ -399,7 +419,7 @@ function renderHome(people) {
       <p class="tc-account">Signed in as ${email} · <button class="link-btn tc-export">Export my data</button> · <button class="link-btn tc-signout">Sign out</button></p>
       <div style="height:14px"></div>
       ${comingUp}
-      ${captureStripHtml()}
+      ${captureStripHtml(people)}
       ${controls}
       <div id="tcPeopleList"></div>
       <button class="cta ghost tc-addtoggle" id="tcAddToggle" style="width:100%;justify-content:center;margin-top:6px;">＋ Add someone</button>
@@ -460,6 +480,10 @@ function renderHome(people) {
 
   renderList();
   wireCaptureStrip(people);
+  if (opts.highlightId) {
+    const card = listEl().querySelector(`.block[data-pid="${opts.highlightId}"]`);
+    if (card) flashCard(card);
+  }
 
   modalBody().querySelector(".tc-signout").onclick = async () => { await sb.auth.signOut(); closeModal(); };
   const exportBtn = modalBody().querySelector(".tc-export");

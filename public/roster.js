@@ -12,7 +12,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { openImport } from "/import.js";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { mountNoticed, mountPersonDelete, exportUserData, loadPersonFacts, noticedList } from "/_memory.js";
-import { mountQuickCapture, mountToReview, pendingCount } from "/_capture.js";
+import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard } from "/_capture.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -20,7 +20,9 @@ const PAGE = 25;
 
 let sb = null, user = null;
 let people = [], query = "", sortBy = "next", page = 0;
-let reviewCount = 0; // captures waiting in To-Review (TC-50)
+let reviewCount = 0;      // captures waiting in To-Review (TC-50)
+let reviewOpen = false;   // keep the To-Review panel open across confirms
+let highlightId = null;   // a just-saved/created person to flash on the next render
 
 /* ---------- date helpers (mirror companion.js / nudges-cron) ---------- */
 function startOfDay(d) { return new Date(d.getFullYear(), d.getMonth(), d.getDate()); }
@@ -112,6 +114,7 @@ async function openRoster() {
   if (!sb) return;
   if (!user) { if (window.TCCompanion?.openSignIn) window.TCCompanion.openSignIn(); return; }
   if (!isPro()) { ensureScrim(); openScrim(); renderUpgrade(); return; }
+  reviewOpen = false; // a fresh open starts with the review panel closed
   ensureScrim(); openScrim();
   body().innerHTML = `<div class="panel-body"><p class="q-help">Loading your roster…</p><div class="tc-spin"></div></div>`;
   await reload();
@@ -131,28 +134,33 @@ async function reload() {
 }
 
 /* ---------- quick capture + To-Review (TC-50) ---------- */
+// Shown once there's a roster (the empty state leads with Import — progressive disclosure).
 function captureStripHtml() {
   return `<div class="tc-capstrip" style="margin-top:14px;">
+      ${qcHintHtml()}
       <div class="tc-qc-mount"></div>
       <button class="link-btn tc-review-toggle" id="tcReviewToggle">To review${reviewCount ? `<span class="tc-badge-dot">${reviewCount}</span>` : ""}</button>
       <div class="tc-review-panel" id="tcReviewPanel" hidden style="margin-top:10px;"></div>
     </div>`;
 }
-async function refreshReviewBadge() {
-  try { reviewCount = await pendingCount(sb); } catch {}
-  const t = body().querySelector("#tcReviewToggle");
-  if (t) t.innerHTML = `To review${reviewCount ? `<span class="tc-badge-dot">${reviewCount}</span>` : ""}`;
-}
 function wireCaptureStrip() {
+  wireQcHint(body());
   const qc = body().querySelector(".tc-qc-mount");
-  if (qc) mountQuickCapture(qc, sb, { contactKind: "contact", onChange: refreshReviewBadge });
+  // A quick capture wrote/queued a note — reload so the fact/new person shows immediately.
+  if (qc) mountQuickCapture(qc, sb, { contactKind: "contact", onChange: () => reload() });
   const toggle = body().querySelector("#tcReviewToggle");
   const panel = body().querySelector("#tcReviewPanel");
-  if (toggle && panel) toggle.onclick = () => {
-    if (!panel.hidden) { panel.hidden = true; return; }
-    panel.hidden = false;
-    mountToReview(panel, sb, { people, contactKind: "contact", onResolved: refreshReviewBadge });
+  if (!toggle || !panel) return;
+  const openPanel = () => {
+    reviewOpen = true; panel.hidden = false;
+    mountToReview(panel, sb, {
+      people, contactKind: "contact",
+      // After confirm/reassign: reload so the new/updated row appears + flashes, panel stays open.
+      onResolved: (res) => { highlightId = res && res.personId; reload(); },
+    });
   };
+  toggle.onclick = () => { if (panel.hidden) openPanel(); else { reviewOpen = false; panel.hidden = true; } };
+  if (reviewOpen && reviewCount) openPanel(); // survive a reload mid-review
 }
 
 function renderUpgrade() {
@@ -189,14 +197,15 @@ function render() {
     </div>`;
 
   if (!total) {
-    body().innerHTML = head + captureStripHtml() + `<div class="tc-empty" style="padding:26px 0;text-align:center;">
+    // Empty roster: lead with Import as the single hero action (progressive disclosure) — no
+    // quick-capture until there are people to file notes onto.
+    body().innerHTML = head + `<div class="tc-empty" style="padding:26px 0;text-align:center;">
         <p class="q-help" style="text-align:center;">No one here yet. Import a CSV from any CRM or spreadsheet — we'll map the columns and dedupe for you.</p>
         <button class="cta" id="tcImportBtn2">＋ Import your contacts</button>
       </div></div>`;
     body().querySelector("#tcImportBtn").onclick = launchImport;
     body().querySelector("#tcImportBtn2").onclick = launchImport;
     wireExport();
-    wireCaptureStrip();
     return;
   }
 
@@ -228,6 +237,11 @@ function render() {
   const prev = body().querySelector("#tcPrev"); if (prev) prev.onclick = () => { if (page > 0) { page--; render(); } };
   const next = body().querySelector("#tcNext"); if (next) next.onclick = () => { page++; render(); };
   wireRows();
+  if (highlightId) {
+    const row = body().querySelector(`.tc-ros-row[data-id="${highlightId}"]`);
+    if (row) flashCard(row);
+    highlightId = null;
+  }
 }
 
 function rowHtml(p) {

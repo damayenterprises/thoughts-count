@@ -63,24 +63,30 @@ function ensureStyles() {
   const s = document.createElement("style");
   s.id = "tcCaptureCss";
   s.textContent = `
-  .tc-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);z-index:9999;
+  .tc-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);z-index:2147483000;
     background:#3c4634;color:#f4f1e9;padding:12px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.22);
     display:flex;align-items:center;gap:12px;font:inherit;font-size:.95rem;opacity:0;transition:opacity .18s,transform .18s;max-width:min(92vw,440px);}
   .tc-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .tc-toast b{font-weight:600;}
   .tc-toast .tc-toast-undo{background:none;border:none;color:#e7c9a9;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;padding:0;}
   .tc-qc{margin:12px 0;}
-  .tc-qc-row{display:flex;gap:8px;align-items:stretch;}
-  .tc-qc-row input{flex:1;}
-  .tc-qc-hint{color:#7a7466;font-size:.82rem;margin-top:6px;}
+  .tc-qc-row{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;}
+  .tc-qc-row input{flex:1 1 190px;min-width:0;}
+  .tc-qc-row .tc-qc-save{flex:0 0 auto;}
+  .tc-qc-hint{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;color:#5f6c4c;
+    background:#eef2e6;border:1px solid #dde5cf;border-radius:10px;padding:8px 10px;font-size:.84rem;margin-bottom:8px;}
+  .tc-qc-hint button{background:none;border:none;color:#7a7466;cursor:pointer;font:inherit;font-size:1rem;line-height:1;padding:0 2px;}
   .tc-review-item{border:1px solid #e5e0d4;border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fffdf8;}
   .tc-review-heard{font-style:italic;color:#4a4636;}
   .tc-review-who{color:#7a7466;font-size:.9rem;margin:6px 0 10px;}
   .tc-review-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
-  .tc-review-assign{display:flex;gap:8px;margin-top:10px;}
+  .tc-review-assign{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
+  .tc-review-assign .tc-rv-sel{flex:1 1 160px;min-width:0;}
   .tc-review-empty{color:#7a7466;text-align:center;padding:18px 0;}
   .tc-badge-dot{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;
     border-radius:9px;background:#c28a63;color:#fff;font-size:.72rem;font-weight:700;margin-left:6px;}
+  @keyframes tcFlash{0%{background:#fbf4e6;box-shadow:0 0 0 2px #e7c9a9 inset;}100%{background:transparent;box-shadow:none;}}
+  .tc-flash{animation:tcFlash 1.8s ease-out 1;border-radius:12px;}
   `;
   document.head.appendChild(s);
 }
@@ -102,23 +108,49 @@ export function showToast(message, { undoLabel = "Undo", onUndo = null } = {}) {
   toastTimer = setTimeout(dismiss, 6500);
 }
 
-// Render the result of a quick capture: Level-A saves get an undoable toast; anything that
-// landed in To-Review is announced plainly. Returns nothing; call onChange to refresh badges.
+// Render the result of a quick capture as EXACTLY ONE toast (never two — a second showToast
+// removes the first). A Level-A save gets the undoable toast (the trust safety net on the only
+// no-review write path); if there's nothing confident, we say it's waiting in To-Review.
 function announceResult(sb, result, onChange) {
   const caps = (result && result.captures) || [];
   const a = caps.filter((c) => c.level === "A");
   const b = caps.filter((c) => c.level === "B");
   if (a.length) {
     const who = a.length === 1 ? a[0].evidence : `Saved to ${a.length} people`;
-    showToast(who, {
+    const tail = b.length ? ` · ${b.length} to review` : "";
+    showToast(who + tail, {
       onUndo: async () => {
         for (const c of a) { try { await captureResolve(sb, { captureId: c.captureId, action: "undo" }); } catch (e) { console.error(e); } }
         if (onChange) onChange();
       },
     });
+  } else if (b.length) {
+    showToast(`Added to your “To review” list`, {});
   }
-  if (b.length && !a.length) showToast(`Added to your “To review” list`, {});
-  else if (b.length) showToast(`${b.length} more waiting in “To review”`, {});
+}
+
+/* ---------------- one-time hint + card highlight (shared by both hosts) ---------------- */
+
+const HINT_KEY = "tc_qc_hint_seen";
+// The first time the quick-capture appears (once the user has someone saved), show a gentle,
+// dismissible tip so its purpose is obvious. Returns "" once dismissed.
+export function qcHintHtml() {
+  if (localStorage.getItem(HINT_KEY)) return "";
+  return `<div class="tc-qc-hint" id="tcQcHint"><span>Tip: jot anything about someone here — “Maria just started a new job” — and we'll file it to the right person.</span><button class="tc-qc-hint-x" aria-label="Dismiss">✕</button></div>`;
+}
+export function wireQcHint(root) {
+  const x = (root || document).querySelector("#tcQcHint .tc-qc-hint-x");
+  if (x) x.onclick = () => { localStorage.setItem(HINT_KEY, "1"); const h = (root || document).querySelector("#tcQcHint"); if (h) h.remove(); };
+}
+// Scroll a just-saved/created person's card into view and briefly flash it, so the user sees
+// where their capture landed (UX gate: confirm shows its result, no reload).
+export function flashCard(el) {
+  if (!el) return;
+  try { el.scrollIntoView({ behavior: "smooth", block: "center" }); } catch { el.scrollIntoView(); }
+  el.classList.remove("tc-flash");
+  void el.offsetWidth; // restart the animation if it was already applied
+  el.classList.add("tc-flash");
+  setTimeout(() => el.classList.remove("tc-flash"), 2000);
 }
 
 /* ---------------- Quick capture ("Note something") ---------------- */
@@ -128,7 +160,7 @@ function announceResult(sb, result, onChange) {
 // host can refresh the To-Review badge and any visible cards.
 export function mountQuickCapture(container, sb, { contactKind = "personal", onChange = null, placeholder } = {}) {
   ensureStyles();
-  const ph = placeholder || "Note something about someone — “Maria just closed on the lake house”";
+  const ph = placeholder || "Note something — e.g. “Maria just started a new job”";
   container.innerHTML = `
     <div class="tc-qc">
       <div class="tc-qc-row">
@@ -205,10 +237,22 @@ export function mountToReview(container, sb, { people = [], contactKind = "perso
       const cid = el.dataset.cid;
       const msg = el.querySelector(".tc-rv-msg");
       const setMsg = (t, bad) => { msg.className = "k-msg tc-rv-msg" + (bad ? " bad" : ""); msg.textContent = t || ""; };
-      const done = async (fn) => { try { setMsg("Saving…"); await fn(); await refresh(); if (onResolved) onResolved(); } catch (e) { setMsg(e.message, true); } };
+      // Run an action, refresh the list, and (for a save) show a confirmation toast + hand the
+      // result to the host so it can surface the new/updated card immediately (no reload).
+      const act = async (fn, { save = true } = {}) => {
+        try {
+          setMsg("Saving…");
+          const res = await fn();
+          await refresh();
+          if (save && res && res.ok && res.status === "confirmed") {
+            showToast(res.message || (res.personName ? `Saved to ${firstName(res.personName)}` : "Saved"), {});
+          }
+          if (onResolved) onResolved(res || null);
+        } catch (e) { setMsg(e.message, true); }
+      };
 
-      el.querySelector(".tc-rv-confirm").onclick = () => done(() => captureResolve(sb, { captureId: cid, action: "confirm", contactKind }));
-      el.querySelector(".tc-rv-discard").onclick = () => done(() => captureResolve(sb, { captureId: cid, action: "discard" }));
+      el.querySelector(".tc-rv-confirm").onclick = () => act(() => captureResolve(sb, { captureId: cid, action: "confirm", contactKind }));
+      el.querySelector(".tc-rv-discard").onclick = () => act(() => captureResolve(sb, { captureId: cid, action: "discard" }), { save: false });
       el.querySelector(".tc-rv-assign").onclick = () => {
         const box = el.querySelector(".tc-rv-assignbox");
         if (!box.hidden) { box.hidden = true; return; }
@@ -221,7 +265,7 @@ export function mountToReview(container, sb, { people = [], contactKind = "perso
         box.querySelector(".tc-rv-assignsave").onclick = () => {
           const pid = box.querySelector(".tc-rv-sel").value;
           if (!pid) { setMsg("Pick a person first.", true); return; }
-          done(() => captureResolve(sb, { captureId: cid, action: "reassign", personId: pid }));
+          act(() => captureResolve(sb, { captureId: cid, action: "reassign", personId: pid }));
         };
       };
     });
