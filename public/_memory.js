@@ -19,11 +19,39 @@ const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 // Subjects that are just "the person themselves" — no need to prefix the note with them.
 const GENERIC_SUBJECT = new Set(["them", "they", "self", "i", "me", "you", ""]);
 
+const normRel = (s) => String(s == null ? "" : s).trim().toLowerCase().replace(/[\s-]+/g, "_");
+const cap = (s) => { s = String(s || ""); return s ? s[0].toUpperCase() + s.slice(1) : s; };
+// A "bare" value is a short noun with no verb ("peanuts", "pottery") — it needs a label to make
+// sense. A natural phrase ("loves hiking", "collects vintage postcards") already reads on its own,
+// so we leave it untouched rather than mangle it ("Enjoys collects vintage postcards").
+const VERB_START = /^(a |an |the |is|are|was|were|has|have|had|likes?|loves?|enjoys?|plays?|collects?|makes?|does|did|works?|lives?|prefers?|adopts?|adopted|starts?|started|gets?|got|moves?|moved|owns?|keeps?|goes?|volunteers?|runs?|studies|teaches|wants?|needs?|hates?|dislikes?|avoids?|speaks?|drives?|writes?|reads?)\b/i;
+const isBareValue = (o) => { const w = o.trim().split(/\s+/); return w.length <= 3 && !VERB_START.test(o.trim()); };
+
+// Turn a stored (relation, object) into a clear, plain-language line. Category facts are stored as
+// bare values ("peanuts" under relation "allergy"); we label them so a glance is never ambiguous —
+// an ALLERGY must never read like a mere like (spec: trust/safety). Natural-phrase objects pass
+// through unchanged. Engine vocabulary is never shown (spec §7). This same helper feeds noticedList
+// → the plan, so the plan also sees "Allergic to peanuts", not a bare "peanuts".
+function displayObject(relation, object) {
+  const rel = normRel(relation);
+  const o = String(object || "").trim();
+  if (!o) return o;
+  if (rel === "allergy" || rel === "allergies") return /allerg/i.test(o) ? cap(o) : `Allergic to ${o}`;
+  if (!isBareValue(o)) return o;
+  if (rel === "hobby" || rel === "hobbies") return `Enjoys ${o}`;
+  if (rel === "interest" || rel === "interests") return `Interested in ${o}`;
+  if (rel === "preference" || rel === "preferences" || rel === "likes") return `Prefers ${o}`;
+  if (rel === "food" || rel === "favorite_food" || rel === "drink" || rel === "favorite") return `Loves ${o}`;
+  if (rel === "pet" || rel === "pets") return `Has ${o}`;
+  return o;
+}
+
 // A note shown in plain language: prefix a specific subject ("dad", "daughter Ava"), but not a
-// generic self-reference. Engine fields (class/confidence) are deliberately never rendered.
+// generic self-reference; a category value gets a warm label (displayObject). Engine fields
+// (class/confidence) are deliberately never rendered.
 function noticedLine(f) {
   const subj = String(f.subject || "").trim();
-  const body = String(f.object || "").trim();
+  const body = displayObject(f.relation, f.object);
   return GENERIC_SUBJECT.has(subj.toLowerCase()) ? body : `${subj} — ${body}`;
 }
 
