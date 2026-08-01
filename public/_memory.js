@@ -7,17 +7,51 @@
 //
 // Principle 4 (spec §7): the engine's vocabulary — fact class, confidence, salience,
 // supersede — is NEVER shown here. The user only ever sees warm, plain language.
+//
+// TC-50: typed free text (the add box + the add-person on-ramp) now routes through the capture
+// engine context-locked (lockedPersonId), so "loves hiking; allergic to shellfish" is read into
+// the right structured facts instead of one flat note — one memory store, smarter capture.
+
+import { captureExtract } from "/_capture.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 // Subjects that are just "the person themselves" — no need to prefix the note with them.
 const GENERIC_SUBJECT = new Set(["them", "they", "self", "i", "me", "you", ""]);
 
+const normRel = (s) => String(s == null ? "" : s).trim().toLowerCase().replace(/[\s-]+/g, "_");
+const cap = (s) => { s = String(s || ""); return s ? s[0].toUpperCase() + s.slice(1) : s; };
+// A "bare" value is a short noun with no verb ("peanuts", "pottery") — it needs a label to make
+// sense. A natural phrase ("loves hiking", "collects vintage postcards") already reads on its own,
+// so we leave it untouched rather than mangle it ("Enjoys collects vintage postcards").
+const VERB_START = /^(a |an |the |is|are|was|were|has|have|had|likes?|loves?|enjoys?|plays?|collects?|makes?|does|did|works?|lives?|prefers?|adopts?|adopted|starts?|started|gets?|got|moves?|moved|owns?|keeps?|goes?|volunteers?|runs?|studies|teaches|wants?|needs?|hates?|dislikes?|avoids?|speaks?|drives?|writes?|reads?)\b/i;
+const isBareValue = (o) => { const w = o.trim().split(/\s+/); return w.length <= 3 && !VERB_START.test(o.trim()); };
+
+// Turn a stored (relation, object) into a clear, plain-language line. Category facts are stored as
+// bare values ("peanuts" under relation "allergy"); we label them so a glance is never ambiguous —
+// an ALLERGY must never read like a mere like (spec: trust/safety). Natural-phrase objects pass
+// through unchanged. Engine vocabulary is never shown (spec §7). This same helper feeds noticedList
+// → the plan, so the plan also sees "Allergic to peanuts", not a bare "peanuts".
+function displayObject(relation, object) {
+  const rel = normRel(relation);
+  const o = String(object || "").trim();
+  if (!o) return o;
+  if (rel === "allergy" || rel === "allergies") return /allerg/i.test(o) ? cap(o) : `Allergic to ${o}`;
+  if (!isBareValue(o)) return o;
+  if (rel === "hobby" || rel === "hobbies") return `Enjoys ${o}`;
+  if (rel === "interest" || rel === "interests") return `Interested in ${o}`;
+  if (rel === "preference" || rel === "preferences" || rel === "likes") return `Prefers ${o}`;
+  if (rel === "food" || rel === "favorite_food" || rel === "drink" || rel === "favorite") return `Loves ${o}`;
+  if (rel === "pet" || rel === "pets") return `Has ${o}`;
+  return o;
+}
+
 // A note shown in plain language: prefix a specific subject ("dad", "daughter Ava"), but not a
-// generic self-reference. Engine fields (class/confidence) are deliberately never rendered.
+// generic self-reference; a category value gets a warm label (displayObject). Engine fields
+// (class/confidence) are deliberately never rendered.
 function noticedLine(f) {
   const subj = String(f.subject || "").trim();
-  const body = String(f.object || "").trim();
+  const body = displayObject(f.relation, f.object);
   return GENERIC_SUBJECT.has(subj.toLowerCase()) ? body : `${subj} — ${body}`;
 }
 
@@ -74,13 +108,31 @@ async function memoryPost(sb, body) {
   return json;
 }
 
-// Save a free-text observation as a noticed item. This is the single shared write behind BOTH
-// the "add someone → anything worth remembering" on-ramp and the person-card add field, so
-// they are one store, not two look-alike boxes. Notes are append-only (never supersede).
-export async function createNote(sb, personId, text) {
+// Save free text about a known person through the capture engine, context-locked to them
+// (TC-50). Identity is certain (we're on/creating this person), so the engine skips resolution,
+// reads the text into one or more structured facts, and writes them immediately (Level A).
+// Returns { saved, count, message }. If extraction is unavailable, falls back to a single
+// append-only note so the box never breaks.
+export async function captureNote(sb, personId, text) {
   const object = String(text || "").trim();
-  if (!object) return null;
-  return memoryPost(sb, { op: "create_fact", personId, subject: "them", relation: "note", object, source: "typed", factClass: "DURABLE" });
+  if (!object) return { saved: false, count: 0 };
+  try {
+    const result = await captureExtract(sb, { rawText: object, lockedPersonId: personId, source: "typed" });
+    const caps = result?.captures || [];
+    const count = caps.reduce((n, c) => n + (c.count || 0), 0);
+    if (count > 0) return { saved: true, count };
+    return { saved: false, count: 0, message: result?.message || "Nothing to save there yet — try naming what you noticed." };
+  } catch (e) {
+    console.error("captureNote falling back to plain note", e);
+    await memoryPost(sb, { op: "create_fact", personId, subject: "them", relation: "note", object, source: "typed", factClass: "DURABLE" });
+    return { saved: true, count: 1, fallback: true };
+  }
+}
+
+// Back-compat alias — the add-person on-ramp + intake save "the first thing you know about them".
+// Same one store, now smarter (extraction). Kept as createNote so existing call sites are unchanged.
+export async function createNote(sb, personId, text) {
+  return captureNote(sb, personId, text);
 }
 
 /* ---------------- "Things you've noticed" (read / add / edit / delete) ---------------- */
@@ -132,10 +184,13 @@ export function mountNoticed(container, sb, person, opts = {}) {
     const add = async () => {
       const text = (input.value || "").trim();
       if (!text) { input.focus(); return; }
-      setMsg("Saving…");
+      setMsg("Reading…");
       try {
-        await memoryPost(sb, { op: "create_fact", personId: person.id, subject: "them", relation: "note", object: text, source: "typed", factClass: "DURABLE" });
+        // Context-locked capture: reads the text into structured fact(s) on THIS person (TC-50).
+        const r = await captureNote(sb, person.id, text);
+        if (!r.saved) { setMsg(r.message, false); return; }
         input.value = "";
+        setMsg("");
         await refresh();
         onChange();
       } catch (e) { setMsg(e.message, true); }

@@ -90,3 +90,17 @@
   from = "/api/memory"
   to = "/.netlify/functions/memory"
   status = 200
+
+# --- TC-50 Capture lifecycle (typed door): extract→resolve→confirm ---
+
+# Take a typed note → extract facts → resolve who → save now (Level A) or hold in To-Review (Level B)
+[[redirects]]
+  from = "/api/capture/extract"
+  to = "/.netlify/functions/capture-extract"
+  status = 200
+
+# Confirm / reassign / discard / undo a capture from the To-Review surface
+[[redirects]]
+  from = "/api/capture/resolve"
+  to = "/.netlify/functions/capture-resolve"
+  status = 200

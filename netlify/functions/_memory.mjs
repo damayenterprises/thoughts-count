@@ -20,6 +20,27 @@
 const SURFACE_DAYS = { EPISODIC: 90, MILESTONE: 14 };
 
 const norm = (s) => String(s == null ? "" : s).trim().toLowerCase();
+// Relation key for the single-valued check: lowercase, and treat spaces/hyphens as underscores
+// so "health status" / "health-status" / "health_status" all match.
+const normRel = (s) => String(s == null ? "" : s).trim().toLowerCase().replace(/[\s-]+/g, "_");
+
+// Relations that hold ONE current value per subject — a new value legitimately replaces (retires)
+// the old one (spec §3 supersession: "sick" → "recovered", "moved to Denver"). EVERYTHING NOT in
+// this set is treated as multi-valued and is APPENDED, never allowed to erase a sibling — the
+// direct fix for "a second hobby/allergy silently wiped the first" (bias to split, principle 7).
+// Kept deliberately tight: when unsure whether an attribute is single-valued, leave it out.
+const SINGLE_VALUED_RELATIONS = new Set([
+  // one current health/medical status
+  "health_status", "health", "medical_status",
+  // one current job / employer
+  "job", "occupation", "employer", "employment", "workplace", "current_job",
+  // one current place they live
+  "location", "home", "hometown", "residence", "address", "city", "lives_in", "based_in",
+  // one current relationship status
+  "marital_status", "relationship_status",
+  // one birthday
+  "birthday", "date_of_birth", "dob",
+]);
 function ymd(d) { return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
 
 // The soft window past which an episode stops nudging. DURABLE/RECURRING/PREFERENCE never
@@ -53,16 +74,24 @@ export async function insertFact(supa, userId, input) {
   const factClass = input.factClass || "DURABLE";
   const confidence = input.confidence != null ? input.confidence : 1.0;
 
-  // Free-form notes ("relation: note") are APPEND-ONLY journal entries — a person can have
-  // many, and a new one never retires an earlier one. Supersession is only for structured,
-  // single-valued attributes (health_status, job, birthday…), where a new value replaces the
-  // prior one. So we only run the supersession lookup for non-note relations.
-  const superseding = relation !== "note";
+  // Reinforce vs supersede — two DIFFERENT behaviors, and keeping them apart is a trust rule:
+  //   • Reinforce: saving the SAME value again just bumps confidence — never a duplicate row.
+  //     Applies to every structured relation (all except free-form notes), so repeats never pile
+  //     up even for multi-valued categories.
+  //   • Supersede: a NEW value on the same (subject, relation) retires the old one ONLY when the
+  //     relation is genuinely SINGLE-VALUED (one current job / city / health status / marital
+  //     status). Multi-valued categories — hobby, allergy, interest, preference, food, pet, note,
+  //     and any relation we don't explicitly recognize — NEVER retire a sibling: a person can
+  //     love hiking AND tennis, be allergic to shellfish AND peanuts. Silently erasing one of
+  //     those is exactly the data loss the trust contract forbids (spec principle 7 — bias to
+  //     split, never auto-merge/erase). When in doubt, keep both.
+  const canSupersede = relation !== "note" && SINGLE_VALUED_RELATIONS.has(normRel(relation));
   const scopeCol = personId ? "person_id" : "household_id";
   const scopeVal = personId || householdId;
-  let existing = null;
-  if (superseding) {
-    // Find the current OPEN fact on the same (owner-object, subject, relation), if any.
+
+  let sameValue = null;
+  const priorValues = []; // different-valued open facts on this (subject, relation) — retired ONLY if single-valued
+  if (relation !== "note") {
     const { data: openRows, error: selErr } = await supa
       .from("facts")
       .select("id, object, confidence")
@@ -73,16 +102,20 @@ export async function insertFact(supa, userId, input) {
       .is("valid_to", null)
       .is("deleted_at", null);
     if (selErr) throw selErr;
-    existing = (openRows || [])[0] || null;
+    for (const r of openRows || []) {
+      if (norm(r.object) === norm(object)) sameValue = r;
+      else priorValues.push(r);
+    }
   }
 
-  // Same value already on file → reinforce confidence, don't duplicate (spec §3).
-  if (existing && norm(existing.object) === norm(object)) {
-    const bumped = Math.min(1, (existing.confidence || 0) + 0.05);
+  // Same value already on file → reinforce confidence, don't duplicate (spec §3). This runs for
+  // every category, so re-saving "loves hiking" or "allergic to shellfish" never dupes it.
+  if (sameValue) {
+    const bumped = Math.min(1, (sameValue.confidence || 0) + 0.05);
     const { data: upd, error } = await supa
-      .from("facts").update({ confidence: bumped }).eq("id", existing.id).eq("user_id", userId).select().single();
+      .from("facts").update({ confidence: bumped }).eq("id", sameValue.id).eq("user_id", userId).select().single();
     if (error) throw error;
-    return { fact: upd, superseded: false, reinforced: true, seededKeyDateId: null };
+    return { fact: upd, superseded: false, supersededIds: [], reinforced: true, seededKeyDateId: null };
   }
 
   const surface_until = surfaceUntilFor(factClass, input.eventDate || null, input);
@@ -105,14 +138,21 @@ export async function insertFact(supa, userId, input) {
     .select().single();
   if (insErr) throw insErr;
 
-  // Retire the prior value: close it and link forward. It stays in the timeline (visible in
-  // history) but never appears in active reads or nudges again.
+  // Retire the prior value(s) ONLY for single-valued attributes — close them and link forward.
+  // They stay in the timeline (visible in history) but never appear in active reads or nudges
+  // again. Multi-valued categories skip this entirely, so siblings are always kept. We RETURN the
+  // ids we closed so an Undo of this capture can reopen them (else Undo would leave the person
+  // with neither the new nor the prior value — silent data loss).
   let superseded = false;
-  if (existing) {
+  let supersededIds = [];
+  if (canSupersede && priorValues.length) {
+    supersededIds = priorValues.map((r) => r.id);
+    const now = new Date().toISOString();
     const { error } = await supa
       .from("facts")
-      .update({ valid_to: new Date().toISOString(), superseded_by: fact.id })
-      .eq("id", existing.id).eq("user_id", userId);
+      .update({ valid_to: now, superseded_by: fact.id })
+      .eq("user_id", userId)
+      .in("id", supersededIds);
     if (error) throw error;
     superseded = true;
   }
@@ -120,7 +160,7 @@ export async function insertFact(supa, userId, input) {
   // A dated RECURRING/MILESTONE fact seeds a key_date (the reminder schedule layer).
   const seededKeyDateId = await maybeSeedKeyDate(supa, userId, fact, input);
 
-  return { fact, superseded, reinforced: false, seededKeyDateId };
+  return { fact, superseded, supersededIds, reinforced: false, seededKeyDateId };
 }
 
 // Seed a key_date from a fact, once. Idempotent on source_fact_id. Only RECURRING/MILESTONE
@@ -175,6 +215,19 @@ export async function deleteFact(supa, userId, factId) {
   const { error } = await supa
     .from("facts").update({ deleted_at: new Date().toISOString() })
     .eq("id", factId).eq("user_id", userId);
+  if (error) throw error;
+  return { ok: true };
+}
+
+// Reverse a supersession: reopen a fact that a now-undone capture had closed, restoring it as the
+// current value (valid_to → null, unlink superseded_by). Used by capture Undo so reverting a
+// Level-A save that replaced a single-valued attribute puts the PRIOR value back, instead of
+// leaving the person with neither. Never resurrects a user-deleted fact (deleted_at guard).
+export async function reopenFact(supa, userId, factId) {
+  const { error } = await supa
+    .from("facts")
+    .update({ valid_to: null, superseded_by: null })
+    .eq("id", factId).eq("user_id", userId).is("deleted_at", null);
   if (error) throw error;
   return { ok: true };
 }
