@@ -39,11 +39,11 @@ export default async (req) => {
     if (lockedPersonId) {
       const person = await getPerson(supa, userId, lockedPersonId);
       if (!person) return json(404, { error: "We couldn't find that person." });
-      const factIds = await writeFactsToPerson(supa, userId, lockedPersonId, parsed.facts, source, rawText);
+      const { writtenIds: factIds, supersededIds } = await writeFactsToPerson(supa, userId, lockedPersonId, parsed.facts, source, rawText);
       const cap = await insertCapture(supa, userId, {
         raw_text: rawText, source, status: "confirmed", context_locked: true,
         proposed_person_id: lockedPersonId, match_confidence: 1, match_evidence: `saved to ${person.name}`,
-        parsed: { facts: parsed.facts, written_fact_ids: factIds }, resolved_at: new Date().toISOString(),
+        parsed: { facts: parsed.facts, written_fact_ids: factIds, superseded_fact_ids: supersededIds }, resolved_at: new Date().toISOString(),
       });
       return json(200, {
         captures: [{ level: "A", personId: lockedPersonId, personName: person.name, captureId: cap.id, factIds, count: factIds.length, evidence: `Saved to ${firstName(person.name)}` }],
@@ -55,21 +55,25 @@ export default async (req) => {
     const results = [];
     for (const g of groups) {
       const r = g.resolution;
-      if (r.level === "A" && r.proposedPersonId) {
-        const person = await getPerson(supa, userId, r.proposedPersonId);
-        const factIds = await writeFactsToPerson(supa, userId, r.proposedPersonId, g.facts, source, rawText);
+      // Level A requires a still-live proposed person. resolvePerson already excludes tombstoned
+      // people, but we re-check here (defense in depth) and fall through to To-Review if it's gone.
+      const person = r.level === "A" && r.proposedPersonId ? await getPerson(supa, userId, r.proposedPersonId) : null;
+      if (r.level === "A" && person) {
+        const { writtenIds: factIds, supersededIds } = await writeFactsToPerson(supa, userId, person.id, g.facts, source, rawText);
         const cap = await insertCapture(supa, userId, {
           raw_text: rawText, source, status: "confirmed", context_locked: false,
-          proposed_person_id: r.proposedPersonId, match_confidence: r.confidence, match_evidence: r.evidence,
-          parsed: { facts: g.facts, person_hint: g.personHint, written_fact_ids: factIds }, resolved_at: new Date().toISOString(),
+          proposed_person_id: person.id, match_confidence: r.confidence, match_evidence: r.evidence,
+          parsed: { facts: g.facts, person_hint: g.personHint, written_fact_ids: factIds, superseded_fact_ids: supersededIds }, resolved_at: new Date().toISOString(),
         });
-        results.push({ level: "A", personId: r.proposedPersonId, personName: person?.name || g.personHint, captureId: cap.id, factIds, count: factIds.length, evidence: `Saved to ${firstName(person?.name || g.personHint)}` });
+        results.push({ level: "A", personId: person.id, personName: person.name, captureId: cap.id, factIds, count: factIds.length, evidence: `Saved to ${firstName(person.name)}` });
       } else {
-        // Level B — hold it in To-Review. Nothing is written to a person yet.
+        // Level B — hold it in To-Review. Nothing is written to a person yet. For an ambiguous
+        // same-name capture we carry the candidate list so the user picks the right one (never a
+        // defaulted guess).
         const cap = await insertCapture(supa, userId, {
           raw_text: rawText, source, status: "pending", context_locked: false,
           proposed_person_id: r.proposedPersonId || null, match_confidence: r.confidence, match_evidence: r.evidence,
-          parsed: { facts: g.facts, person_hint: g.personHint, location_hint: parsed.location_hint || "" },
+          parsed: { facts: g.facts, person_hint: g.personHint, location_hint: parsed.location_hint || "", candidates: r.candidates || [] },
         });
         results.push({ level: "B", captureId: cap.id, personName: g.personHint || null, count: g.facts.length, evidence: r.evidence });
       }

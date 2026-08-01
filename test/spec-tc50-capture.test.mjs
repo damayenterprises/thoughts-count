@@ -11,7 +11,7 @@
 import crypto from "node:crypto";
 import { serviceClient } from "../netlify/functions/_supabase.mjs";
 import { extract, resolve, resolvePerson, writeFactsToPerson } from "../netlify/functions/_capture.mjs";
-import { insertFact } from "../netlify/functions/_memory.mjs";
+import { insertFact, deleteFact, reopenFact, deletePerson } from "../netlify/functions/_memory.mjs";
 import { getEnv } from "../netlify/functions/_email.mjs";
 
 let pass = 0, fail = 0;
@@ -62,7 +62,8 @@ async function main() {
     const mariaG = await mkPerson("Maria Gonzalez", { location: "Austin, TX" });
     const r2 = await resolvePerson(supa, userId, "Maria", {});
     eq("two Marias → Level B (ambiguous, not guessed)", r2.level, "B");
-    ok("Level B evidence explains why we didn't guess", /didn't want to guess|people this could be/i.test(r2.evidence), r2.evidence);
+    eq("two Marias → no defaulted proposed person (force a pick)", r2.proposedPersonId, null);
+    ok("Level B evidence explains it's ambiguous", /more than one|tap the right/i.test(r2.evidence), r2.evidence);
 
     // ---------- resolution: a location hint disambiguates → Level A ----------
     console.log("\n# resolution: location hint disambiguates");
@@ -91,7 +92,7 @@ async function main() {
       { person_hint: "Maria", subject: "self", relation: "home", object: "closed on the lake house", fact_class: "MILESTONE", event_date: null, confidence: 0.95 },
       { person_hint: "Maria", subject: "mom", relation: "living_situation", object: "moving in", fact_class: "EPISODIC", is_health: false, event_date: null, confidence: 0.9 },
     ];
-    const ids = await writeFactsToPerson(supa, userId, mariaE, facts, "typed", "Maria just closed on the lake house; her mom is moving in");
+    const { writtenIds: ids } = await writeFactsToPerson(supa, userId, mariaE, facts, "typed", "Maria just closed on the lake house; her mom is moving in");
     eq("both facts written to Maria", ids.length, 2);
     const mf = await activeFacts(userId, mariaE);
     ok("the 'self' fact is on Maria", mf.some((f) => f.subject === "self" && /lake house/.test(f.object)));
@@ -136,6 +137,38 @@ async function main() {
     const rec = await insertFact(supa, userId, { personId: mv, subject: "dad", relation: "health_status", object: "recovered", factClass: "MILESTONE", source: "typed" });
     eq("single-valued health_status supersedes", rec.superseded, true);
     eq("…exactly one open dad-health fact", (await activeFacts(userId, mv)).filter((f) => f.subject === "dad" && f.relation === "health_status").length, 1);
+
+    // ---------- Validator HIGH #1: resolution must NOT attach to a hard-deleted person ----------
+    console.log("\n# a hard-deleted person is never resolved/attached to (spec §4)");
+    const ghost = await mkPerson("Ghosty McFade", { location: "Tulsa" });
+    await supa.from("identifiers").insert({ user_id: userId, person_id: ghost, type: "email", value: "ghost@example.com" });
+    await deletePerson(supa, userId, ghost); // user hard-delete (tombstone)
+    const rGhostFuzzy = await resolvePerson(supa, userId, "Ghosty McFade", {});
+    eq("fuzzy does not resolve a tombstoned person", rGhostFuzzy.proposedPersonId, null);
+    eq("…it's treated as a brand-new name (Level B)", rGhostFuzzy.level, "B");
+    const rGhostKey = await resolvePerson(supa, userId, "Ghosty", { identifiers: [{ type: "email", value: "ghost@example.com" }] });
+    ok("strong-key does not resolve a tombstoned person (identifier outlives them)", rGhostKey.proposedPersonId !== ghost, `(got ${rGhostKey.proposedPersonId})`);
+
+    // ---------- Validator HIGH #2: Undo of a superseding capture restores the prior value --------
+    console.log("\n# undo of a single-valued supersede reopens the prior value (no data loss)");
+    const rel = await mkPerson("Reloc Ann");
+    const austin = await insertFact(supa, userId, { personId: rel, subject: "self", relation: "location", object: "Austin", factClass: "MILESTONE", source: "typed" });
+    const denver = await insertFact(supa, userId, { personId: rel, subject: "self", relation: "location", object: "Denver", factClass: "MILESTONE", source: "typed" });
+    eq("the move superseded Austin", denver.superseded, true);
+    ok("insertFact reports which id it retired", (denver.supersededIds || []).includes(austin.fact.id));
+    // simulate Undo: delete the new fact, reopen what it retired
+    await deleteFact(supa, userId, denver.fact.id);
+    for (const fid of denver.supersededIds) await reopenFact(supa, userId, fid);
+    const locs = (await activeFacts(userId, rel)).filter((f) => f.relation === "location");
+    eq("after undo: exactly one active location", locs.length, 1);
+    eq("…and it's the prior value (Austin), not empty", locs[0].object, "Austin");
+
+    // ---------- Validator MEDIUM: ambiguous multi-match forces a pick (no default target) --------
+    console.log("\n# ambiguous same-name capture proposes no default person (force a pick, P7)");
+    const rAmb = await resolvePerson(supa, userId, "Maria", {}); // two Marias seeded earlier
+    eq("ambiguous → Level B", rAmb.level, "B");
+    eq("ambiguous → NO defaulted proposed person", rAmb.proposedPersonId, null);
+    ok("ambiguous → carries the candidates to choose from", (rAmb.candidates || []).length >= 2, JSON.stringify(rAmb.candidates));
 
     // ---------- extraction (live Claude; only if a key is present) — the AC sentence ----------
     if (getEnv("ANTHROPIC_API_KEY")) {

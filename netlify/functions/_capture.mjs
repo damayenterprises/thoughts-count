@@ -193,17 +193,20 @@ export function surfaceDaysFor(fact) {
   return fact.is_health && fact.fact_class === "EPISODIC" ? HEALTH_SURFACE_DAYS : undefined;
 }
 
-// Write a group of extracted facts to ONE person via the memory engine, returning the created
-// fact ids (used for Undo + capture audit). Subject-relative facts ("mom", "wife") are stored
+// Write a group of extracted facts to ONE person via the memory engine. Returns
+// { writtenIds, supersededIds } — writtenIds are the new rows (delete them to undo), supersededIds
+// are any single-valued prior values these writes retired (reopen them to fully undo, so a revert
+// never leaves the person with neither value). Subject-relative facts ("mom", "wife") are stored
 // AS-IS on this person — resolution already picked the person; the relative is only a subject,
 // never its own person (spec / David clarification #1). A RECURRING/MILESTONE fact with a date
 // seeds a key_date. Shared by capture-extract (Level A now) and capture-resolve (Level B on
 // confirm) so both doors write identically. `rawText` is the per-fact durable audit (spec §3).
 export async function writeFactsToPerson(supa, userId, personId, facts, source, rawText) {
-  const ids = [];
+  const writtenIds = [];
+  const supersededIds = [];
   for (const f of facts) {
     const seeds = f.fact_class === "RECURRING" || f.fact_class === "MILESTONE";
-    const { fact } = await insertFact(supa, userId, {
+    const { fact, supersededIds: retired } = await insertFact(supa, userId, {
       personId,
       subject: f.subject,
       relation: f.relation,
@@ -217,9 +220,10 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
       surfaceDays: surfaceDaysFor(f),
       ...(seeds && f.event_date ? { keyDateLabel: f.object } : {}),
     });
-    if (fact?.id) ids.push(fact.id);
+    if (fact?.id) writtenIds.push(fact.id);
+    if (retired?.length) supersededIds.push(...retired);
   }
-  return ids;
+  return { writtenIds, supersededIds };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────────────────
@@ -263,27 +267,33 @@ export async function resolvePerson(supa, userId, hintName, context = {}) {
 
   // 1) Strong key — an exact email/phone we already have wins outright (spec §12.1). Typed
   //    notes rarely carry one, so this is usually dormant, but every door funnels through here.
+  //    identifiers survive a person tombstone, so we must confirm the matched person is still live.
   const ids = Array.isArray(context.identifiers) ? context.identifiers : [];
   if (ids.length) {
     const hit = await strongKeyMatch(supa, userId, ids);
-    if (hit) return { level: "A", proposedPersonId: hit.person_id, confidence: 1, evidence: `matches ${name} by a saved contact detail`, name };
+    if (hit && (await personIsLive(supa, userId, hit.person_id))) {
+      return { level: "A", proposedPersonId: hit.person_id, confidence: 1, evidence: `matches ${name} by a saved contact detail`, name };
+    }
   }
 
   // 2) Fuzzy candidates from the shared RPC (trigram band ∪ same-surname), then the deterministic
-  //    name engine decides real equivalence. NO new fuzzy logic.
+  //    name engine decides real equivalence. NO new fuzzy logic. The RPC does not filter tombstoned
+  //    people, so we drop any hard-deleted match here — never resolve/attach to a removed person
+  //    (spec §4: a deleted person is excluded from every read/write).
   const { data: cands, error } = await supa.rpc("tc38_fuzzy_person_match", { p_user_id: userId, p_name: name, p_threshold: 0.4 });
   if (error) { console.error("resolvePerson rpc", error); }
+  const meta = await peopleMetaFor(supa, userId, (cands || []).map((c) => c.person_id));
   const matches = (cands || [])
     .map((c) => ({ ...c, kind: nameMatchKind(name, c.name) }))
-    .filter((c) => c.kind);
+    .filter((c) => c.kind && meta[c.person_id] && !meta[c.person_id].deleted);
 
   if (!matches.length) {
     return { level: "B", proposedPersonId: null, confidence: 0, evidence: `You don't have anyone named ${name} yet — confirm to add them.`, name };
   }
 
-  // Enrich the (small) match set with location, so we can disambiguate + name the city in
-  // evidence ("the Maria in Denver").
-  const locById = await locationsFor(supa, userId, matches.map((m) => m.person_id));
+  // Location for the (small) live match set, so we can disambiguate + name the city in evidence.
+  const locById = {};
+  for (const m of matches) locById[m.person_id] = (meta[m.person_id] || {}).location || "";
   const rank = (m) => (m.kind === "exact" ? 3 : m.kind === "full" ? 2 : 1) * 100 + (typeof m.score === "number" ? m.score : 0);
   matches.sort((a, b) => rank(b) - rank(a));
 
@@ -309,12 +319,16 @@ export async function resolvePerson(supa, userId, hintName, context = {}) {
       return { level: "A", proposedPersonId: m.person_id, confidence: 0.92, evidence: `the ${firstOf(name)} in ${locById[m.person_id] || locationHint}`, name };
     }
   }
-  const best = matches[0];
+  // Truly ambiguous: several same-name people and nothing to tell them apart. Do NOT pre-select a
+  // best guess — a one-tap Confirm on a defaulted person is a silent wrong-person attach (P7). We
+  // return the candidates so To-Review forces the user to pick which one (or reassign / discard).
   return {
     level: "B",
-    proposedPersonId: best.person_id,
+    proposedPersonId: null,
+    ambiguous: true,
+    candidates: matches.map((m) => ({ id: m.person_id, name: m.name, location: locById[m.person_id] || "" })),
     confidence: 0.72,
-    evidence: `there are ${matches.length} people this could be — we didn't want to guess`,
+    evidence: `there's more than one ${firstOf(name)} — tap the right one`,
     name,
   };
 }
@@ -355,10 +369,20 @@ async function strongKeyMatch(supa, userId, identifiers) {
   return hit ? { person_id: hit.person_id } : null;
 }
 
-async function locationsFor(supa, userId, ids) {
+// Location + tombstone status for a set of candidate ids, in one query — used to drop hard-deleted
+// matches (spec §4) and to name the city in disambiguation evidence.
+async function peopleMetaFor(supa, userId, ids) {
   const map = {};
-  if (!ids.length) return map;
-  const { data } = await supa.from("people").select("id, location").eq("user_id", userId).in("id", ids);
-  for (const p of data || []) map[p.id] = p.location || "";
+  const uniq = [...new Set((ids || []).filter(Boolean))];
+  if (!uniq.length) return map;
+  const { data } = await supa.from("people").select("id, location, deleted_at").eq("user_id", userId).in("id", uniq);
+  for (const p of data || []) map[p.id] = { location: p.location || "", deleted: !!p.deleted_at };
   return map;
+}
+
+// Is a person still live (not user-hard-deleted)? Used to reject a strong-key match onto a
+// tombstoned person (identifiers outlive the person row).
+async function personIsLive(supa, userId, personId) {
+  const { data } = await supa.from("people").select("id").eq("user_id", userId).eq("id", personId).is("deleted_at", null).maybeSingle();
+  return !!data;
 }

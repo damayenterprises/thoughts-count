@@ -211,20 +211,29 @@ export function mountToReview(container, sb, { people = [], contactKind = "perso
       return;
     }
     container.innerHTML = items.map((it) => {
-      const proposedName = it.proposed_person_id ? nameOf(it.proposed_person_id) : "";
       const hint = it.parsed?.person_hint || "";
-      const confirmLabel = it.proposed_person_id
-        ? `Confirm${proposedName ? ` — ${esc(firstName(proposedName))}` : ""}`
-        : `Confirm — add ${esc(firstName(hint) || "them")}`;
+      const candidates = Array.isArray(it.parsed?.candidates) ? it.parsed.candidates : [];
+      let actions;
+      if (candidates.length) {
+        // Ambiguous same-name capture: the user MUST pick which person — never a defaulted guess.
+        actions = candidates
+          .map((c) => `<button class="cta tc-rv-pick" data-cid="${it.id}" data-pid="${c.id}">${esc(c.name)}${c.location ? ` · ${esc(c.location)}` : ""}</button>`)
+          .join("") + `<button class="link-btn tc-rv-discard" data-cid="${it.id}">Discard</button>`;
+      } else {
+        const proposedName = it.proposed_person_id ? nameOf(it.proposed_person_id) : "";
+        const confirmLabel = it.proposed_person_id
+          ? `Confirm${proposedName ? ` — ${esc(firstName(proposedName))}` : ""}`
+          : `Confirm — add ${esc(firstName(hint) || "them")}`;
+        actions = `
+            <button class="cta tc-rv-confirm" data-cid="${it.id}">${confirmLabel}</button>
+            <button class="link-btn tc-rv-assign" data-cid="${it.id}">Assign to someone else</button>
+            <button class="link-btn tc-rv-discard" data-cid="${it.id}">Discard</button>`;
+      }
       return `
         <div class="tc-review-item" data-cid="${it.id}">
           <div class="tc-review-heard">“${esc(it.raw_text || "")}”</div>
           <div class="tc-review-who">${esc(it.match_evidence || "Who is this about?")}</div>
-          <div class="tc-review-acts">
-            <button class="cta tc-rv-confirm" data-cid="${it.id}">${confirmLabel}</button>
-            <button class="link-btn tc-rv-assign" data-cid="${it.id}">Assign to someone else</button>
-            <button class="link-btn tc-rv-discard" data-cid="${it.id}">Discard</button>
-          </div>
+          <div class="tc-review-acts">${actions}</div>
           <div class="tc-rv-assignbox" hidden></div>
           <div class="k-msg tc-rv-msg"></div>
         </div>`;
@@ -251,9 +260,13 @@ export function mountToReview(container, sb, { people = [], contactKind = "perso
         } catch (e) { setMsg(e.message, true); }
       };
 
-      el.querySelector(".tc-rv-confirm").onclick = () => act(() => captureResolve(sb, { captureId: cid, action: "confirm", contactKind }));
+      const confirmBtn = el.querySelector(".tc-rv-confirm");
+      if (confirmBtn) confirmBtn.onclick = () => act(() => captureResolve(sb, { captureId: cid, action: "confirm", contactKind }));
+      // Ambiguous same-name capture: each candidate button attaches to THAT specific person.
+      el.querySelectorAll(".tc-rv-pick").forEach((b) => { b.onclick = () => act(() => captureResolve(sb, { captureId: cid, action: "reassign", personId: b.dataset.pid })); });
       el.querySelector(".tc-rv-discard").onclick = () => act(() => captureResolve(sb, { captureId: cid, action: "discard" }), { save: false });
-      el.querySelector(".tc-rv-assign").onclick = () => {
+      const assignBtn = el.querySelector(".tc-rv-assign");
+      if (assignBtn) assignBtn.onclick = () => {
         const box = el.querySelector(".tc-rv-assignbox");
         if (!box.hidden) { box.hidden = true; return; }
         const opts = people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("");

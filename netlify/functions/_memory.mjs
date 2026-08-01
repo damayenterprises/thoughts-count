@@ -115,7 +115,7 @@ export async function insertFact(supa, userId, input) {
     const { data: upd, error } = await supa
       .from("facts").update({ confidence: bumped }).eq("id", sameValue.id).eq("user_id", userId).select().single();
     if (error) throw error;
-    return { fact: upd, superseded: false, reinforced: true, seededKeyDateId: null };
+    return { fact: upd, superseded: false, supersededIds: [], reinforced: true, seededKeyDateId: null };
   }
 
   const surface_until = surfaceUntilFor(factClass, input.eventDate || null, input);
@@ -140,15 +140,19 @@ export async function insertFact(supa, userId, input) {
 
   // Retire the prior value(s) ONLY for single-valued attributes — close them and link forward.
   // They stay in the timeline (visible in history) but never appear in active reads or nudges
-  // again. Multi-valued categories skip this entirely, so siblings are always kept.
+  // again. Multi-valued categories skip this entirely, so siblings are always kept. We RETURN the
+  // ids we closed so an Undo of this capture can reopen them (else Undo would leave the person
+  // with neither the new nor the prior value — silent data loss).
   let superseded = false;
+  let supersededIds = [];
   if (canSupersede && priorValues.length) {
+    supersededIds = priorValues.map((r) => r.id);
     const now = new Date().toISOString();
     const { error } = await supa
       .from("facts")
       .update({ valid_to: now, superseded_by: fact.id })
       .eq("user_id", userId)
-      .in("id", priorValues.map((r) => r.id));
+      .in("id", supersededIds);
     if (error) throw error;
     superseded = true;
   }
@@ -156,7 +160,7 @@ export async function insertFact(supa, userId, input) {
   // A dated RECURRING/MILESTONE fact seeds a key_date (the reminder schedule layer).
   const seededKeyDateId = await maybeSeedKeyDate(supa, userId, fact, input);
 
-  return { fact, superseded, reinforced: false, seededKeyDateId };
+  return { fact, superseded, supersededIds, reinforced: false, seededKeyDateId };
 }
 
 // Seed a key_date from a fact, once. Idempotent on source_fact_id. Only RECURRING/MILESTONE
@@ -211,6 +215,19 @@ export async function deleteFact(supa, userId, factId) {
   const { error } = await supa
     .from("facts").update({ deleted_at: new Date().toISOString() })
     .eq("id", factId).eq("user_id", userId);
+  if (error) throw error;
+  return { ok: true };
+}
+
+// Reverse a supersession: reopen a fact that a now-undone capture had closed, restoring it as the
+// current value (valid_to → null, unlink superseded_by). Used by capture Undo so reverting a
+// Level-A save that replaced a single-valued attribute puts the PRIOR value back, instead of
+// leaving the person with neither. Never resurrects a user-deleted fact (deleted_at guard).
+export async function reopenFact(supa, userId, factId) {
+  const { error } = await supa
+    .from("facts")
+    .update({ valid_to: null, superseded_by: null })
+    .eq("id", factId).eq("user_id", userId).is("deleted_at", null);
   if (error) throw error;
   return { ok: true };
 }
