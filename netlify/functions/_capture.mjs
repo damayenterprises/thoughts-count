@@ -60,7 +60,7 @@ const EXTRACT_SCHEMA = {
           relation: {
             type: "string",
             description:
-              "A short snake_case attribute name. Use a SPECIFIC, single-valued attribute when one fits — \"job\", \"location\", \"health_status\", \"allergy\", \"birthday\", \"marital_status\", \"living_situation\" — so a newer value can replace an older one. Use \"note\" for a general free observation that shouldn't overwrite anything.",
+              "A short snake_case attribute name. For something a person has ONE current value of, use a canonical single-valued name so a newer value can update it: \"health_status\", \"job\", \"location\", \"marital_status\", \"birthday\". For something a person can have MANY of — hobbies, allergies, interests, preferences, foods, pets — use a plain category name like \"hobby\", \"allergy\", \"interest\", \"preference\" (these accumulate and NEVER replace each other). Use \"note\" for a general free observation.",
           },
           object: {
             type: "string",
@@ -109,7 +109,7 @@ const EXTRACT_SYSTEM = `You read a short note a thoughtful person jotted about s
 Rules:
 - Split everything worth remembering into separate facts. One sentence often holds several.
 - A fact about someone's RELATIVE ("her mom", "his wife", "their son Eli") is a fact about the SAME named person, with the relative in the subject field. It must NEVER become its own person. Only a directly-named person is a person_hint.
-- Choose a specific single-valued relation (job, location, health_status, allergy, marital_status, living_situation, birthday) when the fact is a replaceable attribute, so a later update can supersede it. Use "note" for a general observation.
+- For a replaceable, one-value-at-a-time attribute use a canonical single-valued relation (health_status, job, location, marital_status, birthday) so a later update can supersede it. For anything a person can have several of (hobby, allergy, interest, preference, food, pet) use a plain category relation — these accumulate and must never replace each other. Use "note" for a general observation.
 - Classify each fact's temporal behavior with fact_class. Mark health/medical episodes is_health:true.
 - Only set event_date when a real date (with a day, or an unambiguous yearly birthday/anniversary) is present. Never fabricate a day.
 - If nothing durable is being said, return an empty facts array.

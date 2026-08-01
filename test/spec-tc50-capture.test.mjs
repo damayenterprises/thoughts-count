@@ -11,6 +11,7 @@
 import crypto from "node:crypto";
 import { serviceClient } from "../netlify/functions/_supabase.mjs";
 import { extract, resolve, resolvePerson, writeFactsToPerson } from "../netlify/functions/_capture.mjs";
+import { insertFact } from "../netlify/functions/_memory.mjs";
 import { getEnv } from "../netlify/functions/_email.mjs";
 
 let pass = 0, fail = 0;
@@ -113,6 +114,28 @@ async function main() {
     eq("the group carries BOTH facts (self + mom)", groups[0].facts.length, 2);
     eq("the group resolves to a person (location hint → Level A)", groups[0].resolution.level, "A");
     eq("…the Denver Maria", groups[0].resolution.proposedPersonId, mariaE);
+
+    // ---------- multi-valued facts must NOT erase each other (UX re-gate blocker) ----------
+    console.log("\n# multi-valued relations accumulate; single-valued still supersedes");
+    const mv = await mkPerson("Val Multi");
+    await insertFact(supa, userId, { personId: mv, subject: "self", relation: "hobby", object: "plays tennis on weekends", factClass: "DURABLE", source: "typed" });
+    await insertFact(supa, userId, { personId: mv, subject: "self", relation: "hobby", object: "collects vintage postcards", factClass: "DURABLE", source: "typed" });
+    const hobbies = (await activeFacts(userId, mv)).filter((f) => f.relation === "hobby");
+    eq("two hobbies both survive (no silent supersede)", hobbies.length, 2);
+    // allergy is the safety-critical case
+    await insertFact(supa, userId, { personId: mv, subject: "self", relation: "allergy", object: "allergic to shellfish", factClass: "DURABLE", source: "typed" });
+    await insertFact(supa, userId, { personId: mv, subject: "self", relation: "allergy", object: "allergic to peanuts", factClass: "DURABLE", source: "typed" });
+    const allergies = (await activeFacts(userId, mv)).filter((f) => f.relation === "allergy");
+    eq("both allergies survive (shellfish NOT wiped by peanuts)", allergies.length, 2);
+    // re-saving a multi-valued value dedupes (reinforce), never duplicates
+    const again = await insertFact(supa, userId, { personId: mv, subject: "self", relation: "hobby", object: "plays tennis on weekends", factClass: "DURABLE", source: "typed" });
+    eq("re-saving an existing hobby reinforces (no dup)", again.reinforced, true);
+    eq("…still exactly two hobbies", (await activeFacts(userId, mv)).filter((f) => f.relation === "hobby").length, 2);
+    // single-valued still supersedes (health_status: sick → recovered)
+    await insertFact(supa, userId, { personId: mv, subject: "dad", relation: "health_status", object: "sick", factClass: "EPISODIC", source: "typed" });
+    const rec = await insertFact(supa, userId, { personId: mv, subject: "dad", relation: "health_status", object: "recovered", factClass: "MILESTONE", source: "typed" });
+    eq("single-valued health_status supersedes", rec.superseded, true);
+    eq("…exactly one open dad-health fact", (await activeFacts(userId, mv)).filter((f) => f.subject === "dad" && f.relation === "health_status").length, 1);
 
     // ---------- extraction (live Claude; only if a key is present) — the AC sentence ----------
     if (getEnv("ANTHROPIC_API_KEY")) {
