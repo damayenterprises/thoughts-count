@@ -53,6 +53,12 @@
   to = "/.netlify/functions/feedback"
   status = 200
 
+# Voice transcription — speak your answers during intake (TC-51)
+[[redirects]]
+  from = "/api/transcribe"
+  to = "/.netlify/functions/transcribe"
+  status = 200
+
 # Send the weekly report now (admin token required) — preview / manual re-send
 [[redirects]]
   from = "/api/send-digest"

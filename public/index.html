@@ -353,6 +353,38 @@
     .bar .promise { display: none; }
     .panel-body, .plan-body, .plan-head { padding-left: 22px; padding-right: 22px; }
   }
+  /* Voice front door (TC-51): ONE "tell us what's happening" section, two input
+     methods (talk / type) as equal siblings — not two separate calls to action. */
+  .hero-start { margin: 6px auto 0; }
+  .hero-start-label { font-family: 'Fraunces', serif; font-style: italic; font-size: 15px; color: var(--ink-soft); margin-bottom: 12px; }
+  .hero-actions { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
+  .hero-actions .cta { justify-content: center; }
+  #homeMicBtn svg { animation: tc-mic-nudge 5.5s ease-in-out infinite; transform-origin: center; }
+  @keyframes tc-mic-nudge { 0%, 88%, 100% { transform: scale(1); opacity: 1; } 94% { transform: scale(1.12); opacity: .85; } }
+  .tc-listen { --level: 0; position: relative; width: 132px; height: 132px; margin: 8px auto 4px; display: grid; place-items: center; }
+  .tc-listen-core { position: relative; z-index: 2; width: 64px; height: 64px; border-radius: 50%; background: var(--sage); box-shadow: 0 6px 18px rgba(95,108,76,.28); display: grid; place-items: center; animation: tc-breathe 3.6s ease-in-out infinite; transform: scale(calc(1 + var(--level) * 0.14)); transition: transform .12s ease-out; }
+  .tc-listen-ripple { position: absolute; border-radius: 50%; border: 1.5px solid var(--sage); opacity: 0; width: 64px; height: 64px; animation: tc-ripple 3.6s ease-out infinite; }
+  .tc-listen-ripple.r2 { animation-delay: 1.2s; }
+  .tc-listen-ripple.r3 { animation-delay: 2.4s; }
+  @keyframes tc-breathe { 0%,100% { box-shadow: 0 6px 18px rgba(95,108,76,.22); } 50% { box-shadow: 0 8px 26px rgba(95,108,76,.34); } }
+  /* Settling: when the user taps Done, the ripples fade and the core eases to rest —
+     a calm hand-off from "listening" to "taking that in", not a hard stop. */
+  .tc-listen.settling .tc-listen-ripple { animation: none; opacity: 0; transition: opacity .5s ease; }
+  .tc-listen.settling .tc-listen-core { transform: scale(1); transition: transform .5s ease; }
+  @keyframes tc-ripple { 0% { transform: scale(1); opacity: .45; } 70% { opacity: .12; } 100% { transform: scale(calc(2.1 + var(--level) * 1.3)); opacity: 0; } }
+  @media (prefers-reduced-motion: reduce) { #homeMicBtn svg, .tc-listen-core, .tc-listen-ripple { animation: none !important; } }
+
+  /* Clean printout / save-as-PDF: only the plan, no animated background or chrome. */
+  @media print {
+    body.printing #bg, body.printing .bar, body.printing main, body.printing footer,
+    body.printing .close, body.printing .progress, body.printing .panel-head,
+    body.printing .plan-actions, body.printing .plan-fb, body.printing .keep,
+    body.printing .remind-btn { display: none !important; }
+    body.printing { background: #fff !important; }
+    body.printing .scrim { position: static !important; display: block !important; background: none !important; overflow: visible !important; }
+    body.printing .panel { box-shadow: none !important; max-width: 100% !important; max-height: none !important; border: none !important; border-radius: 0 !important; overflow: visible !important; }
+    body.printing #stage, body.printing .plan-body { overflow: visible !important; }
+  }
 </style>
 </head>
 <body>
@@ -420,7 +452,13 @@
     <h1>Show up for the moments that <em>matter most.</em></h1>
     <p class="lead">A new baby or a hard week, a big promotion or just because — tell us what's happening and who they are to you, and we'll help you find the words, the gesture, and the perfect way to show you care.</p>
     <p class="gets">You'll get: <b>what to say</b> · <b>what to do</b> · <b>what to send</b> · <b>how to keep showing up</b></p>
-    <button class="cta" onclick="openFlow()">Help me show up →</button>
+    <div class="hero-start">
+      <div class="hero-start-label">I want to show up for someone…</div>
+      <div class="hero-actions">
+        <button type="button" class="cta sage" id="homeMicBtn" style="display:none;"></button>
+        <button type="button" class="cta" id="homeTypeBtn" onclick="openFlow()"></button>
+      </div>
+    </div>
     <div class="reassure">No account needed · <b>Free to try</b> · Ready in about a minute</div>
   </section>
 
@@ -464,7 +502,7 @@
       <button type="button" class="chip" onclick="openFlow('Just a hard week')">Just a hard week</button>
     </div>
     <div style="text-align:center; margin-top:36px;">
-      <button class="cta sage" onclick="openFlow()">Start with a moment →</button>
+      <button class="cta sage" onclick="openFlow()">Or tell us in your own words →</button>
     </div>
   </section>
 
@@ -532,8 +570,11 @@ const STEPS = [
 
 const answers = {};   // raw free-text per step
 const picks = {};      // selected chips per step (kept separate from free text)
+const nudged = {};     // steps we've already gently nudged once (so a 2nd Continue proceeds)
+const __rec = { mr: null, chunks: [], active: false, stream: null }; // voice recorder state (TC-51)
 let idx = 0;
 let currentPlan = null;
+let __fromVoice = false; // true when a plan was started by voice from the home screen
 let flowPerson = null; // set when the flow was launched from a saved person
 let genTimer = null;   // drives the gentle progress + rotating lines while a plan generates
 function firstName(n){ return String(n||'').trim().split(/\s+/)[0] || 'them'; }
@@ -541,11 +582,38 @@ const scrim = document.getElementById('scrim');
 const stage = document.getElementById('stage');
 const fill = document.getElementById('progressFill');
 
+// Mobile: the on-screen keyboard can cover the field you just tapped. When any field
+// in the flow gains focus, lift it into clear view once the keyboard has animated in.
+// Delegated on the panel so it works across every re-rendered step. Uses the visible
+// viewport when available so it accounts for the keyboard's real height.
+if (scrim) scrim.addEventListener('focusin', (e) => {
+  const el = e.target;
+  if (!el || (el.tagName !== 'TEXTAREA' && el.tagName !== 'INPUT')) return;
+  setTimeout(() => {
+    try {
+      const vv = window.visualViewport;
+      if (vv) {
+        const r = el.getBoundingClientRect();
+        const keyboardTop = vv.offsetTop + vv.height; // bottom of the usable area
+        const margin = 16;
+        if (r.bottom > keyboardTop - margin) {
+          const panel = el.closest('.scrim') || scrim;
+          panel.scrollBy({ top: r.bottom - (keyboardTop - margin), behavior: 'smooth' });
+          return;
+        }
+      }
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+    } catch (_) {}
+  }, 300);
+});
+
 function openFlow(preset){
   idx = 0;
   flowPerson = null; window.__tcFlowPersonId = null;
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
+  for (const k in nudged) delete nudged[k];
+  genAttempts = 0;
   if (preset) picks.moment = [preset];
   try { window.tcTrack && tcTrack('intake_start', preset ? { label: preset } : {}); } catch(e){}
   scrim.classList.add('open'); document.body.style.overflow='hidden'; renderStep();
@@ -556,6 +624,8 @@ function openFlowForPerson(person){
   flowPerson = person || null;
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
+  for (const k in nudged) delete nudged[k];
+  genAttempts = 0;
   if (person){
     answers.name = person.name || '';
     // Auto-select the matching relationship chip (step 2); free text is the fallback. Uses the
@@ -585,11 +655,13 @@ window.openFlowForPerson = openFlowForPerson;
 // Re-open a previously saved plan for viewing.
 function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; window.__tcBucket = null; renderPlan(plan); }
 window.renderSavedPlan = renderSavedPlan;
-function closeFlow(){ stopGenProgress(); scrim.classList.remove('open'); document.body.style.overflow=''; }
+function closeFlow(){ stopGenProgress(); stopRecordingIfAny(); if (typeof cancelHomeRecording === 'function') cancelHomeRecording(); scrim.classList.remove('open'); document.body.style.overflow=''; }
 scrim.addEventListener('click', e => { if (e.target === scrim) closeFlow(); });
 function setProgress(p){ fill.style.width = p + '%'; }
 
 function renderStep(){
+  stopRecordingIfAny();
+  __fromVoice = false; // any typed step means we're no longer in the voice-only path
   const s = STEPS[idx];
   setProgress(Math.max(7, Math.round((idx / (STEPS.length)) * 100)));
   let sEyebrow = s.eyebrow, sTitle = s.title, sHelp = s.help;
@@ -609,8 +681,13 @@ function renderStep(){
       <div class="q-eyebrow">${sEyebrow} · ${idx+1} of ${STEPS.length}</div>
       <h2 class="q-title">${sTitle}</h2>
       <p class="q-help">${sHelp}</p>
+      ${idx === 0 ? `<p class="q-reassure" style="margin:-4px 0 4px;font-size:12.5px;color:#b3a58c;">Takes about a minute — most people breeze through. Only this first question is needed.</p>` : ''}
       ${picksHtml}
       <textarea id="freetext" placeholder="${s.placeholder}">${current}</textarea>
+      <div class="mic-wrap" style="margin-top:8px;display:${voiceAllowedClient() ? 'flex' : 'none'};align-items:center;gap:10px;flex-wrap:wrap;">
+        <button type="button" id="micBtn" style="display:inline-flex;align-items:center;gap:8px;border:1px solid #d8ccae;background:#fffbf4;color:#3b362e;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;line-height:1;">${micSvg(16, 'currentColor', '#c28a63')}<span class="mic-label">Speak your answer</span></button>
+        <span id="micStatus" style="font-size:12.5px;color:var(--ink-soft,#7a7263);"></span>
+      </div>
       ${s.extra ? `<label style="display:block;margin-top:14px;font-size:13.5px;color:var(--ink-soft);">${s.extra.label}</label>
       ${s.extra.hint ? `<p style="margin:3px 0 0;font-size:12.5px;line-height:1.5;color:#b3a58c;">${s.extra.hint}</p>` : ''}
       <input type="text" id="extrafield" style="margin-top:6px;" placeholder="${s.extra.placeholder}" value="${(answers[s.extra.key]||'').replace(/"/g,'&quot;')}" />` : ''}
@@ -645,6 +722,8 @@ function renderStep(){
   const clearStepMsg = () => { if (stepMsg) stepMsg.style.display = 'none'; ta.style.borderColor = ''; };
   ta.addEventListener('input', clearStepMsg);
   stage.querySelectorAll('.pick').forEach(b => b.addEventListener('click', clearStepMsg));
+  const micBtn = document.getElementById('micBtn');
+  if (micBtn) micBtn.addEventListener('click', () => toggleMic(micBtn, ta));
   document.getElementById('backBtn').onclick = () => { save(); if(idx>0){idx--; renderStep();} };
   document.getElementById('nextBtn').onclick = () => {
     save();
@@ -652,7 +731,16 @@ function renderStep(){
     const hasMoment = (picks.moment && picks.moment.length) || answers.moment;
     if ((s2.key === 'moment') && !hasMoment){
       ta.style.borderColor = '#c28a63';
-      if (stepMsg){ stepMsg.textContent = 'Tell us a little about the moment first — even a few words is enough to start.'; stepMsg.style.display = 'block'; }
+      if (stepMsg){ stepMsg.className = 'k-msg bad'; stepMsg.textContent = 'Tell us a little about the moment first — even a few words is enough to start.'; stepMsg.style.display = 'block'; }
+      ta.focus({ preventScroll: true });
+      return;
+    }
+    // Gentle, skippable nudge on the "about them" step — a blank here makes for a
+    // generic plan on the one moment they wanted to feel personal. We ask once.
+    if (s2.key === 'about' && !composeAnswer('about') && !nudged.about){
+      nudged.about = true;
+      ta.style.borderColor = '#c9b98f';
+      if (stepMsg){ stepMsg.className = 'k-msg'; stepMsg.style.color = '#8a7f68'; stepMsg.textContent = 'Even one line about them makes this feel like them, not a template. Add a sentence — or press Continue again to skip.'; stepMsg.style.display = 'block'; }
       ta.focus({ preventScroll: true });
       return;
     }
@@ -663,6 +751,261 @@ function save(){
   const ta = document.getElementById('freetext'); if(ta) answers[STEPS[idx].key] = ta.value.trim();
   const ex = document.getElementById('extrafield'); const s = STEPS[idx];
   if (ex && s.extra) answers[s.extra.key] = ex.value.trim();
+}
+
+// ---- Voice: speak your answer (TC-51) ----
+// Record a short spoken answer, send it for transcription, and drop the text into the
+// current question's box. Tap once to start, again to stop.
+// Whether voice shows is decided by the audience gate (TC-60), owned by the companion
+// layer. Default to allowed when that layer isn't present (no accounts = no membership
+// concept, so voice is simply open).
+function voiceAllowedClient(){ try { return (window.TCCompanion && window.TCCompanion.voiceAllowed) ? window.TCCompanion.voiceAllowed() : true; } catch(e){ return true; } }
+// The gate may resolve after a step already rendered — show/hide the mic to match,
+// without a full re-render (so no typed text is lost).
+window.addEventListener('tc-voice-gate-ready', () => { const w = document.querySelector('.mic-wrap'); if (w) w.style.display = voiceAllowedClient() ? 'flex' : 'none'; });
+function stopRecordingIfAny(){ try { if (__rec.active && __rec.mr && __rec.mr.state === 'recording') __rec.mr.stop(); } catch(e){} }
+function micStatus(t){ const el = document.getElementById('micStatus'); if (el) el.textContent = t || ''; }
+function setMic(btn, state){
+  if (!btn) return;
+  const lbl = btn.querySelector('.mic-label'); // update the label, keep the drawn icon
+  if (state === 'recording'){ if (lbl) lbl.textContent = 'Stop & write it'; btn.style.background = '#f6e3da'; btn.style.borderColor = '#d8a58c'; btn.disabled = false; }
+  else if (state === 'thinking'){ if (lbl) lbl.textContent = 'one sec…'; btn.disabled = true; }
+  else { if (lbl) lbl.textContent = 'Speak your answer'; btn.style.background = '#fffbf4'; btn.style.borderColor = '#d8ccae'; btn.disabled = false; }
+}
+function blobToBase64(blob){
+  return new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => { const s = String(fr.result || ''); res(s.slice(s.indexOf(',') + 1)); }; fr.readAsDataURL(blob); });
+}
+async function toggleMic(btn, ta){
+  if (__rec.active){ stopRecordingIfAny(); return; }
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined'){
+    micStatus("Your browser can't record here — you can type instead."); return;
+  }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch(e){ micStatus("We need microphone permission to hear you — you can type instead."); return; }
+  __rec.stream = stream; __rec.chunks = []; __rec.active = true;
+  const mr = new MediaRecorder(stream);
+  __rec.mr = mr;
+  mr.ondataavailable = e => { if (e.data && e.data.size) __rec.chunks.push(e.data); };
+  mr.onstop = async () => {
+    __rec.active = false;
+    if (__rec.timer){ clearTimeout(__rec.timer); __rec.timer = null; }
+    try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
+    const blob = new Blob(__rec.chunks, { type: mr.mimeType || 'audio/webm' });
+    if (!blob.size){ setMic(btn, 'idle'); micStatus(''); return; }
+    setMic(btn, 'thinking'); micStatus('Writing down what you said…');
+    try {
+      const b64 = await blobToBase64(blob);
+      const headers = { 'content-type': 'application/json' };
+      try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
+      const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }) });
+      const d = await r.json();
+      if (r.ok && d.text){
+        if (document.body.contains(ta)){ ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + d.text; ta.dispatchEvent(new Event('input')); ta.focus({ preventScroll: true }); }
+        micStatus('');
+      } else { micStatus((d && d.error) || "We couldn't catch that — try again or type it."); }
+    } catch(e){ micStatus("We couldn't catch that — try again or type it."); }
+    setMic(btn, 'idle');
+  };
+  mr.start(); setMic(btn, 'recording'); micStatus("Listening… tap again when you're done.");
+  // Backstop: auto-stop a long recording so it stays short and transcribes cleanly.
+  __rec.timer = setTimeout(() => { if (__rec.active) { micStatus('Got it — that was a long one, writing it down…'); stopRecordingIfAny(); } }, 60000);
+}
+
+// ---- Home-screen voice front door (TC-51 Phase 2, slice 1: talk → plan) ----
+// Device-aware entry: shown when voice is allowed AND the device can actually record.
+// On a phone it leads; on a computer it sits beside the typed button, and if there's
+// no microphone at all we hide it so nothing dangles. Typing is always one tap away.
+const __hrec = { mr: null, chunks: [], active: false, stream: null, timer: null };
+// One hand-drawn mic, reused on the button and in the listening indicator (stroke
+// style matches the site's other icons). `foot` is the clay accent stroke.
+function micSvg(size, stroke, foot){
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" width="${size}" height="${size}">
+    <rect x="9" y="3" width="6" height="11" rx="3" fill="none" stroke="${stroke}" stroke-width="1.6"/>
+    <path d="M5.5 11a6.5 6.5 0 0 0 13 0" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="12" y1="17.5" x2="12" y2="20.5" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="8.5" y1="20.5" x2="15.5" y2="20.5" stroke="${foot}" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`;
+}
+// Pencil for the "type it" method — same stroke language, clay accent on the tip.
+function penSvg(size, stroke, accent){
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" width="${size}" height="${size}">
+    <path d="M4 20.5h4L19 9.5a2 2 0 0 0 0-3l-1-1a2 2 0 0 0-3 0L4 16.5v4Z" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linejoin="round"/>
+    <line x1="14.5" y1="7" x2="17.5" y2="10" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`;
+}
+// The typed method button (always available). The mic method is added by setupHomeVoice.
+function renderTypeBtn(){
+  const t = document.getElementById('homeTypeBtn');
+  if (t) t.innerHTML = penSvg(18, 'currentColor', '#c28a63') + '<span class="mic-label">Type it out</span>';
+}
+renderTypeBtn();
+async function setupHomeVoice(){
+  const mic = document.getElementById('homeMicBtn'); if (!mic) return;
+  const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+  if (!voiceAllowedClient() || !canRecord){ mic.style.display = 'none'; return; }
+  let hasMic = true;
+  try { if (navigator.mediaDevices.enumerateDevices){ const ds = await navigator.mediaDevices.enumerateDevices(); const ins = ds.filter(d => d.kind === 'audioinput'); if (ds.length && ins.length === 0) hasMic = false; } } catch(e){}
+  const isPhone = (window.matchMedia && matchMedia('(pointer:coarse)').matches) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+  if (!hasMic && !isPhone){ mic.style.display = 'none'; return; } // computer, no mic → typing only
+  mic.style.display = '';
+  mic.onclick = startHomeVoice;
+  mic.innerHTML = micSvg(19, 'currentColor', '#c28a63') + '<span class="mic-label">Talk it through</span>';
+  // Two equal ways to start the same thing — put the one that fits the device first.
+  const typeBtn = document.getElementById('homeTypeBtn');
+  mic.style.order = isPhone ? '0' : '1';
+  if (typeBtn) typeBtn.style.order = isPhone ? '1' : '0';
+}
+window.addEventListener('tc-voice-gate-ready', setupHomeVoice);
+setupHomeVoice();
+
+function startHomeVoice(){
+  if (!voiceAllowedClient()) return;
+  scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
+  renderHomeListening();
+  beginHomeRecording();
+}
+function hStatus(t){ const el = document.getElementById('homeMicStatus'); if (el) el.textContent = t || ''; }
+function renderHomeListening(){
+  stage.innerHTML = `
+    <div class="loading" style="padding:44px 24px;text-align:center;">
+      <div class="tc-listen" aria-hidden="true">
+        <span class="tc-listen-ripple r1"></span>
+        <span class="tc-listen-ripple r2"></span>
+        <span class="tc-listen-ripple r3"></span>
+        <span class="tc-listen-core">${micSvg(28, '#fff', '#fff')}</span>
+      </div>
+      <p class="big" id="homeListenHeading" style="margin-top:14px;" aria-live="polite">I'm listening…</p>
+      <p class="lines" id="homeListenSub">Take your time. Tell me what's happening and who it's about.</p>
+      <div id="homeMicStatus" style="font-size:12.5px;color:var(--ink-soft,#7a7263);margin-top:8px;"></div>
+      <div id="homeListenControls" style="margin-top:20px;display:flex;gap:12px;justify-content:center;align-items:center;">
+        <button type="button" class="cta" id="homeDoneBtn">Done</button>
+        <button type="button" class="link-btn" id="homeCancelBtn">Cancel</button>
+      </div>
+    </div>`;
+  scrim.scrollTop = 0;
+  document.getElementById('homeDoneBtn').onclick = () => { toProcessing(); stopHomeRecording(); };
+  document.getElementById('homeCancelBtn').onclick = () => { cancelHomeRecording(); closeFlow(); };
+}
+// Calm hand-off from "listening" to "taking that in": ripples fade, core settles,
+// the copy changes, controls hide. Runs the instant Done is tapped (not after the
+// async transcription), so it never keeps pulsing as if still hearing you.
+function toProcessing(){
+  const box = document.querySelector('.tc-listen');
+  if (box){ box.classList.add('settling'); box.style.setProperty('--level', '0'); }
+  const h = document.getElementById('homeListenHeading'); if (h) h.textContent = 'Taking that in…';
+  const sub = document.getElementById('homeListenSub'); if (sub) sub.textContent = 'A moment while I put it together.';
+  const ctrls = document.getElementById('homeListenControls'); if (ctrls) ctrls.style.display = 'none';
+  hStatus('');
+}
+async function beginHomeRecording(){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined'){
+    renderHomeError("Your browser can't record here — you can type instead."); return;
+  }
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch(e){ renderHomeError("We need microphone permission to hear you — you can type instead."); return; }
+  __hrec.stream = stream; __hrec.chunks = []; __hrec.active = true;
+  startLevelMeter(stream);
+  const mr = new MediaRecorder(stream); __hrec.mr = mr;
+  mr.ondataavailable = e => { if (e.data && e.data.size) __hrec.chunks.push(e.data); };
+  mr.onstop = async () => {
+    __hrec.active = false; if (__hrec.timer){ clearTimeout(__hrec.timer); __hrec.timer = null; }
+    stopLevelMeter();
+    try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
+    const blob = new Blob(__hrec.chunks, { type: mr.mimeType || 'audio/webm' });
+    if (!blob.size){ renderHomeError("I didn't quite catch that."); return; }
+    toProcessing(); // ensure the settle state shows even on auto-stop paths
+    try {
+      const b64 = await blobToBase64(blob);
+      const headers = { 'content-type': 'application/json' };
+      try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
+      const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }) });
+      const d = await r.json();
+      if (r.ok && d.text) renderHomeReflect(d.text);
+      else renderHomeError((d && d.error) || "We couldn't catch that — try again or type it.");
+    } catch(e){ renderHomeError("We couldn't catch that — try again or type it."); }
+  };
+  mr.start(); hStatus("Listening… tap Done when you're finished.");
+  __hrec.timer = setTimeout(() => { if (__hrec.active){ toProcessing(); stopHomeRecording(); } }, 60000);
+}
+function stopHomeRecording(){ try { if (__hrec.active && __hrec.mr && __hrec.mr.state === 'recording') __hrec.mr.stop(); } catch(e){} }
+function cancelHomeRecording(){ __hrec.active = false; stopLevelMeter(); try { if (__hrec.mr && __hrec.mr.state === 'recording'){ __hrec.mr.onstop = null; __hrec.mr.stop(); } } catch(e){} try { __hrec.stream && __hrec.stream.getTracks().forEach(t => t.stop()); } catch(e){} if (__hrec.timer){ clearTimeout(__hrec.timer); __hrec.timer = null; } }
+// Live mic loudness → drives the listening ripple's --level (calm swell, not a jumpy
+// waveform). Taps the existing stream (no second permission). Degrades gracefully.
+function startLevelMeter(stream){
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser();
+    analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.8;
+    src.connect(analyser);
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    let smooth = 0;
+    const loop = () => {
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0; for (let i = 0; i < buf.length; i++){ const v = (buf[i] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / buf.length);
+      const level = Math.min(1, Math.max(0, (rms - 0.02) / 0.18));
+      smooth += (level - smooth) * (level > smooth ? 0.5 : 0.08); // fast attack, slow release
+      const node = document.querySelector('.tc-listen');
+      if (node) node.style.setProperty('--level', smooth.toFixed(3));
+      __hrec._raf = requestAnimationFrame(loop);
+    };
+    loop();
+    __hrec._audioCtx = ctx;
+  } catch(e){ /* no analyser → the ripple just breathes on its own */ }
+}
+function stopLevelMeter(){
+  try { if (__hrec._raf){ cancelAnimationFrame(__hrec._raf); __hrec._raf = null; } } catch(e){}
+  try { if (__hrec._audioCtx){ __hrec._audioCtx.close(); __hrec._audioCtx = null; } } catch(e){}
+}
+function renderHomeReflect(text){
+  const t = String(text || '').trim();
+  // Guard the trust beat: a near-empty transcript should never render as
+  // "Here's what I heard: <blank>". Count Unicode letters/digits so this works for
+  // every language (not just Latin) — Whisper transcribes many.
+  if ((t.match(/[\p{L}\p{N}]/gu) || []).length < 2){ renderHomeError("I didn't quite catch that."); return; }
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div class="q-eyebrow">Here's what I heard</div>
+      <p style="font-family:'Fraunces',Georgia,serif;font-size:20px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 18px;">“${escapeHtml(t)}”</p>
+      <p class="q-help" style="text-align:center;">Make your plan from this?</p>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
+        <button type="button" class="cta" id="homePlanBtn">Yes, make my plan →</button>
+        <button type="button" class="link-btn" id="homeEditBtn">Add details / edit first</button>
+        <button type="button" class="link-btn" id="homeCancel2">Cancel</button>
+      </div>
+    </div>`;
+  scrim.scrollTop = 0;
+  document.getElementById('homePlanBtn').onclick = () => startPlanFromText(t);
+  document.getElementById('homeEditBtn').onclick = () => { openFlow(); answers.moment = t; renderStep(); };
+  document.getElementById('homeCancel2').onclick = closeFlow;
+}
+function renderHomeError(msg){
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div class="err">${escapeHtml(msg)}</div>
+      <div style="display:flex;gap:12px;justify-content:center;margin-top:16px;flex-wrap:wrap;">
+        <button type="button" class="cta" id="homeRetry">Try again</button>
+        <button type="button" class="link-btn" id="homeType">Type it instead →</button>
+      </div>
+      <div style="margin-top:12px;"><button type="button" class="link-btn" id="homeErrClose">Close</button></div>
+    </div>`;
+  document.getElementById('homeRetry').onclick = startHomeVoice;
+  document.getElementById('homeType').onclick = () => openFlow();
+  document.getElementById('homeErrClose').onclick = closeFlow;
+}
+// Run a plan straight from a spoken situation — value-first, no sign-in (TC-62 lands
+// the add/update-by-voice routing later; slice 1 routes every home utterance to a plan).
+function startPlanFromText(text){
+  for (const k in answers) delete answers[k];
+  for (const k in picks) delete picks[k];
+  for (const k in nudged) delete nudged[k];
+  genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; __fromVoice = true;
+  answers.moment = String(text || '').trim();
+  try { window.tcTrack && tcTrack('intake_start', { label: 'voice_home' }); } catch(e){}
+  generate();
 }
 
 // Combine the selected chips and the free text for a step into one answer string.
@@ -708,7 +1051,9 @@ function startGenProgress(){
 }
 function stopGenProgress(){ if (genTimer){ clearInterval(genTimer); genTimer = null; } }
 
+let genAttempts = 0; // how many times we've tried to build this plan (for a gentler 2nd-failure exit)
 async function generate(){
+  genAttempts++;
   stage.innerHTML = `
     <div class="loading">
       <svg class="lantern" viewBox="0 0 120 130" aria-hidden="true">
@@ -720,7 +1065,7 @@ async function generate(){
         <circle cx="60" cy="66" r="10" fill="#ffd691"/>
       </svg>
       <p class="big">Thinking it through…</p>
-      <p class="lines" id="genLine" style="transition:opacity .25s ease;">Taking a moment to weigh what would truly help. This usually takes about half a minute.</p>
+      <p class="lines" id="genLine" style="transition:opacity .25s ease;">Taking a moment to weigh what would truly help. This usually takes about a minute.</p>
     </div>`;
   scrim.scrollTop = 0;
   startGenProgress();
@@ -746,16 +1091,26 @@ async function generate(){
 
 function renderError(msg){
   stopGenProgress();
+  // On a repeat failure, don't trap the user in a retry loop — acknowledge it and
+  // offer a calm way out (close, or reach a real person).
+  const repeated = genAttempts >= 2;
+  const body = repeated
+    ? "We're still having trouble building your plan — this is on us, not you. Please try again in a few minutes, or email us at care@thoughtscount.com and we'll help personally."
+    : escapeHtml(msg);
   stage.innerHTML = `
     <div class="panel-body">
-      <div class="err">${escapeHtml(msg)}</div>
+      <div class="err">${body}</div>
+      ${repeated ? `<p style="text-align:center;margin:-4px 0 8px;font-size:13px;"><a href="mailto:care@thoughtscount.com" style="color:var(--sage-deep);font-weight:600;">care@thoughtscount.com</a></p>` : ''}
       <div class="nav">
         <button class="link-btn" id="backBtn">← Back</button>
+        ${repeated ? `<button class="link-btn" id="closeErr">Close</button>` : ''}
         <button class="cta" id="retry">Try again</button>
       </div>
     </div>`;
-  document.getElementById('backBtn').onclick = () => { idx = STEPS.length-1; renderStep(); };
+  document.getElementById('backBtn').onclick = () => { idx = __fromVoice ? 0 : STEPS.length-1; renderStep(); };
   document.getElementById('retry').onclick = generate;
+  const closeErr = document.getElementById('closeErr');
+  if (closeErr) closeErr.onclick = closeFlow;
 }
 
 // ---- gift ideas: illustrated tiles + trust-safe boutique links ----
@@ -914,6 +1269,7 @@ function renderPlan(p){
     <div class="block">
       <h4>${icon('<rect x="4" y="9" width="16" height="12" rx="1"/><path d="M2 5h20v4H2zM12 21V5"/><path d="M12 5S9 1 6.5 2.5 8 6 12 5Zm0 0s3-4 5.5-2.5S16 6 12 5Z"/>')}If you'd like to send something</h4>
       ${gifts.map((g, i) => renderGiftCard(g, i)).join('')}
+      ${(answers.location||'').trim() ? '' : `<div class="mp-invite" style="margin:2px 4px 0;font-size:13px;color:var(--ink-soft,#7a7263);">📍 Know their town or ZIP? <a href="#" id="addLocationLink" style="color:var(--sage-deep);font-weight:600;">Add it</a> and we'll point you to real shops near them.</div>`}
       <div class="more-places">
         <div class="mp-label">More lovely places to look:</div>
         <div class="mp-links">
@@ -976,14 +1332,14 @@ function renderPlan(p){
           <input type="email" id="planEmail" placeholder="you@email.com" autocomplete="email" />
           <button class="cta" id="emailPlanBtn">Email me my plan</button>
         </div>
-        <label class="k-remind"><input type="checkbox" id="wantReminders" checked /> Also email me the "keep showing up" reminders, on their dates</label>
+        <label class="k-remind"><input type="checkbox" id="wantReminders" /> Also email me the "keep showing up" reminders, on their dates</label>
         <div class="k-msg" id="emailMsg"></div>
         <div class="k-privacy">We use your email only for this — no account, no sharing. <a href="/privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">See how we handle your data →</a></div>
       </div>
     </div>
     <div class="plan-actions">
       <button class="cta ghost" onclick="restart()">Plan for someone else</button>
-      <button class="cta" onclick="savePlan()">Save / print this plan</button>
+      <button class="cta" onclick="savePlan()">Save as PDF / print</button>
     </div>
     <div class="disclaimer">A thoughtful starting point, made for your situation — trust your own heart on the details.</div>
     ${fbBlock}
@@ -998,7 +1354,7 @@ function renderPlan(p){
       if (!f) return;
       downloadReminder(f, p);
       btn.classList.add('done');
-      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Added to calendar';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Downloaded — open it to add';
     });
   });
 
@@ -1032,6 +1388,11 @@ function renderPlan(p){
       reveal(thanksEl);
     }));
   }
+
+  // "Add their town" second-chance → jump back to the last step (which holds the
+  // location field) so they can add it and regenerate with local ideas.
+  const addLoc = stage.querySelector('#addLocationLink');
+  if (addLoc) addLoc.addEventListener('click', (e) => { e.preventDefault(); idx = STEPS.length - 1; renderStep(); });
 
   // Wire up "Email me my plan".
   const emailBtn = document.getElementById('emailPlanBtn');
@@ -1073,8 +1434,11 @@ function savePlan(){
   const label = (currentPlan && currentPlan.plan_title) ? currentPlan.plan_title : '';
   const prev = document.title;
   if (label) document.title = 'Thoughts Count — ' + label;
+  // Flag print mode so the print stylesheet strips the animated background and the
+  // interactive chrome, leaving a clean plan on the page/PDF.
+  document.body.classList.add('printing');
   window.print();
-  setTimeout(() => { document.title = prev; }, 800);
+  setTimeout(() => { document.title = prev; document.body.classList.remove('printing'); }, 800);
 }
 
 // Build and download an .ics calendar event for a follow-up gesture.

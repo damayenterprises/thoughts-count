@@ -12,7 +12,16 @@ export default async () => {
   const url = getEnv("SUPABASE_URL") || "";
   const anon = getEnv("SUPABASE_ANON_KEY") || "";
   const enabled = !!(url && anon);
-  return new Response(JSON.stringify({ enabled, supabaseUrl: url, supabaseAnonKey: anon }), {
+  // Voice front-door audience gate (TC-60): who sees voice — everyone / signedin / members.
+  // Set to "everyone" now for open testing; flip to "members" when Pro (TC-40) is ready.
+  const voiceAudience = normalizeAudience(getEnv("VOICE_AUDIENCE"));
+  return new Response(JSON.stringify({ enabled, supabaseUrl: url, supabaseAnonKey: anon, voiceAudience }), {
     headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
 };
+
+// Only three valid audiences; anything unset/unknown falls back to the safe default.
+export function normalizeAudience(v) {
+  const a = String(v || "").trim().toLowerCase();
+  return (a === "signedin" || a === "members") ? a : "everyone";
+}

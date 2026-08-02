@@ -10,8 +10,20 @@ import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint,
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
 let reviewOpen = false; // keep the To-Review panel open across confirms
+let voiceAudience = "everyone"; // voice front-door gate (TC-60): everyone | signedin | members
 
 let sb = null, user = null;
+let accessToken = null; // current session token, so gated voice endpoints can verify the caller
+
+// The single place that decides if voice UI should show for this user (TC-60).
+// "everyone" → always; "signedin" → needs an account; "members" → account + Pro.
+// (True Pro enforcement is the client stub until the paid flag / TC-40 lands; the
+// server also enforces this on the voice endpoints so the client check is just UX.)
+function voiceAllowed() {
+  if (voiceAudience === "signedin") return !!user;
+  if (voiceAudience === "members") return !!user && !!(window.TCRoster && window.TCRoster.isPro && window.TCRoster.isPro());
+  return true;
+}
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 
@@ -84,6 +96,7 @@ async function boot() {
   let cfg;
   try { cfg = await (await fetch("/api/public-config", { cache: "no-store" })).json(); } catch { return; }
   if (!cfg || !cfg.enabled) return;
+  voiceAudience = cfg.voiceAudience || "everyone";
 
   // Did this page load actually come from a magic-link email? (Capture before the
   // client processes and strips the URL.) Only then should we auto-open "Your People".
@@ -95,9 +108,11 @@ async function boot() {
 
   const { data } = await sb.auth.getSession();
   user = data?.session?.user || null;
+  accessToken = data?.session?.access_token || null;
 
   sb.auth.onAuthStateChange((evt, session) => {
     user = session?.user || null;
+    accessToken = session?.access_token || null;
     renderAuthBtn();
     // Auto-open "Your People" ONCE, only on a genuine magic-link return. Supabase
     // re-fires SIGNED_IN on session restore and tab refocus, so we consume the flag
@@ -110,7 +125,10 @@ async function boot() {
   mountAuthBtn();
   renderAuthBtn();
 
-  window.TCCompanion = { isSignedIn: () => !!user, mountSaveToPerson, openHome, openSignIn, refreshAuthBtn: renderAuthBtn };
+  window.TCCompanion = { isSignedIn: () => !!user, mountSaveToPerson, openHome, openSignIn, refreshAuthBtn: renderAuthBtn, voiceAllowed, voiceAudience: () => voiceAudience, authToken: () => accessToken };
+  // Voice UI (e.g. the dictation mic) may have rendered before the gate resolved —
+  // let the page re-check now that we know the audience + sign-in state.
+  try { window.dispatchEvent(new Event("tc-voice-gate-ready")); } catch (e) {}
 }
 
 /* ---------------- top-bar auth button ---------------- */
