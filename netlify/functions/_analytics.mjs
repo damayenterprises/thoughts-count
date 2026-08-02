@@ -77,6 +77,33 @@ export function computeSummary(events) {
   const plans = events.filter((e) => e.event === "plan_generated");
   const views = events.filter((e) => e.event === "page_view");
   const rate = (a, b) => (b ? +((a / b) * 100).toFixed(1) : null);
+
+  // Loop 2 (TC-58): plan-quality feedback. Up/down rate comes from `plan_feedback`;
+  // the optional "what was off" reason is its own `plan_feedback_reason` event so a
+  // reason refinement never double-counts a downvote.
+  const feedback = events.filter((e) => e.event === "plan_feedback");
+  const reasonEvents = events.filter((e) => e.event === "plan_feedback_reason");
+  const up = feedback.filter((e) => e.helpful === true).length;
+  const down = feedback.filter((e) => e.helpful === false).length;
+  const byOcc = {};
+  for (const e of feedback) {
+    const k = e.occasion || "unspecified";
+    const b = byOcc[k] || (byOcc[k] = { yes: 0, no: 0 });
+    if (e.helpful === true) b.yes += 1;
+    else if (e.helpful === false) b.no += 1;
+  }
+  const helpfulness = {
+    responses: feedback.length,
+    helpful_yes: up,
+    helpful_no: down,
+    helpful_rate_pct: rate(up, up + down),
+    by_occasion: Object.fromEntries(
+      Object.entries(byOcc)
+        .map(([k, v]) => [k, { ...v, rate_pct: rate(v.yes, v.yes + v.no) }])
+        .sort((a, b) => (b[1].yes + b[1].no) - (a[1].yes + a[1].no))
+    ),
+    down_reasons: tally(reasonEvents.map((e) => e.reason)),
+  };
   const funnel = {
     visitors: uniqueVisitors,               // distinct sessions (real people)
     page_views: byEvent.page_view || 0,     // total loads (a reload counts again)
@@ -111,6 +138,7 @@ export function computeSummary(events) {
       wanted_local_ideas: plans.filter((e) => e.has_location).length,
       gift_fit_rate_pct: rate(plans.filter((e) => e.gift_fit).length, plans.length),
     },
+    helpfulness,
     by_day: tally(events.map((e) => e.ymd)),
   };
 }
@@ -268,4 +296,43 @@ export function budgetBand(constraintsText) {
   if (max < 75) return "25_75";
   if (max < 150) return "75_150";
   return "over_150";
+}
+
+// ---- Loop 2 (TC-58): plan-quality feedback --------------------------------
+// The "bucket" is the non-identifying retrieval key for a plan — the same four
+// coarse labels plan_generated already logs. We derive it here so the same code
+// tags a generated plan and validates a feedback echo from the browser.
+
+export function bucketOf(a = {}) {
+  return {
+    occasion: classifyOccasion(a.moment),
+    valence: classifyValence(a.moment),
+    relationship: classifyRelationship(a.relationship),
+    budget_band: budgetBand(a.constraints),
+  };
+}
+
+// Valid label sets, derived from the classifier maps so they can't drift. Used to
+// whitelist the bucket the browser echoes back with feedback — a client can only
+// ever send one of these coarse, non-identifying labels, never free text.
+export const VALID_OCCASION = new Set([...OCCASION_MAP.map((x) => x[0]), "other", "unspecified"]);
+export const VALID_VALENCE = new Set(["hard_time", "celebration", "gratitude", "other", "unspecified"]);
+export const VALID_RELATIONSHIP = new Set([...REL_MAP.map((x) => x[0]), "other", "unspecified"]);
+export const VALID_BUDGET = new Set(["unspecified", "no_limit", "under_25", "25_75", "75_150", "over_150"]);
+
+// The only reasons a downvote may carry. Fixed enum — never free text (TC-34 guardrail).
+export const FEEDBACK_REASONS = new Set(["too_generic", "wrong_tone", "ideas_didnt_fit", "other"]);
+
+// Keep only recognized bucket labels; drop anything else so a tampered/stale client
+// can't pollute the store with arbitrary values.
+export function sanitizeBucket(b = {}) {
+  const pick = (set, v) => (set.has(v) ? v : undefined);
+  const out = {
+    occasion: pick(VALID_OCCASION, b.occasion),
+    valence: pick(VALID_VALENCE, b.valence),
+    relationship: pick(VALID_RELATIONSHIP, b.relationship),
+    budget_band: pick(VALID_BUDGET, b.budget_band),
+  };
+  for (const k of Object.keys(out)) if (out[k] === undefined) delete out[k];
+  return out;
 }

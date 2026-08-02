@@ -379,6 +379,16 @@
         else fetch('/api/track', { method:'POST', keepalive:true, headers:{'content-type':'application/json'}, body:payload });
       } catch(e){}
     };
+    // Plan-quality feedback (Loop 2 / TC-58). Sends only the anonymized bucket the
+    // server handed back with the plan — never any story text. `event` is
+    // 'plan_feedback' (helpful bool) or 'plan_feedback_reason' (reason enum).
+    window.tcFeedback = function(event, props){
+      try {
+        var payload = JSON.stringify(Object.assign({ event: event, sid: sid, test: isTest, bucket: window.__tcBucket || {} }, props||{}));
+        if (navigator.sendBeacon) navigator.sendBeacon('/api/feedback', new Blob([payload], {type:'application/json'}));
+        else fetch('/api/feedback', { method:'POST', keepalive:true, headers:{'content-type':'application/json'}, body:payload });
+      } catch(e){}
+    };
     var ref = ''; try { ref = (document.referrer||'').split('/')[2] || ''; } catch(e){}
     var qp = {}; try { var u = new URLSearchParams(location.search); qp = { utm_source:u.get('utm_source'), utm_medium:u.get('utm_medium'), utm_campaign:u.get('utm_campaign') }; } catch(e){}
     window.tcTrack('page_view', Object.assign({ page: location.pathname, ref: ref }, qp));
@@ -573,7 +583,7 @@ function openFlowForPerson(person){
 }
 window.openFlowForPerson = openFlowForPerson;
 // Re-open a previously saved plan for viewing.
-function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; renderPlan(plan); }
+function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; window.__tcBucket = null; renderPlan(plan); }
 window.renderSavedPlan = renderSavedPlan;
 function closeFlow(){ stopGenProgress(); scrim.classList.remove('open'); document.body.style.overflow=''; }
 scrim.addEventListener('click', e => { if (e.target === scrim) closeFlow(); });
@@ -727,7 +737,7 @@ async function generate(){
       await new Promise(r => setTimeout(r, 2000));
       let d;
       try { const r = await fetch('/api/plan?jobId=' + encodeURIComponent(jobId), { cache: 'no-store' }); d = await r.json(); } catch { continue; }
-      if (d.status === 'done' && d.plan) { renderPlan(d.plan); return; }
+      if (d.status === 'done' && d.plan) { window.__tcBucket = d.bucket || null; renderPlan(d.plan); return; }
       if (d.status === 'error') { renderError(d.error || "We couldn't finish the plan."); return; }
     }
     renderError("This is taking longer than usual. Please try again.");
@@ -912,6 +922,37 @@ function renderPlan(p){
         </div>
       </div>
     </div>` : '';
+  // Feedback control (Loop 2 / TC-58) — warm pills matching the palette. On hard_time
+  // plans (grief/illness/loss) we soften the whole thing: gentler question, no thumbs,
+  // and NO "what was off?" critique chips — you don't ask a grieving person to rate a
+  // plan's quality. We still capture helped / needed-something-different for the signal.
+  const fbPill = 'border:1px solid #d8ccae;background:#fffbf4;color:#3b362e;border-radius:999px;padding:9px 18px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;line-height:1;';
+  const fbChip = 'border:1px solid #e0d6bf;background:#fbf7ee;color:#5f5646;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;line-height:1;';
+  const fbHard = !!(window.__tcBucket && window.__tcBucket.valence === 'hard_time');
+  const fbAsk = fbHard ? "Did this feel right for what you're facing?" : "Did this help you feel more ready?";
+  const fbUpLabel = fbHard ? "This helped" : "👍&nbsp; Yes";
+  const fbDownLabel = fbHard ? "I need something different" : "👎&nbsp; Not quite";
+  const fbReasonsHtml = fbHard ? '' : `
+      <div class="fb-reasons" id="fbReasons" hidden style="margin-top:12px;opacity:0;transition:opacity .25s ease;">
+        <div style="font-size:13px;color:var(--ink-soft,#7a7263);margin-bottom:8px;">What was off? <span style="opacity:.65;">(optional)</span></div>
+        <div role="group" aria-label="What was off?" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
+          <button type="button" class="fb-reason" data-r="too_generic" style="${fbChip}">Too generic</button>
+          <button type="button" class="fb-reason" data-r="wrong_tone" style="${fbChip}">Wrong tone</button>
+          <button type="button" class="fb-reason" data-r="ideas_didnt_fit" style="${fbChip}">Ideas didn't fit</button>
+          <button type="button" class="fb-reason" data-r="other" style="${fbChip}">Something else</button>
+        </div>
+      </div>`;
+  const fbBlock = `
+    <div class="plan-fb" id="planFb" style="margin:20px auto 0;max-width:520px;text-align:center;">
+      <div class="fb-ask" style="font-size:14.5px;color:#5f5646;">${fbAsk}</div>
+      <div class="fb-btns" style="display:inline-flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:10px;">
+        <button type="button" class="fb-btn" data-v="up" aria-label="${fbHard ? 'This helped' : 'Yes, this helped'}" style="${fbPill}">${fbUpLabel}</button>
+        <button type="button" class="fb-btn" data-v="down" aria-label="${fbHard ? 'I need something different' : 'Not quite'}" style="${fbPill}">${fbDownLabel}</button>
+      </div>
+      ${fbReasonsHtml}
+      <div class="fb-thanks" id="fbThanks" hidden aria-live="polite" style="margin-top:12px;opacity:0;transition:opacity .25s ease;font-size:14px;color:var(--sage-deep,#5f6c4c);font-weight:700;">Thank you — that means a lot.</div>
+    </div>`;
+
   stage.innerHTML = `
     <div class="plan-head">
       <div class="q-eyebrow">Your gentle plan</div>
@@ -945,7 +986,8 @@ function renderPlan(p){
       <button class="cta" onclick="savePlan()">Save / print this plan</button>
     </div>
     <div class="disclaimer">A thoughtful starting point, made for your situation — trust your own heart on the details.</div>
-    <div style="text-align:center;margin-top:14px;"><a href="/guides/" style="color:var(--sage-deep);font-weight:700;font-size:14.5px;">Explore more guides on showing up →</a></div>
+    ${fbBlock}
+    <div style="text-align:center;margin-top:18px;"><a href="/guides/" style="color:var(--sage-deep);font-weight:700;font-size:14.5px;">Explore more guides on showing up →</a></div>
     <div style="height:16px"></div>`;
 
   // Wire up "Set reminder" buttons — each downloads a calendar event the user can
@@ -959,6 +1001,37 @@ function renderPlan(p){
       btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Added to calendar';
     });
   });
+
+  // Wire up "Was this helpful?" (Loop 2 / TC-58). Up/down submits once; a downvote
+  // reveals optional reason chips (a separate event, so refining never double-counts).
+  const fbEl = stage.querySelector('#planFb');
+  if (fbEl) {
+    let voted = false;
+    const reasonsEl = fbEl.querySelector('#fbReasons');
+    const thanksEl = fbEl.querySelector('#fbThanks');
+    const askEl = fbEl.querySelector('.fb-ask');
+    const reveal = el => { if (!el) return; el.hidden = false; requestAnimationFrame(() => { el.style.opacity = '1'; }); };
+    fbEl.querySelectorAll('.fb-btn').forEach(b => b.addEventListener('click', () => {
+      if (voted) return;
+      voted = true;
+      const up = b.dataset.v === 'up';
+      try { window.tcFeedback && tcFeedback('plan_feedback', { helpful: up }); } catch(e){}
+      fbEl.querySelectorAll('.fb-btn').forEach(x => { x.disabled = true; x.style.cursor = 'default'; x.style.opacity = (x === b) ? '1' : '.4'; });
+      if (askEl) askEl.style.opacity = '.6';
+      // Downvote reveals optional reason chips when present (not on hard_time plans);
+      // otherwise go straight to the thank-you.
+      if (!up && reasonsEl) reveal(reasonsEl);
+      else reveal(thanksEl);
+    }));
+    let reasonSent = false;
+    fbEl.querySelectorAll('.fb-reason').forEach(r => r.addEventListener('click', () => {
+      if (reasonSent) return;
+      reasonSent = true;
+      try { window.tcFeedback && tcFeedback('plan_feedback_reason', { reason: r.dataset.r }); } catch(e){}
+      if (reasonsEl) reasonsEl.hidden = true;
+      reveal(thanksEl);
+    }));
+  }
 
   // Wire up "Email me my plan".
   const emailBtn = document.getElementById('emailPlanBtn');

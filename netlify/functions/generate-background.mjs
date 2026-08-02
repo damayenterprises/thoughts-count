@@ -10,7 +10,7 @@
 // be recovered by anyone the link is shared with.
 
 import { getStore } from "@netlify/blobs";
-import { logEvent, classifyValence, classifyOccasion, classifyRelationship, budgetBand } from "./_analytics.mjs";
+import { logEvent, bucketOf } from "./_analytics.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
@@ -163,18 +163,19 @@ export default async (req) => {
       await enrichOnlineIdeas(toolUse.input, etsyKey, shoppingKey);
     }
 
-    await store.setJSON(jobId, { status: "done", plan: toolUse.input });
+    // The plan's non-identifying bucket (occasion/valence/relationship/budget). Stored
+    // with the plan so the browser receives it and can echo it back with feedback
+    // (TC-58) — the client never has to re-send raw story text to attribute a rating.
+    const a = body?.answers || {};
+    const bucket = bucketOf(a);
+    await store.setJSON(jobId, { status: "done", plan: toolUse.input, bucket });
 
     // Anonymized "what people need" signal — buckets only, never raw text/names.
     try {
-      const a = body?.answers || {};
       const gifts = Array.isArray(toolUse.input?.gift_ideas) ? toolUse.input.gift_ideas : [];
       await logEvent("plan_generated", {
         sid: (body?.sid || "").toString().slice(0, 40),
-        occasion: classifyOccasion(a.moment),
-        valence: classifyValence(a.moment),
-        relationship: classifyRelationship(a.relationship),
-        budget_band: budgetBand(a.constraints),
+        ...bucket,
         has_location: !!(a.location || "").trim(),
         gift_fit: gifts.length > 0,
         gift_count: gifts.length,

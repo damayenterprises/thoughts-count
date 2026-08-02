@@ -105,6 +105,32 @@ function digestHtml({ allSum, weekSum, rangeLabel, seo }) {
 
   const conv = (v) => (v == null ? "—" : v + "%");
 
+  // Loop 2 (TC-58): plan-quality read — overall 👍 rate, per-occasion, and the
+  // reasons behind downvotes so a weak situation is visible at a glance.
+  const qualityBlock = (sum) => {
+    const h = sum.helpfulness || {};
+    if (!h.responses) return "";
+    const occRows = Object.entries(h.by_occasion || {})
+      .map(([k, v]) => `
+        <tr>
+          <td style="padding:3px 0;font-size:13px;color:${C.ink};">${prettyLabel(k)}</td>
+          <td style="padding:3px 0;font-size:13px;color:${C.soft};text-align:right;">${v.rate_pct == null ? "—" : v.rate_pct + "%"} <span style="color:${C.soft};">(${v.yes + v.no})</span></td>
+        </tr>`).join("");
+    const reasons = Object.entries(h.down_reasons || {});
+    const reasonLine = reasons.length
+      ? `<div style="margin-top:8px;font-size:12px;color:${C.soft};"><b style="color:${C.ink};">What was off:</b> ${reasons.map(([k, v]) => `${prettyLabel(k)} (${v})`).join(" · ")}</div>`
+      : "";
+    return `<div style="margin-top:18px;">
+      <div style="font-family:Georgia,serif;font-size:16px;color:${C.ink};">Plan quality</div>
+      <div style="margin-top:6px;font-size:13px;color:${C.ink};">
+        <b style="color:${C.sage};">${h.helpful_rate_pct == null ? "—" : h.helpful_rate_pct + "%"}</b> found their plan helpful
+        <span style="color:${C.soft};">(${h.responses} rated · ${h.helpful_yes} 👍 / ${h.helpful_no} 👎)</span>
+      </div>
+      ${occRows ? `<div style="margin-top:10px;"><div style="font-size:12px;text-transform:uppercase;letter-spacing:.04em;color:${C.soft};margin-bottom:4px;">Helpful rate by occasion</div><table style="width:100%;border-collapse:collapse;">${occRows}</table></div>` : ""}
+      ${reasonLine}
+    </div>`;
+  };
+
   return `
 <div style="margin:0;padding:24px;background:${C.paper};font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:${C.ink};">
   <div style="max-width:600px;margin:0 auto;background:${C.card};border:1px solid ${C.line};border-radius:20px;overflow:hidden;">
@@ -155,6 +181,7 @@ function digestHtml({ allSum, weekSum, rangeLabel, seo }) {
         ${hasNeed ? breakdown("By type of moment", need.valence) : ""}
         ${hasNeed ? breakdown("By occasion", need.occasion) : ""}
         ${hasNeed ? breakdown("By relationship", need.relationship) : ""}
+        ${qualityBlock(allSum)}
       </div>
     </div>
 

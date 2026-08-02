@@ -47,6 +47,12 @@
   to = "/.netlify/functions/analytics-summary"
   status = 200
 
+# Plan-quality feedback ingest ("was this helpful?", Loop 2 / TC-58)
+[[redirects]]
+  from = "/api/feedback"
+  to = "/.netlify/functions/feedback"
+  status = 200
+
 # Send the weekly report now (admin token required) — preview / manual re-send
 [[redirects]]
   from = "/api/send-digest"
