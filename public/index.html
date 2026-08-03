@@ -1032,16 +1032,19 @@ function renderHomeReflect(text){
   // "Here's what I heard: <blank>". Count Unicode letters/digits so this works for
   // every language (not just Latin) — Whisper transcribes many.
   if ((t.match(/[\p{L}\p{N}]/gu) || []).length < 2){ renderHomeError("I didn't quite catch that."); return; }
-  // Signed-in users can also "remember this" about a person (slice 2). Signed-out users
-  // stay value-first: plan only for now (the sign-in-that-keeps-your-words is slice 2b).
-  const canRemember = !!(window.TCCompanion && window.TCCompanion.isSignedIn && window.TCCompanion.isSignedIn());
+  // TC-62: everyone can choose to REMEMBER a person now — not just signed-in users.
+  // Anon taps route to a warm safekeeping sign-in (companion) that holds their words
+  // across the magic-link round-trip; signed-in taps run the remember flow directly.
+  // "Make a plan" stays the primary, first CTA so the anon path is value-first.
+  const signedIn = !!(window.TCCompanion && window.TCCompanion.isSignedIn && window.TCCompanion.isSignedIn());
+  const canRemember = !!(window.TCCompanion && window.TCCompanion.promptSignInToRemember); // companion loaded
   stage.innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="q-eyebrow">Here's what I heard</div>
       <p style="font-family:'Fraunces',Georgia,serif;font-size:20px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 18px;">“${escapeHtml(t)}”</p>
       <p class="q-help" style="text-align:center;">${canRemember ? 'What would you like to do?' : 'Make your plan from this?'}</p>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
-        <button type="button" class="cta" id="homePlanBtn">${canRemember ? 'Make a plan for this →' : 'Yes, make my plan →'}</button>
+        <button type="button" class="cta" id="homePlanBtn">${canRemember ? 'Make my plan for this →' : 'Yes, make my plan →'}</button>
         ${canRemember ? '<button type="button" class="cta sage" id="homeRememberBtn">Remember this about them →</button>' : ''}
         <button type="button" class="link-btn" id="homeEditBtn">Add details / edit first</button>
         <button type="button" class="link-btn" id="homeCancel2">Cancel</button>
@@ -1050,7 +1053,17 @@ function renderHomeReflect(text){
   scrim.scrollTop = 0;
   document.getElementById('homePlanBtn').onclick = () => startPlanFromText(t);
   const rememberBtn = document.getElementById('homeRememberBtn');
-  if (rememberBtn) rememberBtn.onclick = () => rememberFromText(t);
+  if (rememberBtn) rememberBtn.onclick = () => {
+    if (signedIn) rememberFromText(t);
+    else {
+      // anon → safekeeping sign-in (holds the request). Close the reflect flow first:
+      // the sign-in card lives in the companion modal (#tcModal, z-index 50) which sits
+      // BEHIND this flow's #scrim (z-index 70) — without this the card opens invisibly
+      // and the button appears to do nothing.
+      closeFlow();
+      window.TCCompanion.promptSignInToRemember(t);
+    }
+  };
   document.getElementById('homeEditBtn').onclick = () => { openFlow(); answers.moment = t; renderStep(); };
   document.getElementById('homeCancel2').onclick = closeFlow;
 }
@@ -1079,6 +1092,21 @@ function startPlanFromText(text){
   try { window.tcTrack && tcTrack('intake_start', { label: 'voice_home' }); } catch(e){}
   generate();
 }
+// Bridges for the companion layer (TC-62). companion.js owns auth + the magic-link
+// return; it hands control back here to deliver the plan (decline path) or to resume
+// the held "remember" request once the user is signed in.
+window.startPlanFromText = startPlanFromText;
+// Resume a remember request after a magic-link return: open the flow surface (the
+// scrim isn't open on a cold return), then run the normal preview→confirm→save flow
+// on the words we held. Lands on "[Name] is on your list."
+function tcResumeRemember(transcript){
+  const t = String(transcript || '').trim();
+  if (!t) return; // nothing held → companion falls back to opening the home
+  scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
+  __voicePerson = null; __voiceRememberOnSaved = null;
+  rememberFromText(t);
+}
+window.tcResumeRemember = tcResumeRemember;
 
 // ---- Remember a person by voice (TC-61 slice 2, signed-in) ----
 // Rides the existing capture engine in PREVIEW mode: extract + resolve who, write

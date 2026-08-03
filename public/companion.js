@@ -28,6 +28,35 @@ function voiceAllowed() {
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 
+/* ---------------- pending voice request (TC-62) ---------------------------------
+ * When an anon user speaks and chooses to REMEMBER a person, we can't run the
+ * (RLS-locked) capture engine until they have an account. So we hold the raw
+ * transcript on THEIR device across the magic-link email round-trip and resume
+ * the remember flow when they return signed in. Client-only, same-device, their
+ * own words — never pooled, never server-side (Option 1). One-shot read + 30-min TTL. */
+const PENDING_VOICE_KEY = "tc_pending_voice";
+const PENDING_VOICE_TTL_MS = 30 * 60 * 1000; // magic links are short-lived
+function stashPendingVoice({ intent, transcript }) {
+  try {
+    if (!intent || !transcript) return;
+    localStorage.setItem(PENDING_VOICE_KEY, JSON.stringify({ v: 1, intent, transcript, ts: Date.now() }));
+  } catch (e) { /* storage blocked/full → resume just won't fire; never throw */ }
+}
+function clearPendingVoice() { try { localStorage.removeItem(PENDING_VOICE_KEY); } catch (e) {} }
+// Read once, then delete. Returns null if missing, stale, wrong version, or malformed.
+function consumePendingVoice() {
+  let raw = null;
+  try { raw = localStorage.getItem(PENDING_VOICE_KEY); } catch (e) { return null; }
+  if (!raw) return null;
+  clearPendingVoice();
+  try {
+    const p = JSON.parse(raw);
+    if (!p || p.v !== 1 || !p.transcript || !p.ts) return null;
+    if (Date.now() - p.ts > PENDING_VOICE_TTL_MS) return null;
+    return p;
+  } catch (e) { return null; }
+}
+
 // Hand-drawn brand icons (24×24, fill:none, stroke-width 1.6, round caps/joins) so the
 // companion UI never uses emoji. `stroke` defaults to currentColor so an icon inherits its
 // button's text color (e.g. #fff on a filled-clay CTA). `sz` is pixel size.
@@ -133,7 +162,20 @@ async function boot() {
     // re-fires SIGNED_IN on session restore and tab refocus, so we consume the flag
     // after the first open — otherwise the panel keeps popping up unbidden when the
     // user comes back to the tab from another screen.
-    if (evt === "SIGNED_IN" && fromMagicLink) { fromMagicLink = false; closeModal(); openHome(); }
+    if (evt === "SIGNED_IN" && fromMagicLink) {
+      fromMagicLink = false;
+      // TC-62: if they came back to finish remembering someone they spoke about
+      // while anon, resume that exact request (their words are held on this device)
+      // and land on "[Name] is on your list" — not a blank home.
+      const pend = consumePendingVoice();
+      if (pend && pend.intent === "remember" && pend.transcript && window.tcResumeRemember) {
+        closeModal();
+        try { window.tcTrack && window.tcTrack("voice_remember_resumed"); } catch (e) {}
+        window.tcResumeRemember(pend.transcript);
+        return;
+      }
+      closeModal(); openHome();
+    }
   });
 
   ensureModal();
@@ -143,6 +185,9 @@ async function boot() {
   window.TCCompanion = {
     isSignedIn: () => !!user, mountSaveToPerson, openHome, openSignIn, refreshAuthBtn: renderAuthBtn,
     voiceAllowed, voiceAudience: () => voiceAudience, authToken: () => accessToken,
+    // TC-62: anon "remember" → safekeeping sign-in that holds the spoken request
+    // across the magic-link round-trip.
+    promptSignInToRemember,
     // Voice "remember a person" bridge (TC-61 slice 2). Preview = extract + resolve, write
     // nothing; confirm = write. factsToText renders facts in the same plain words the app uses.
     capturePreview: (rawText) => captureExtract(sb, { rawText, source: "voice", preview: true }),
@@ -235,7 +280,11 @@ function openSignIn() {
 
 // A clean, inviting confirmation after a sign-in link is sent — replaces the form
 // entirely (no more email box) so the whole screen says "we've got it, go check".
-function renderCheckInbox(email) {
+// opts.note appends a small extra line (TC-62 safekeeping: "open on this device");
+// opts.onRetry overrides the "use a different email" handler (default: openSignIn).
+function renderCheckInbox(email, opts = {}) {
+  const noteHtml = opts.note
+    ? `<p class="tc-help-sm" style="text-align:center;max-width:34ch;margin:0 auto 16px;color:var(--ink,#3b362e);">${opts.noteHtml || esc(opts.note)}</p>` : "";
   modalBody().innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="tc-sent-badge" aria-hidden="true">
@@ -246,12 +295,65 @@ function renderCheckInbox(email) {
       </div>
       <h2 class="q-title" style="margin-top:14px;">Check your inbox</h2>
       <p class="q-help" style="max-width:34ch;margin-left:auto;margin-right:auto;">We just sent a sign-in link to <b>${esc(email)}</b>. Open it from your email and you're in — no password to remember.</p>
+      ${noteHtml}
       <p class="tc-help-sm" style="text-align:center;max-width:34ch;margin:0 auto 20px;">The link opens right back here. You can safely close this window in the meantime.</p>
       <button class="cta" id="tcInboxDone" style="min-width:180px;justify-content:center;">Got it</button>
       <div class="k-privacy" style="margin-top:16px;">Didn't see it? Check spam, or <button class="link-btn tc-inbox-retry" style="padding:0 2px;">use a different email</button>.</div>
     </div>`;
   modalBody().querySelector("#tcInboxDone").onclick = closeModal;
-  modalBody().querySelector(".tc-inbox-retry").onclick = openSignIn;
+  modalBody().querySelector(".tc-inbox-retry").onclick = opts.onRetry || openSignIn;
+}
+
+/* ---------------- safekeeping sign-in (TC-62) ------------------------------------
+ * An anon user spoke and chose to REMEMBER a person. We don't wall the mic — we
+ * invite sign-in *at this moment* as SAFEKEEPING (not a gate), reflect their words
+ * back warmly, and never dead-end: they can always "just make my plan instead".
+ * On send we stash the transcript so the magic-link return resumes the remember. */
+function promptSignInToRemember(transcript) {
+  const t = String(transcript || "").trim();
+  if (!t) { openSignIn(); return; }
+  try { window.tcTrack && window.tcTrack("voice_remember_signin_prompted"); } catch (e) {}
+  openModal();
+  modalBody().innerHTML = `
+    <div class="panel-body">
+      <div class="q-eyebrow">Let me hold onto that</div>
+      <h2 class="q-title">Keep them close</h2>
+      <p class="q-help">I've got what you said. Sign in with just your email and I'll keep this person — and the dates that matter to them — safe, and gently remind you before each one. No password.</p>
+      <blockquote style="font-family:'Fraunces',Georgia,serif;font-size:16.5px;line-height:1.5;color:var(--ink,#3b362e);border-left:3px solid var(--sage,#7d8a68);margin:14px 0 16px;padding:2px 0 2px 14px;text-align:left;">“${esc(t)}”</blockquote>
+      <input type="email" id="tcEmail" placeholder="you@email.com" autocomplete="email" />
+      <div class="nav"><span></span><button class="cta" id="tcSendLink">Email me a link to keep them →</button></div>
+      <div class="k-msg" id="tcAuthMsg"></div>
+      <div style="text-align:center;margin-top:14px;"><button class="link-btn" id="tcRememberDecline">Just make my plan instead →</button></div>
+      <div class="k-privacy" style="margin-top:12px;">We use your email only for this — no password, no sharing, no spam.</div>
+    </div>`;
+  const emailEl = modalBody().querySelector("#tcEmail");
+  emailEl.focus();
+  const send = async () => {
+    const email = (emailEl.value || "").trim();
+    const msg = modalBody().querySelector("#tcAuthMsg");
+    const btn = modalBody().querySelector("#tcSendLink");
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = "k-msg bad"; msg.textContent = "Please enter a valid email address."; return; }
+    btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Sending your link…";
+    const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
+    if (error) { btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = error.message || "Could not send the link. Please try again."; return; }
+    // Hold the request on THIS device so the magic-link return resumes it (Option 1).
+    stashPendingVoice({ intent: "remember", transcript: t });
+    try { window.tcTrack && window.tcTrack("voice_remember_signin_sent"); } catch (e) {}
+    renderCheckInbox(email, {
+      note: "Open the link on this device to pick up right where you left off.",
+      noteHtml: "Open the link on <b>this device</b> to pick up right where you left off.",
+      onRetry: () => promptSignInToRemember(t),
+    });
+  };
+  modalBody().querySelector("#tcSendLink").onclick = send;
+  emailEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); send(); } });
+  // Never a dead-end: decline still delivers the one-off plan (guardrail).
+  modalBody().querySelector("#tcRememberDecline").onclick = () => {
+    clearPendingVoice();
+    try { window.tcTrack && window.tcTrack("voice_remember_declined_to_plan"); } catch (e) {}
+    closeModal();
+    if (window.startPlanFromText) window.startPlanFromText(t);
+  };
 }
 
 /* ---------------- data ---------------- */
