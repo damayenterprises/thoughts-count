@@ -13,6 +13,7 @@
 // the right structured facts instead of one flat note — one memory store, smarter capture.
 
 import { captureExtract } from "/_capture.js";
+import { mountInlineMic, ensureInlineMicStyles } from "/_inline-mic.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -141,6 +142,7 @@ export async function createNote(sb, personId, text) {
 // add / edit / delete. opts.facts = initial rows (skips a fetch); opts.onChange = called after
 // any change so the caller can refresh anything derived (counts, etc.).
 export function mountNoticed(container, sb, person, opts = {}) {
+  ensureInlineMicStyles(); // inline-mic rules available before index CSS parses
   let facts = opts.facts || null;
   const onChange = typeof opts.onChange === "function" ? opts.onChange : () => {};
 
@@ -197,6 +199,16 @@ export function mountNoticed(container, sb, person, opts = {}) {
     };
     container.querySelector(".tc-noticed-save").onclick = add;
     input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); add(); } });
+
+    // Speak a note onto this person via the inline mic (identity known → confirm-then-save,
+    // no "which one?"; capture mode drives the calm home overlay + confirm flow).
+    mountInlineMic(input, {
+      mode: "capture",
+      personId: person.id,
+      personName: person.name,
+      onSaved: async () => { await refresh(); onChange(); },
+      ariaLabel: "Add a note by voice",
+    });
 
     // Edit (inline)
     container.querySelectorAll(".tc-noticed-edit").forEach((btn) => {

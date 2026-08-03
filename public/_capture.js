@@ -13,8 +13,16 @@
 // Principle 4 (spec §7): only warm, plain language is ever shown — never fact_class / confidence
 // / salience. The server sends the plain-language evidence; we just render it.
 
+import { mountInlineMic, ensureInlineMicStyles } from "/_inline-mic.js";
+
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
+
+// Hand-drawn brand icons (stroke style; no emoji). Inherit color via currentColor.
+const _svg = (paths, sz, stroke = "currentColor") =>
+  `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:0 0 auto;">${paths}</svg>`;
+const xSvg = (sz = 16, stroke = "currentColor") => _svg(`<path d="M6 6l12 12M18 6L6 18"/>`, sz, stroke);
+const checkSvg = (sz = 16, stroke = "currentColor") => _svg(`<path d="M5 13l4 4L19 7"/>`, sz, stroke);
 
 /* ---------------- network ---------------- */
 
@@ -31,8 +39,8 @@ async function post(sb, path, body) {
   return json;
 }
 
-export function captureExtract(sb, { rawText, lockedPersonId = null, source = "typed" }) {
-  return post(sb, "/api/capture/extract", { rawText, lockedPersonId, source });
+export function captureExtract(sb, { rawText, lockedPersonId = null, source = "typed", preview = false }) {
+  return post(sb, "/api/capture/extract", { rawText, lockedPersonId, source, preview });
 }
 export function captureResolve(sb, { captureId, action, personId = null, newPersonName = null, contactKind = null }) {
   return post(sb, "/api/capture/resolve", { captureId, action, personId, newPersonName, contactKind });
@@ -59,6 +67,7 @@ export async function loadPending(sb) {
 /* ---------------- styles (injected once) ---------------- */
 
 function ensureStyles() {
+  ensureInlineMicStyles(); // inline-mic rules available before index CSS parses
   if (document.getElementById("tcCaptureCss")) return;
   const s = document.createElement("style");
   s.id = "tcCaptureCss";
@@ -100,7 +109,7 @@ export function showToast(message, { undoLabel = "Undo", onUndo = null } = {}) {
   if (toastTimer) clearTimeout(toastTimer);
   const el = document.createElement("div");
   el.className = "tc-toast";
-  el.innerHTML = `<span><b>${esc(message)}</b> ✓</span>${onUndo ? `<button class="tc-toast-undo">${esc(undoLabel)}</button>` : ""}`;
+  el.innerHTML = `<span style="display:inline-flex;align-items:center;gap:7px;"><b>${esc(message)}</b>${checkSvg(15, "currentColor")}</span>${onUndo ? `<button class="tc-toast-undo">${esc(undoLabel)}</button>` : ""}`;
   document.body.appendChild(el);
   requestAnimationFrame(() => el.classList.add("show"));
   const dismiss = () => { el.classList.remove("show"); setTimeout(() => el.remove(), 220); };
@@ -136,7 +145,7 @@ const HINT_KEY = "tc_qc_hint_seen";
 // dismissible tip so its purpose is obvious. Returns "" once dismissed.
 export function qcHintHtml() {
   if (localStorage.getItem(HINT_KEY)) return "";
-  return `<div class="tc-qc-hint" id="tcQcHint"><span>Tip: jot anything about someone here — “Maria just started a new job” — and we'll file it to the right person.</span><button class="tc-qc-hint-x" aria-label="Dismiss">✕</button></div>`;
+  return `<div class="tc-qc-hint" id="tcQcHint"><span>Tip: jot anything about someone here — “Maria just started a new job” — and we'll file it to the right person.</span><button class="tc-qc-hint-x" aria-label="Dismiss" style="display:inline-flex;align-items:center;">${xSvg(15, "currentColor")}</button></div>`;
 }
 export function wireQcHint(root) {
   const x = (root || document).querySelector("#tcQcHint .tc-qc-hint-x");
@@ -160,7 +169,7 @@ export function flashCard(el) {
 // host can refresh the To-Review badge and any visible cards.
 export function mountQuickCapture(container, sb, { contactKind = "personal", onChange = null, placeholder } = {}) {
   ensureStyles();
-  const ph = placeholder || "Note something — e.g. “Maria just started a new job”";
+  const ph = placeholder || "Note something worth remembering…";
   container.innerHTML = `
     <div class="tc-qc">
       <div class="tc-qc-row">
@@ -171,6 +180,8 @@ export function mountQuickCapture(container, sb, { contactKind = "personal", onC
     </div>`;
   const input = container.querySelector(".tc-qc-input");
   const btn = container.querySelector(".tc-qc-save");
+  // Voice = the inline mic inside the note box (capture mode → calm home overlay + confirm flow).
+  mountInlineMic(input, { mode: "capture", onSaved: () => { if (onChange) onChange(); }, ariaLabel: "Note something by voice" });
   const msg = container.querySelector(".tc-qc-msg");
   const setMsg = (t, bad) => { msg.className = "k-msg tc-qc-msg" + (bad ? " bad" : ""); msg.textContent = t || ""; };
 

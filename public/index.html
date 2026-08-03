@@ -120,14 +120,15 @@
   .tc-noticed-tools .link-btn:hover, .tc-noticed-confirm .link-btn:hover { color: var(--clay-deep); }
   .tc-noticed-confirm { font-size: 13px; color: var(--ink-soft); }
   .tc-noticed-empty { padding: 4px 0 2px; }
-  .tc-noticed-add { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+  .tc-noticed-add { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 10px; }
   .tc-noticed-input, .tc-noticed-editinput { padding: 9px 12px; font-size: 14px; border-radius: 11px; }
-  .tc-noticed-add .link-btn.tc-noticed-save { flex: 0 0 auto; color: var(--sage-deep); font-weight: 700; }
+  .tc-noticed-add .tc-noticed-save { flex: 0 0 auto; border: 1.5px solid var(--line); background: var(--cloud); color: var(--sage-deep); font-weight: 700; border-radius: 11px; padding: 9px 16px; line-height: 1; }
+  .tc-noticed-add .tc-noticed-save:hover { border-color: var(--sage); }
   .tc-noticed-editinput { width: 100%; }
   .tc-noticed-msg:empty { display: none; }
   /* whole-person delete: a deliberately quiet danger control */
-  .tc-persondel-mount { margin-top: 12px; text-align: center; }
-  .tc-person-del { color: var(--ink-soft) !important; font-size: 13px !important; }
+  .tc-persondel-mount { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--line); text-align: right; }
+  .tc-person-del { color: var(--ink-soft) !important; font-size: 12.5px !important; }
   .tc-person-del:hover { color: var(--clay-deep) !important; }
   .tc-person-del-confirm { font-size: 13.5px; color: var(--ink); }
   .tc-person-del-confirm .link-btn { font-size: 13.5px; padding: 2px 4px; }
@@ -154,8 +155,8 @@
   .tc-field-label { display: block; margin: 12px 0 6px; font-size: 13.5px; color: var(--ink-soft); }
   .tc-sent-badge { width: 78px; height: 78px; margin: 8px auto 0; border-radius: 50%; background: var(--blush); display: flex; align-items: center; justify-content: center; }
   .tc-sent-badge svg { width: 42px; height: 42px; }
-  .tc-promise { display: flex; align-items: flex-start; gap: 12px; background: var(--blush); border: 1px solid var(--line); border-radius: 16px; padding: 14px 17px; margin: 2px 0 14px; }
-  .tc-promise svg { width: 22px; height: 22px; flex: 0 0 auto; margin-top: 1px; color: var(--sage-deep); }
+  .tc-promise { display: flex; align-items: center; gap: 12px; background: var(--blush); border: 1px solid var(--line); border-radius: 16px; padding: 14px 17px; margin: 2px 0 14px; }
+  .tc-promise svg { width: 22px; height: 22px; flex: 0 0 auto; color: var(--sage-deep); }
   .tc-promise .tc-promise-txt { font-size: 15px; color: var(--ink); line-height: 1.5; }
   .tc-promise b { color: var(--clay-deep); font-weight: 700; }
   .tc-account { font-size: 12.5px; color: var(--ink-soft); margin: 0; }
@@ -220,6 +221,10 @@
   /* ---------- modal ---------- */
   .scrim { position: fixed; inset: 0; background: rgba(59,54,46,.44); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; padding: 30px 16px; overflow-y: auto; z-index: 50; }
   .scrim.open { display: flex; }
+  /* The intake/voice overlay (#scrim) must sit ABOVE the companion "People" modal
+     (also .scrim, added to the DOM later) so a voice note tapped from inside People
+     is visible, not hidden behind it. */
+  #scrim { z-index: 70; }
   .panel { background: var(--paper); width: 100%; max-width: 660px; border-radius: 26px; box-shadow: 0 24px 70px rgba(50,35,15,.3); overflow: hidden; margin: auto 0; }
   .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--line); background: var(--cloud); }
   .panel-head .brand { font-size: 19px; }
@@ -385,6 +390,22 @@
     body.printing .panel { box-shadow: none !important; max-width: 100% !important; max-height: none !important; border: none !important; border-radius: 0 !important; overflow: visible !important; }
     body.printing #stage, body.printing .plan-body { overflow: visible !important; }
   }
+
+  /* Inline microphone — the ONE voice affordance, living at the edge of a text box (TC-51). */
+  .tc-imic { position: relative; display: block; }
+  .tc-imic > input, .tc-imic > textarea { padding-right: 48px; }
+  .tc-imic-btn { position: absolute; right: 6px; width: 40px; height: 40px; display: inline-flex; align-items: center; justify-content: center; padding: 0; margin: 0; border: none; background: transparent; color: var(--sage); border-radius: 999px; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: color .15s ease, background .15s ease, transform .12s ease; }
+  .tc-imic-btn svg { width: 18px; height: 18px; display: block; }
+  .tc-imic[data-multiline="false"] .tc-imic-btn { top: 50%; transform: translateY(-50%); }
+  .tc-imic[data-multiline="true"] .tc-imic-btn { top: 6px; }
+  .tc-imic-btn:hover { color: var(--sage-deep); background: var(--mist); }
+  .tc-imic-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist); color: var(--sage-deep); }
+  .tc-imic-btn[data-state="active"] { color: var(--clay-deep); background: #f6e3da; }
+  .tc-imic-btn[data-state="active"]::after { content: ""; position: absolute; inset: 0; border-radius: 999px; border: 1.5px solid var(--clay); opacity: .6; animation: tc-imic-pulse 1.8s ease-out infinite; }
+  @keyframes tc-imic-pulse { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(1.5); opacity: 0; } }
+  .tc-imic-btn[data-state="thinking"] { color: var(--ink-soft); pointer-events: none; }
+  .tc-imic-btn[data-state="error"] { color: var(--clay-deep); }
+  @media (prefers-reduced-motion: reduce) { .tc-imic-btn[data-state="active"]::after { animation: none !important; } }
 </style>
 </head>
 <body>
@@ -550,7 +571,7 @@
         <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg>
         Thoughts Count
       </div>
-      <button class="close" onclick="closeFlow()" aria-label="Close">✕</button>
+      <button class="close" onclick="closeFlow()" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="progress"><div class="fill" id="progressFill"></div></div>
     <div id="stage"></div>
@@ -565,7 +586,7 @@ const STEPS = [
   { key: "about", eyebrow: "Tell us about them", title: "What are they like?", help: "Anything that helps us make this feel like them — their personality, what they're going through, your history together.", picks: [], placeholder: "e.g. She's private and doesn't like a fuss, but she's been carrying a lot. We usually just chat about our kids." },
   { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure — guide me"], placeholder: "Optional — anything about your style or what you're comfortable with." },
   { key: "constraints", eyebrow: "Time & budget", title: "What can you give right now?", help: "Totally okay if it's not much. Sometimes the most meaningful gesture is free.", picks: ["Just a little time","An afternoon","No budget","Under $25","$25–75","$75–150","Money's not the issue"], placeholder: "Optional — e.g. I'm slammed this week but want to do something meaningful.",
-    extra: { key: "location", label: "📍 What town or ZIP are they in?", hint: "Optional — but if you add it, we'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
+    extra: { key: "location", label: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4" stroke="#c28a63"/></svg>What town or ZIP are they in?', hint: "Optional — but if you add it, we'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
 ];
 
 const answers = {};   // raw free-text per step
@@ -655,7 +676,14 @@ window.openFlowForPerson = openFlowForPerson;
 // Re-open a previously saved plan for viewing.
 function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; window.__tcBucket = null; renderPlan(plan); }
 window.renderSavedPlan = renderSavedPlan;
-function closeFlow(){ stopGenProgress(); stopRecordingIfAny(); if (typeof cancelHomeRecording === 'function') cancelHomeRecording(); scrim.classList.remove('open'); document.body.style.overflow=''; }
+function closeFlow(){
+  stopGenProgress(); stopRecordingIfAny(); if (typeof cancelHomeRecording === 'function') cancelHomeRecording();
+  scrim.classList.remove('open');
+  // If we opened over the "People" modal (voice-from-People), it's still open underneath —
+  // keep the page locked so it doesn't scroll behind it.
+  const peopleOpen = (() => { const m = document.getElementById('tcModal'); return !!(m && m.classList.contains('open')); })();
+  document.body.style.overflow = peopleOpen ? 'hidden' : '';
+}
 scrim.addEventListener('click', e => { if (e.target === scrim) closeFlow(); });
 function setProgress(p){ fill.style.width = p + '%'; }
 
@@ -684,8 +712,7 @@ function renderStep(){
       ${idx === 0 ? `<p class="q-reassure" style="margin:-4px 0 4px;font-size:12.5px;color:#b3a58c;">Takes about a minute — most people breeze through. Only this first question is needed.</p>` : ''}
       ${picksHtml}
       <textarea id="freetext" placeholder="${s.placeholder}">${current}</textarea>
-      <div class="mic-wrap" style="margin-top:8px;display:${voiceAllowedClient() ? 'flex' : 'none'};align-items:center;gap:10px;flex-wrap:wrap;">
-        <button type="button" id="micBtn" style="display:inline-flex;align-items:center;gap:8px;border:1px solid #d8ccae;background:#fffbf4;color:#3b362e;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;line-height:1;">${micSvg(16, 'currentColor', '#c28a63')}<span class="mic-label">Speak your answer</span></button>
+      <div class="mic-wrap" style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span id="micStatus" style="font-size:12.5px;color:var(--ink-soft,#7a7263);"></span>
       </div>
       ${s.extra ? `<label style="display:block;margin-top:14px;font-size:13.5px;color:var(--ink-soft);">${s.extra.label}</label>
@@ -722,8 +749,15 @@ function renderStep(){
   const clearStepMsg = () => { if (stepMsg) stepMsg.style.display = 'none'; ta.style.borderColor = ''; };
   ta.addEventListener('input', clearStepMsg);
   stage.querySelectorAll('.pick').forEach(b => b.addEventListener('click', clearStepMsg));
-  const micBtn = document.getElementById('micBtn');
-  if (micBtn) micBtn.addEventListener('click', () => toggleMic(micBtn, ta));
+  // Voice = one inline mic inside the box (dictation: records in place, appends text).
+  if (window.mountInlineMic) {
+    mountInlineMic(ta, { mode: 'dictation', ariaLabel: 'Speak your answer' });
+    const extra = document.getElementById('extrafield');
+    if (extra){
+      const isLoc = !!(s.extra && s.extra.key === 'location');
+      mountInlineMic(extra, { mode: 'dictation', ariaLabel: isLoc ? 'Say their town or ZIP' : 'Say their name' });
+    }
+  }
   document.getElementById('backBtn').onclick = () => { save(); if(idx>0){idx--; renderStep();} };
   document.getElementById('nextBtn').onclick = () => {
     save();
@@ -768,6 +802,11 @@ function micStatus(t){ const el = document.getElementById('micStatus'); if (el) 
 function setMic(btn, state){
   if (!btn) return;
   const lbl = btn.querySelector('.mic-label'); // update the label, keep the drawn icon
+  // Inline mic (.tc-imic-btn) has no label; it reflects state via data-state instead.
+  if (btn.classList && btn.classList.contains('tc-imic-btn')){
+    btn.setAttribute('data-state', state === 'recording' ? 'active' : (state === 'thinking' ? 'thinking' : 'idle'));
+    return;
+  }
   if (state === 'recording'){ if (lbl) lbl.textContent = 'Stop & write it'; btn.style.background = '#f6e3da'; btn.style.borderColor = '#d8a58c'; btn.disabled = false; }
   else if (state === 'thinking'){ if (lbl) lbl.textContent = 'one sec…'; btn.disabled = true; }
   else { if (lbl) lbl.textContent = 'Speak your answer'; btn.style.background = '#fffbf4'; btn.style.borderColor = '#d8ccae'; btn.disabled = false; }
@@ -827,6 +866,9 @@ function micSvg(size, stroke, foot){
     <line x1="8.5" y1="20.5" x2="15.5" y2="20.5" stroke="${foot}" stroke-width="1.6" stroke-linecap="round"/>
   </svg>`;
 }
+window.micSvg = micSvg; // reused by the People screens (companion modules) for voice affordances
+window.toggleMic = toggleMic; // the inline-mic dictation surfaces (companion modules) reuse this
+window.setMic = setMic;
 // Pencil for the "type it" method — same stroke language, clay accent on the tip.
 function penSvg(size, stroke, accent){
   return `<svg viewBox="0 0 24 24" aria-hidden="true" width="${size}" height="${size}">
@@ -861,10 +903,33 @@ setupHomeVoice();
 
 function startHomeVoice(){
   if (!voiceAllowedClient()) return;
+  __voicePerson = null; __voiceRememberOnSaved = null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   renderHomeListening();
   beginHomeRecording();
 }
+// General "remember by voice" entry for the "Note something" box in People — runs the
+// full flow (add / update / which-one). onSaved refreshes the People list after saving.
+let __voiceRememberOnSaved = null;
+function tcVoiceRemember(onSaved){
+  if (!voiceAllowedClient()) return;
+  __voicePerson = null; __voiceRememberOnSaved = onSaved || null;
+  scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
+  renderHomeListening();
+  beginHomeRecording(rememberFromText);
+}
+window.tcVoiceRemember = tcVoiceRemember;
+// Speak a note straight onto a known person (from their card in "People I Care about").
+// Identity is certain → no "which one?", just confirm-then-save on that person.
+let __voicePerson = null;
+function tcVoiceNote(personId, personName, onSaved){
+  if (!voiceAllowedClient()) return;
+  __voicePerson = { id: personId, name: personName || 'them', onSaved: onSaved || null };
+  scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
+  renderHomeListening();
+  beginHomeRecording(onLockedText);
+}
+window.tcVoiceNote = tcVoiceNote;
 function hStatus(t){ const el = document.getElementById('homeMicStatus'); if (el) el.textContent = t || ''; }
 function renderHomeListening(){
   stage.innerHTML = `
@@ -898,7 +963,8 @@ function toProcessing(){
   const ctrls = document.getElementById('homeListenControls'); if (ctrls) ctrls.style.display = 'none';
   hStatus('');
 }
-async function beginHomeRecording(){
+async function beginHomeRecording(onText){
+  const routeText = onText || renderHomeReflect; // where the transcript goes (home reflect, or a locked person)
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined'){
     renderHomeError("Your browser can't record here — you can type instead."); return;
   }
@@ -922,7 +988,7 @@ async function beginHomeRecording(){
       try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
       const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }) });
       const d = await r.json();
-      if (r.ok && d.text) renderHomeReflect(d.text);
+      if (r.ok && d.text) routeText(d.text);
       else renderHomeError((d && d.error) || "We couldn't catch that — try again or type it.");
     } catch(e){ renderHomeError("We couldn't catch that — try again or type it."); }
   };
@@ -966,19 +1032,25 @@ function renderHomeReflect(text){
   // "Here's what I heard: <blank>". Count Unicode letters/digits so this works for
   // every language (not just Latin) — Whisper transcribes many.
   if ((t.match(/[\p{L}\p{N}]/gu) || []).length < 2){ renderHomeError("I didn't quite catch that."); return; }
+  // Signed-in users can also "remember this" about a person (slice 2). Signed-out users
+  // stay value-first: plan only for now (the sign-in-that-keeps-your-words is slice 2b).
+  const canRemember = !!(window.TCCompanion && window.TCCompanion.isSignedIn && window.TCCompanion.isSignedIn());
   stage.innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="q-eyebrow">Here's what I heard</div>
       <p style="font-family:'Fraunces',Georgia,serif;font-size:20px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 18px;">“${escapeHtml(t)}”</p>
-      <p class="q-help" style="text-align:center;">Make your plan from this?</p>
+      <p class="q-help" style="text-align:center;">${canRemember ? 'What would you like to do?' : 'Make your plan from this?'}</p>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
-        <button type="button" class="cta" id="homePlanBtn">Yes, make my plan →</button>
+        <button type="button" class="cta" id="homePlanBtn">${canRemember ? 'Make a plan for this →' : 'Yes, make my plan →'}</button>
+        ${canRemember ? '<button type="button" class="cta sage" id="homeRememberBtn">Remember this about them →</button>' : ''}
         <button type="button" class="link-btn" id="homeEditBtn">Add details / edit first</button>
         <button type="button" class="link-btn" id="homeCancel2">Cancel</button>
       </div>
     </div>`;
   scrim.scrollTop = 0;
   document.getElementById('homePlanBtn').onclick = () => startPlanFromText(t);
+  const rememberBtn = document.getElementById('homeRememberBtn');
+  if (rememberBtn) rememberBtn.onclick = () => rememberFromText(t);
   document.getElementById('homeEditBtn').onclick = () => { openFlow(); answers.moment = t; renderStep(); };
   document.getElementById('homeCancel2').onclick = closeFlow;
 }
@@ -1006,6 +1078,176 @@ function startPlanFromText(text){
   answers.moment = String(text || '').trim();
   try { window.tcTrack && tcTrack('intake_start', { label: 'voice_home' }); } catch(e){}
   generate();
+}
+
+// ---- Remember a person by voice (TC-61 slice 2, signed-in) ----
+// Rides the existing capture engine in PREVIEW mode: extract + resolve who, write
+// nothing, show a confirm card (add / update / which-one), then save on confirm.
+let __voiceQueue = [];      // proposals still to confirm (a note can name >1 person)
+let __voiceTranscript = ''; // held so the plan bridge can reuse the original words
+async function rememberFromText(text){
+  const t = String(text || '').trim();
+  __voiceTranscript = t;
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment…</p><p class="lines">Figuring out who this is about.</p></div>`;
+  scrim.scrollTop = 0;
+  try {
+    const res = await window.TCCompanion.capturePreview(t);
+    const caps = (res && res.captures) || [];
+    if (!caps.length){ renderRememberEmpty(t, res && res.message); return; }
+    __voiceQueue = caps.slice();
+    renderNextRememberCard();
+  } catch(e){ renderHomeError((e && e.message) || "We couldn't do that just now — try again or type it."); }
+}
+function renderRememberEmpty(t, message){
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <p class="q-help">${escapeHtml(message || "I didn't catch anything to remember there.")}</p>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
+        <button type="button" class="cta" id="reEmptyPlan">Make a plan instead →</button>
+        <button type="button" class="link-btn" id="reEmptyRetry">Try again</button>
+        <button type="button" class="link-btn" id="reEmptyClose">Cancel</button>
+      </div>
+    </div>`;
+  document.getElementById('reEmptyPlan').onclick = () => startPlanFromText(t);
+  document.getElementById('reEmptyRetry').onclick = startHomeVoice;
+  document.getElementById('reEmptyClose').onclick = closeFlow;
+}
+function renderNextRememberCard(){
+  if (!__voiceQueue.length){ renderRememberDone(); return; }
+  renderRememberCard(__voiceQueue.shift());
+}
+function factsListHtml(facts){
+  let lines = [];
+  try { lines = (window.TCCompanion.factsToText(facts) || []); } catch(e){}
+  if (!lines.length) return '';
+  return `<ul style="text-align:left;display:inline-block;margin:10px 0 4px;padding-left:18px;color:var(--ink,#3b362e);">${lines.map(l => `<li style="margin:3px 0;">${escapeHtml(l)}</li>`).join('')}</ul>`;
+}
+function renderRememberCard(cap){
+  const first = (n) => String(n || '').trim().split(/\s+/)[0] || 'them';
+  const facts = factsListHtml(cap.facts);
+  if (cap.kind === 'pick'){
+    const who = cap.personHint ? first(cap.personHint) : 'them';
+    const rows = (cap.candidates || []).map((c, i) => {
+      // Show whatever distinguishes them (the engine sends location; relationship/last-note
+      // when available) so two same-name people are never indistinguishable buttons.
+      const sub = [c.relationship, c.location, c.lastNote || c.last].filter(Boolean).map(escapeHtml).join(' · ');
+      return `<button type="button" class="cta ghost re-pick" data-i="${i}" style="width:100%;justify-content:flex-start;text-align:left;">${escapeHtml(c.name || 'This person')}${sub ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${sub}</span>` : ''}</button>`;
+    }).join('');
+    stage.innerHTML = `
+      <div class="panel-body" style="text-align:center;">
+        <div class="q-eyebrow">A quick check</div>
+        <h2 class="q-title" style="font-size:22px;">Which ${escapeHtml(who)} do you mean?</h2>
+        ${facts}
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:14px;max-width:360px;margin-left:auto;margin-right:auto;">
+          ${rows}
+          <button type="button" class="cta ghost re-new" style="width:100%;justify-content:center;">Someone new</button>
+        </div>
+        <div style="margin-top:14px;"><button type="button" class="link-btn" id="reCancel">Cancel</button></div>
+      </div>`;
+    stage.querySelectorAll('.re-pick').forEach(b => b.onclick = () => { const c = cap.candidates[Number(b.dataset.i)]; confirmRemember(cap, { personId: c.id }); });
+    stage.querySelector('.re-new').onclick = () => confirmRemember(cap, { newPersonName: cap.personHint });
+    document.getElementById('reCancel').onclick = () => nextOrClose();
+    scrim.scrollTop = 0; return;
+  }
+  const isUpdate = cap.kind === 'update';
+  const name = isUpdate ? (cap.personName || 'them') : (cap.personHint || 'someone new');
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div class="q-eyebrow">${isUpdate ? 'Update · ' + escapeHtml(name) : 'New person'}</div>
+      <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 4px;">${isUpdate ? `I'll add this to ${escapeHtml(name)}:` : `I'll remember ${escapeHtml(name)} and note:`}</p>
+      ${facts}
+      <p class="q-help" style="margin-top:10px;">Sound right?</p>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px;">
+        <button type="button" class="cta" id="reConfirm">${isUpdate ? `Yes, add it` : `Yes, remember ${escapeHtml(first(name))}`}</button>
+        <button type="button" class="link-btn" id="reCancel">Cancel</button>
+      </div>
+    </div>`;
+  document.getElementById('reConfirm').onclick = () => confirmRemember(cap, isUpdate ? { personId: cap.personId } : { newPersonName: cap.personHint });
+  document.getElementById('reCancel').onclick = () => nextOrClose();
+  scrim.scrollTop = 0;
+}
+function nextOrClose(){ if (__voiceQueue.length) renderNextRememberCard(); else closeFlow(); }
+let __lastSavedName = '';
+async function confirmRemember(cap, choice){
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Saving…</p></div>`;
+  try {
+    const res = await window.TCCompanion.captureConfirm({ captureId: cap.captureId, personId: choice.personId || null, newPersonName: choice.newPersonName || null });
+    __lastSavedName = (res && res.personName) || choice.newPersonName || cap.personName || cap.personHint || 'them';
+    renderNextRememberCard();
+  } catch(e){ renderHomeError((e && e.message) || "We couldn't save that — try again."); }
+}
+function renderRememberDone(){
+  // If this came from the People "Note something" box, refresh that list now.
+  if (typeof __voiceRememberOnSaved === 'function'){ try { __voiceRememberOnSaved(); } catch(e){} __voiceRememberOnSaved = null; }
+  const name = __lastSavedName || 'them';
+  const first = String(name).trim().split(/\s+/)[0] || 'them';
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div style="display:flex;justify-content:center;"><svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg></div>
+      <h2 class="q-title" style="font-size:22px;margin-top:8px;">${escapeHtml(first)} is on your list.</h2>
+      <p class="q-help">I'll help you remember and show up for them.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:16px;">
+        <button type="button" class="cta" id="reDonePlan">Help me show up for ${escapeHtml(first)} →</button>
+        <button type="button" class="link-btn" id="reDoneClose">Done</button>
+      </div>
+    </div>`;
+  document.getElementById('reDonePlan').onclick = () => startPlanFromText(__voiceTranscript);
+  document.getElementById('reDoneClose').onclick = closeFlow;
+  scrim.scrollTop = 0;
+}
+
+// Voice note spoken on a known person's card — confirm, then save to that person.
+async function onLockedText(text){
+  const t = String(text || '').trim();
+  if ((t.match(/[\p{L}\p{N}]/gu) || []).length < 2){ renderHomeError("I didn't quite catch that."); return; }
+  if (!__voicePerson){ renderHomeReflect(t); return; }
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment…</p></div>`;
+  scrim.scrollTop = 0;
+  try {
+    const res = await window.TCCompanion.capturePreviewLocked(__voicePerson.id, t);
+    const cap = ((res && res.captures) || [])[0];
+    if (!cap){ renderLockedEmpty(res && res.message); return; }
+    renderLockedConfirm(cap);
+  } catch(e){ renderHomeError((e && e.message) || "We couldn't do that just now — try again."); }
+}
+function renderLockedEmpty(message){
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <p class="q-help">${escapeHtml(message || "I didn't catch anything to note there.")}</p>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
+        <button type="button" class="cta" id="lkRetry">Try again</button>
+        <button type="button" class="link-btn" id="lkClose">Cancel</button>
+      </div>
+    </div>`;
+  const p = __voicePerson;
+  document.getElementById('lkRetry').onclick = () => { if (p) tcVoiceNote(p.id, p.name, p.onSaved); };
+  document.getElementById('lkClose').onclick = closeFlow;
+}
+function renderLockedConfirm(cap){
+  const name = cap.personName || (__voicePerson && __voicePerson.name) || 'them';
+  const facts = factsListHtml(cap.facts);
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div class="q-eyebrow">Add to ${escapeHtml(name)}</div>
+      <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 4px;">I'll add this to ${escapeHtml(name)}:</p>
+      ${facts}
+      <p class="q-help" style="margin-top:10px;">Sound right?</p>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px;">
+        <button type="button" class="cta" id="lkConfirm">Yes, add it</button>
+        <button type="button" class="link-btn" id="lkCancel">Cancel</button>
+      </div>
+    </div>`;
+  scrim.scrollTop = 0;
+  document.getElementById('lkConfirm').onclick = async () => {
+    stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Saving…</p></div>`;
+    try {
+      await window.TCCompanion.captureConfirm({ captureId: cap.captureId, personId: cap.personId });
+      const cb = __voicePerson && __voicePerson.onSaved;
+      closeFlow();
+      if (typeof cb === 'function') cb();
+    } catch(e){ renderHomeError((e && e.message) || "We couldn't save that — try again."); }
+  };
+  document.getElementById('lkCancel').onclick = closeFlow;
 }
 
 // Combine the selected chips and the free text for a step into one answer string.
@@ -1141,7 +1383,7 @@ function renderGiftCard(g, i){
   const loc = (answers.location || '').trim();
   const lp = g.local_place;
   const priceTag = `<span class="price">${escapeHtml(g.price_range||'')}</span>`;
-  const gcBadge = `<span class="local-badge">🎁 Gift card</span>`;
+  const gcBadge = `<span class="local-badge"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="9" width="16" height="12" rx="1"/><path d="M2 5h20v4H2zM12 21V5"/><path d="M12 5S9 1 6.5 2.5 8 6 12 5Zm0 0s3-4 5.5-2.5S16 6 12 5Z"/></svg> Gift card</span>`;
 
   // Gift card — a "let them choose" option. Prefer a card to the real nearby
   // business we resolved (far more personal); otherwise a small, tasteful chooser.
@@ -1250,7 +1492,7 @@ function renderPlan(p){
     <div class="action">
       <div class="a-title">${escapeHtml(a.action)}</div>
       <div class="a-why">${escapeHtml(a.why_it_fits)}</div>
-      <div class="a-meta"><span>◷ ${escapeHtml(a.effort||'')}</span><span>${escapeHtml(a.approx_cost||'')}</span></div>
+      <div class="a-meta"><span><svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-2px;margin-right:5px;"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>${escapeHtml(a.effort||'')}</span><span>${escapeHtml(a.approx_cost||'')}</span></div>
     </div>`).join('');
   const follow = (p.follow_up||[]).map((f, i) => `
     <div class="followup">
@@ -1269,11 +1511,11 @@ function renderPlan(p){
     <div class="block">
       <h4>${icon('<rect x="4" y="9" width="16" height="12" rx="1"/><path d="M2 5h20v4H2zM12 21V5"/><path d="M12 5S9 1 6.5 2.5 8 6 12 5Zm0 0s3-4 5.5-2.5S16 6 12 5Z"/>')}If you'd like to send something</h4>
       ${gifts.map((g, i) => renderGiftCard(g, i)).join('')}
-      ${(answers.location||'').trim() ? '' : `<div class="mp-invite" style="margin:2px 4px 0;font-size:13px;color:var(--ink-soft,#7a7263);">📍 Know their town or ZIP? <a href="#" id="addLocationLink" style="color:var(--sage-deep);font-weight:600;">Add it</a> and we'll point you to real shops near them.</div>`}
+      ${(answers.location||'').trim() ? '' : `<div class="mp-invite" style="margin:2px 4px 0;font-size:13px;color:var(--ink-soft,#7a7263);"><span style="color:var(--sage-deep);vertical-align:-1px;margin-right:4px;">${PIN_SVG}</span>Know their town or ZIP? <a href="#" id="addLocationLink" style="color:var(--sage-deep);font-weight:600;">Add it</a> and we'll point you to real shops near them.</div>`}
       <div class="more-places">
         <div class="mp-label">More lovely places to look:</div>
         <div class="mp-links">
-          ${(answers.location||'').trim() ? `<a href="${mapsLink('gift and flower shops', answers.location)}" target="_blank" rel="noopener noreferrer">📍 Local shops near them</a>` : ''}
+          ${(answers.location||'').trim() ? `<a href="${mapsLink('gift and flower shops', answers.location)}" target="_blank" rel="noopener noreferrer" style="display:inline-flex;align-items:center;gap:5px;">${PIN_SVG}Local shops near them</a>` : ''}
           ${MORE_PLACES.map(m => `<a href="${m.url}" target="_blank" rel="noopener noreferrer">${escapeHtml(m.label)}</a>`).join('')}
         </div>
       </div>
@@ -1286,8 +1528,10 @@ function renderPlan(p){
   const fbChip = 'border:1px solid #e0d6bf;background:#fbf7ee;color:#5f5646;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;line-height:1;';
   const fbHard = !!(window.__tcBucket && window.__tcBucket.valence === 'hard_time');
   const fbAsk = fbHard ? "Did this feel right for what you're facing?" : "Did this help you feel more ready?";
-  const fbUpLabel = fbHard ? "This helped" : "👍&nbsp; Yes";
-  const fbDownLabel = fbHard ? "I need something different" : "👎&nbsp; Not quite";
+  const thumbUpSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v10H4V10h3Zm0 0 4.5-7a2 2 0 0 1 2 2.5L12.5 9H19a2 2 0 0 1 2 2.3l-1.2 6.5A2 2 0 0 1 17.8 20H7"/></svg>';
+  const thumbDownSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 14V4H4v10h3Zm0 0 4.5 7a2 2 0 0 0 2-2.5L12.5 15H19a2 2 0 0 0 2-2.3l-1.2-6.5A2 2 0 0 0 17.8 4H7"/></svg>';
+  const fbUpLabel = fbHard ? "This helped" : thumbUpSvg + "<span>Yes</span>";
+  const fbDownLabel = fbHard ? "I need something different" : thumbDownSvg + "<span>Not quite</span>";
   const fbReasonsHtml = fbHard ? '' : `
       <div class="fb-reasons" id="fbReasons" hidden style="margin-top:12px;opacity:0;transition:opacity .25s ease;">
         <div style="font-size:13px;color:var(--ink-soft,#7a7263);margin-bottom:8px;">What was off? <span style="opacity:.65;">(optional)</span></div>
@@ -1302,8 +1546,8 @@ function renderPlan(p){
     <div class="plan-fb" id="planFb" style="margin:20px auto 0;max-width:520px;text-align:center;">
       <div class="fb-ask" style="font-size:14.5px;color:#5f5646;">${fbAsk}</div>
       <div class="fb-btns" style="display:inline-flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-top:10px;">
-        <button type="button" class="fb-btn" data-v="up" aria-label="${fbHard ? 'This helped' : 'Yes, this helped'}" style="${fbPill}">${fbUpLabel}</button>
-        <button type="button" class="fb-btn" data-v="down" aria-label="${fbHard ? 'I need something different' : 'Not quite'}" style="${fbPill}">${fbDownLabel}</button>
+        <button type="button" class="fb-btn" data-v="up" aria-label="${fbHard ? 'This helped' : 'Yes, this helped'}" style="${fbPill}${fbHard ? '' : 'display:inline-flex;align-items:center;gap:7px;'}">${fbUpLabel}</button>
+        <button type="button" class="fb-btn" data-v="down" aria-label="${fbHard ? 'I need something different' : 'Not quite'}" style="${fbPill}${fbHard ? '' : 'display:inline-flex;align-items:center;gap:7px;'}">${fbDownLabel}</button>
       </div>
       ${fbReasonsHtml}
       <div class="fb-thanks" id="fbThanks" hidden aria-live="polite" style="margin-top:12px;opacity:0;transition:opacity .25s ease;font-size:14px;color:var(--sage-deep,#5f6c4c);font-weight:700;">Thank you — that means a lot.</div>
@@ -1410,7 +1654,7 @@ function renderPlan(p){
         msg.textContent = (wantReminders && d.scheduled)
           ? `Sent! Check your inbox. We'll gently nudge you ${d.scheduled} more time${d.scheduled > 1 ? 's' : ''} as the dates come.`
           : 'Sent! Check your inbox.';
-        emailBtn.textContent = 'Sent ✓';
+        emailBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="vertical-align:-3px;margin-right:5px;"><path d="M5 13l4 4L19 7"/></svg>Sent';
       } else {
         msg.className = 'k-msg bad'; msg.textContent = d.error || 'Could not send. Please try again.'; emailBtn.disabled = false;
       }
@@ -1570,6 +1814,9 @@ function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'
   // Expose the relationship-chip matcher (TC-49 UX fix #4) to the non-module intake script.
   import { matchRelationshipChip } from '/_relationship.js';
   window.matchRelationshipChip = matchRelationshipChip;
+  // The single inline-mic factory (assigns window.mountInlineMic for the classic intake script
+  // above; ES modules import it directly from /_inline-mic.js).
+  import '/_inline-mic.js';
 </script>
 <script type="module" src="/companion.js"></script>
 <script type="module" src="/roster.js"></script>

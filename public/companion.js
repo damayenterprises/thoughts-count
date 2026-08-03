@@ -6,7 +6,8 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
-import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard } from "/_capture.js";
+import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve } from "/_capture.js";
+import { mountInlineMic } from "/_inline-mic.js";
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
 let reviewOpen = false; // keep the To-Review panel open across confirms
@@ -26,6 +27,20 @@ function voiceAllowed() {
 }
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
+
+// Hand-drawn brand icons (24×24, fill:none, stroke-width 1.6, round caps/joins) so the
+// companion UI never uses emoji. `stroke` defaults to currentColor so an icon inherits its
+// button's text color (e.g. #fff on a filled-clay CTA). `sz` is pixel size.
+const svgWrap = (paths, sz = 16, stroke = "currentColor") =>
+  `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:0 0 auto;">`
+  + paths + `</svg>`;
+// Brand heart (matches the inline hero/modal heart) + optional clay accent circle.
+const heartSvg = (sz = 16, stroke = "#7d8a68") =>
+  svgWrap(`<path d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" stroke="#c28a63"/>`, sz, stroke);
+const listSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M4 6h16M4 12h16M4 18h16"/>`, sz, stroke);
+const plusSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M12 5v14M5 12h14"/>`, sz, stroke);
+const xSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M6 6l12 12M18 6L6 18"/>`, sz, stroke);
+const checkSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M5 13l4 4L19 7"/>`, sz, stroke);
 
 // Launch the plan flow for a saved person, handing the intake their remembered memory so the
 // plan reads what we've noticed (not a notes blob) and step 3 pre-fills from it (TC-49). Facts
@@ -125,7 +140,18 @@ async function boot() {
   mountAuthBtn();
   renderAuthBtn();
 
-  window.TCCompanion = { isSignedIn: () => !!user, mountSaveToPerson, openHome, openSignIn, refreshAuthBtn: renderAuthBtn, voiceAllowed, voiceAudience: () => voiceAudience, authToken: () => accessToken };
+  window.TCCompanion = {
+    isSignedIn: () => !!user, mountSaveToPerson, openHome, openSignIn, refreshAuthBtn: renderAuthBtn,
+    voiceAllowed, voiceAudience: () => voiceAudience, authToken: () => accessToken,
+    // Voice "remember a person" bridge (TC-61 slice 2). Preview = extract + resolve, write
+    // nothing; confirm = write. factsToText renders facts in the same plain words the app uses.
+    capturePreview: (rawText) => captureExtract(sb, { rawText, source: "voice", preview: true }),
+    // Person-card voice note: identity is known, so preview targets that one person.
+    capturePreviewLocked: (personId, rawText) => captureExtract(sb, { rawText, lockedPersonId: personId, source: "voice", preview: true }),
+    captureConfirm: ({ captureId, personId = null, newPersonName = null }) => captureResolve(sb, { captureId, action: "confirm", personId, newPersonName }),
+    factsToText: (facts) => noticedList(facts),
+    openPerson: (personId) => openHome(),
+  };
   // Voice UI (e.g. the dictation mic) may have rendered before the gate resolved —
   // let the page re-check now that we know the audience + sign-in state.
   try { window.dispatchEvent(new Event("tc-voice-gate-ready")); } catch (e) {}
@@ -142,8 +168,8 @@ function renderAuthBtn() {
   if (user) {
     // Pro users get a small entry point to their full book-of-business roster (TC-38).
     const pro = !!(window.TCRoster && window.TCRoster.isPro && window.TCRoster.isPro());
-    const rosterBtn = pro ? `<button class="tc-authbtn ghost" id="tcRosterBtn" style="margin-right:8px;">☰ My roster</button>` : "";
-    slot.innerHTML = rosterBtn + `<button class="tc-authbtn" id="tcHomeBtn">♡ People I care about</button>`;
+    const rosterBtn = pro ? `<button class="tc-authbtn ghost" id="tcRosterBtn" style="margin-right:8px;display:inline-flex;align-items:center;gap:6px;">${listSvg(16)}<span>My roster</span></button>` : "";
+    slot.innerHTML = rosterBtn + `<button class="tc-authbtn" id="tcHomeBtn" style="display:inline-flex;align-items:center;gap:6px;">${heartSvg(16, "currentColor")}<span>People I care about</span></button>`;
     const rb = slot.querySelector("#tcRosterBtn");
     if (rb) rb.onclick = () => window.TCRoster.open();
     slot.querySelector("#tcHomeBtn").onclick = openHome;
@@ -166,7 +192,7 @@ function ensureModal() {
           <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg>
           Thoughts Count
         </div>
-        <button class="close" id="tcModalClose" aria-label="Close">✕</button>
+        <button class="close" id="tcModalClose" aria-label="Close">${xSvg(18)}</button>
       </div>
       <div id="tcModalBody"></div>
     </div>`;
@@ -369,10 +395,9 @@ function personCard(p) {
   const savedHtml = sp.length ? `<div class="tc-savedplans"><div class="tc-sp-label">Plans you've made</div>${
     sp.map((x) => `<button class="tc-sp-row" data-pid="${p.id}" data-spid="${x.id}">${esc(x.plan_title || x.occasion || "A plan")}</button>`).join("")
   }</div>` : "";
-  const next = soonestDate(p);
-  const nextHtml = next
-    ? `<div class="tc-next"><span class="tc-next-dot"></span>${esc(next.label)} — <b>${relativeWhen(next.days)}</b></div>`
-    : "";
+  // The standalone next-date pill was dropped (visual-polish punch list): the sorted date rows
+  // below already lead with the soonest date and each carries its own "· in N days" hint, so the
+  // pill only duplicated the first row.
   const dates = (p.key_dates || []).slice().sort((a, b) => {
     // Partials have no real upcoming day → sort as no-occurrence (with past/undated), so
     // they never masquerade as an imminent date among full dates.
@@ -385,12 +410,11 @@ function personCard(p) {
       <h4 style="justify-content:space-between;margin-bottom:6px;">
         <span>${esc(p.name)}${p.relationship ? ` <span class="tc-rel">· ${esc(p.relationship)}</span>` : ""}</span>
       </h4>
-      ${nextHtml}
       <div class="tc-dates">${dates.map(dateLine).join("") || `<div class="tc-empty">No dates yet — add one so we can gently remind you.</div>`}</div>
       <button class="tc-add-date link-btn" data-pid="${p.id}">+ Add a date or reminder</button>
       <div class="tc-noticed-mount" data-pid="${p.id}"></div>
       ${savedHtml}
-      <button class="cta tc-showup" data-pid="${p.id}">♡ Help me show up for ${esc(firstName(p.name))}</button>
+      <button class="cta tc-showup" data-pid="${p.id}">${heartSvg(16, "currentColor")}<span>Help me show up for ${esc(firstName(p.name))}</span></button>
       <div class="tc-persondel-mount" data-pid="${p.id}"></div>
     </div>`;
 }
@@ -440,7 +464,7 @@ function renderHome(people, opts = {}) {
       ${captureStripHtml(people)}
       ${controls}
       <div id="tcPeopleList"></div>
-      <button class="cta ghost tc-addtoggle" id="tcAddToggle" style="width:100%;justify-content:center;margin-top:6px;">＋ Add someone</button>
+      <button class="cta ghost tc-addtoggle" id="tcAddToggle" style="width:100%;justify-content:center;margin-top:6px;">${plusSvg(16, "currentColor")}<span>Add someone</span></button>
       <div class="block tc-addwrap" id="tcAddForm" style="display:none;">
         <h4>Add someone</h4>
         <input type="text" id="np_name" placeholder="Their name" />
@@ -466,8 +490,8 @@ function renderHome(people, opts = {}) {
     });
 
     listEl().innerHTML = people.length
-      ? (view.length ? view.map(personCard).join("") : `<div class="tc-empty" style="padding:10px 0;">No one matches “${esc(query)}”.</div>`)
-      : `<div class="tc-empty" style="padding:8px 0 14px;">No one saved yet. Add the first person who matters to you — a friend, a teammate, someone you manage.</div>`;
+      ? (view.length ? view.map(personCard).join("") : `<div class="tc-empty" style="padding:10px 0;text-align:center;">No one matches “${esc(query)}”.</div>`)
+      : `<div class="tc-empty" style="padding:8px 0 14px;text-align:center;">No one saved yet. Add the first person who matters to you — a friend, a teammate, someone you manage.</div>`;
     wireCards();
   }
 
@@ -525,6 +549,14 @@ function renderHome(people, opts = {}) {
   const addToggle = modalBody().querySelector("#tcAddToggle");
   const showAdd = (on) => { addForm.style.display = on ? "" : "none"; addToggle.style.display = on ? "none" : ""; if (on) modalBody().querySelector("#np_name").focus(); };
   addToggle.onclick = () => showAdd(true);
+  // Voice on the add-someone fields = the inline mic inside each box (dictation → in-place
+  // record/transcribe/append via window.toggleMic). Mounts no-op if voice isn't available.
+  const npName = modalBody().querySelector("#np_name");
+  const npRel = modalBody().querySelector("#np_rel");
+  const npNotes = modalBody().querySelector("#np_notes");
+  if (npName) mountInlineMic(npName, { mode: "dictation", ariaLabel: "Say their name" });
+  if (npRel) mountInlineMic(npRel, { mode: "dictation", ariaLabel: "Say who they are to you" });
+  if (npNotes) mountInlineMic(npNotes, { mode: "dictation", ariaLabel: "Say something worth remembering" });
   modalBody().querySelector("#np_cancel").onclick = () => showAdd(false);
   if (!people.length) showAdd(true); // first-run: don't hide the only action
   modalBody().querySelector("#np_save").onclick = async () => {
@@ -608,7 +640,7 @@ async function mountSaveToPerson(stageEl, plan) {
     <h4>Keep this plan with your people</h4>
     <p class="k-sub">Save it to ${recipient ? esc(recipient) : "someone"}, and we'll remind you at just the right time to follow through.</p>
     <select id="tcPersonSel" class="tc-select">
-      <option value="__new">➕ New person${recipient ? `: ${esc(recipient)}` : ""}</option>
+      <option value="__new">+ New person${recipient ? `: ${esc(recipient)}` : ""}</option>
       ${opts}
     </select>
     <input type="text" id="tcNewName" placeholder="Their name" value="${esc(recipient)}" style="margin-top:10px;" />
@@ -647,9 +679,10 @@ async function mountSaveToPerson(stageEl, plan) {
       }
       msg.className = "k-msg ok";
       msg.textContent = reminderCount
-        ? `Saved ✓ — we'll nudge you on ${reminderCount} date${reminderCount > 1 ? "s" : ""} to follow through. Find them under “People I care about”.`
-        : "Saved ✓ — open “People I care about” to add their dates and turn on reminders.";
-      card.querySelector("#tcSavePlan").textContent = "Saved ✓";
+        ? `Saved — we'll nudge you on ${reminderCount} date${reminderCount > 1 ? "s" : ""} to follow through. Find them under “People I care about”.`
+        : "Saved — open “People I care about” to add their dates and turn on reminders.";
+      card.querySelector("#tcSavePlan").innerHTML = `${checkSvg(16, "currentColor")}<span>Saved</span>`;
+      card.querySelector("#tcSavePlan").style.cssText += ";display:inline-flex;align-items:center;gap:8px;justify-content:center;";
       card.querySelector("#tcSavePlan").disabled = true;
     } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }
   };
