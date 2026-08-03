@@ -1055,7 +1055,14 @@ function renderHomeReflect(text){
   const rememberBtn = document.getElementById('homeRememberBtn');
   if (rememberBtn) rememberBtn.onclick = () => {
     if (signedIn) rememberFromText(t);
-    else window.TCCompanion.promptSignInToRemember(t); // anon → safekeeping sign-in (holds the request)
+    else {
+      // anon → safekeeping sign-in (holds the request). Close the reflect flow first:
+      // the sign-in card lives in the companion modal (#tcModal, z-index 50) which sits
+      // BEHIND this flow's #scrim (z-index 70) — without this the card opens invisibly
+      // and the button appears to do nothing.
+      closeFlow();
+      window.TCCompanion.promptSignInToRemember(t);
+    }
   };
   document.getElementById('homeEditBtn').onclick = () => { openFlow(); answers.moment = t; renderStep(); };
   document.getElementById('homeCancel2').onclick = closeFlow;
