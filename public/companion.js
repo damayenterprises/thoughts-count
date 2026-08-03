@@ -284,7 +284,7 @@ function openSignIn() {
 // opts.onRetry overrides the "use a different email" handler (default: openSignIn).
 function renderCheckInbox(email, opts = {}) {
   const noteHtml = opts.note
-    ? `<p class="tc-help-sm" style="text-align:center;max-width:34ch;margin:0 auto 16px;color:var(--ink,#3b362e);"><b>${esc(opts.note)}</b></p>` : "";
+    ? `<p class="tc-help-sm" style="text-align:center;max-width:34ch;margin:0 auto 16px;color:var(--ink,#3b362e);">${opts.noteHtml || esc(opts.note)}</p>` : "";
   modalBody().innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="tc-sent-badge" aria-hidden="true">
@@ -341,6 +341,7 @@ function promptSignInToRemember(transcript) {
     try { window.tcTrack && window.tcTrack("voice_remember_signin_sent"); } catch (e) {}
     renderCheckInbox(email, {
       note: "Open the link on this device to pick up right where you left off.",
+      noteHtml: "Open the link on <b>this device</b> to pick up right where you left off.",
       onRetry: () => promptSignInToRemember(t),
     });
   };
