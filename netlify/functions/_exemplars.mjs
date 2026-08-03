@@ -25,7 +25,7 @@ export const EXEMPLARS = {
   bereavement: {
     what_to_say: [
       "I don't have the right words, and I won't pretend to — but I'm here, and I'm not going anywhere.",
-      "I keep thinking about them. When you're ready, I'd love for you to tell me a story about them.",
+      "I keep thinking about them. Whenever you're ready — even months from now — I'd love for you to tell me a story about them.",
       "You don't have to be okay around me. Whatever you're feeling is allowed.",
     ],
     what_not_to_say: [
@@ -58,7 +58,7 @@ export const EXEMPLARS = {
     ],
     what_not_to_say: [
       "\"Sleep when the baby sleeps\" — well-meant, but it lands as one more thing they're failing at.",
-      "\"Is he/she a good baby?\" — it implies a baby could be \"bad\"; ask how they're settling in instead.",
+      "\"Is the baby good?\" — it implies a baby could be \"bad\"; ask how they're all settling in instead.",
       "Unsolicited feeding or sleep advice — they're already drowning in opinions.",
     ],
     gestures: [
@@ -71,7 +71,7 @@ export const EXEMPLARS = {
   new_job_promotion: {
     what_to_say: [
       "They saw what the people who love you already knew. This wasn't luck — it was you.",
-      "So proud of you. Let's celebrate — first round's on me.",
+      "So proud of you. I want to hear the whole story — the part where you found out, all of it.",
       "You earned every bit of this. Can't wait to hear all about it.",
     ],
     what_not_to_say: [
@@ -81,6 +81,7 @@ export const EXEMPLARS = {
     ],
     gestures: [
       "Send a quick \"thinking of you, go get 'em\" text on their first morning.",
+      "Name one specific thing you've watched them do that made this inevitable — the moment, not just the title. It costs nothing and lands deeper than any gift.",
       "Plan a small celebration on their terms — a favorite meal, a toast. The acknowledgment matters more than the size.",
     ],
   },
@@ -105,7 +106,7 @@ export const EXEMPLARS = {
 
   job_loss: {
     what_to_say: [
-      "Their loss. You're good at what you do, and the right place will see it.",
+      "This one's on them, not you — you're good at what you do, and the right place will see it.",
       "This says nothing about your worth. How are you holding up?",
       "I'm in your corner — want to vent, want help, or just a distraction tonight?",
     ],
