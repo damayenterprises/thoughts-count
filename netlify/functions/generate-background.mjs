@@ -13,10 +13,10 @@ import { getStore } from "@netlify/blobs";
 import { logEvent, bucketOf } from "./_analytics.mjs";
 import { getExemplars, buildExemplarBlock } from "./_exemplars.mjs";
 
-const MODEL = "claude-sonnet-4-6";
-const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
+export const MODEL = "claude-sonnet-4-6";
+export const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
 
-const PLAN_SCHEMA = {
+export const PLAN_SCHEMA = {
   type: "object",
   properties: {
     plan_title: { type: "string", description: "A short 3-6 word label for saving this plan, leading with the person's NAME if one was given, then the occasion. E.g. 'Todd Hudgens, new job', 'Mom, cancer diagnosis', 'Sarah, new baby'. If no name was given, use the relationship, e.g. 'A coworker, new job'. No quotes, no 'Thoughts Count' prefix." },
@@ -74,7 +74,7 @@ const PLAN_SCHEMA = {
   required: ["plan_title", "headline", "what_matters_most", "what_to_say", "what_not_to_say", "thoughtful_actions", "spend_guidance", "gift_ideas", "follow_up", "closing_encouragement"],
 };
 
-const SYSTEM_PROMPT = `You are the intelligence behind Thoughts Count — an AI relationship companion that helps people show up for life's most important moments.
+export const SYSTEM_PROMPT = `You are the intelligence behind Thoughts Count — an AI relationship companion that helps people show up for life's most important moments.
 
 You are NOT a gift website, a greeting-card writer, or a generic chatbot. You are a thoughtful, emotionally intelligent guide. The person talking to you cares deeply and is a little afraid of getting it wrong. Your job is to replace their uncertainty with confidence.
 
@@ -200,7 +200,7 @@ export default async (req) => {
   }
 };
 
-function buildUserMessage(a) {
+export function buildUserMessage(a) {
   const moment = (a?.moment || "").trim();
   const relationship = (a?.relationship || "").trim();
   const name = (a?.name || "").trim();
