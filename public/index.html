@@ -379,6 +379,13 @@
   @keyframes tc-ripple { 0% { transform: scale(1); opacity: .45; } 70% { opacity: .12; } 100% { transform: scale(calc(2.1 + var(--level) * 1.3)); opacity: 0; } }
   @media (prefers-reduced-motion: reduce) { #homeMicBtn svg, .tc-listen-core, .tc-listen-ripple { animation: none !important; } }
 
+  /* TC-63: hands-free confirm cue — a calm "say yes, or tap" line shown under an
+     add/update confirm card while we listen for a spoken answer. Tap always works. */
+  .re-listen-cue { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--ink-soft, #7a7263); min-height: 18px; }
+  .re-listen-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--clay, #c28a63); animation: re-listen-pulse 1.6s ease-out infinite; }
+  @keyframes re-listen-pulse { 0% { box-shadow: 0 0 0 0 rgba(194,138,99,.45); } 100% { box-shadow: 0 0 0 10px rgba(194,138,99,0); } }
+  @media (prefers-reduced-motion: reduce) { .re-listen-dot { animation: none !important; } }
+
   /* Clean printout / save-as-PDF: only the plan, no animated background or chrome. */
   @media print {
     body.printing #bg, body.printing .bar, body.printing main, body.printing footer,
@@ -678,6 +685,8 @@ function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style
 window.renderSavedPlan = renderSavedPlan;
 function closeFlow(){
   stopGenProgress(); stopRecordingIfAny(); if (typeof cancelHomeRecording === 'function') cancelHomeRecording();
+  if (typeof stopConfirmListen === 'function') stopConfirmListen(); // TC-63: release the confirm mic
+
   scrim.classList.remove('open');
   // If we opened over the "People" modal (voice-from-People), it's still open underneath —
   // keep the page locked so it doesn't scroll behind it.
@@ -690,6 +699,7 @@ function setProgress(p){ fill.style.width = p + '%'; }
 function renderStep(){
   stopRecordingIfAny();
   __fromVoice = false; // any typed step means we're no longer in the voice-only path
+  __voiceHandsFree = false; // typed → no hands-free confirm listen
   const s = STEPS[idx];
   setProgress(Math.max(7, Math.round((idx / (STEPS.length)) * 100)));
   let sEyebrow = s.eyebrow, sTitle = s.title, sHelp = s.help;
@@ -856,6 +866,10 @@ async function toggleMic(btn, ta){
 // On a phone it leads; on a computer it sits beside the typed button, and if there's
 // no microphone at all we hide it so nothing dangles. Typing is always one tap away.
 const __hrec = { mr: null, chunks: [], active: false, stream: null, timer: null };
+// TC-63: true only when we reached a confirm card via a SPOKEN capture, so the
+// hands-free "say yes, or tap" listen arms itself only then (never on typed input or
+// a magic-link resume, where the user is at a keyboard). Set at each voice entry point.
+let __voiceHandsFree = false;
 // One hand-drawn mic, reused on the button and in the listening indicator (stroke
 // style matches the site's other icons). `foot` is the clay accent stroke.
 function micSvg(size, stroke, foot){
@@ -903,6 +917,7 @@ setupHomeVoice();
 
 function startHomeVoice(){
   if (!voiceAllowedClient()) return;
+  __voiceHandsFree = true; // spoken from the home mic → confirm cards can listen for "yes"
   __voicePerson = null; __voiceRememberOnSaved = null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   renderHomeListening();
@@ -913,6 +928,7 @@ function startHomeVoice(){
 let __voiceRememberOnSaved = null;
 function tcVoiceRemember(onSaved){
   if (!voiceAllowedClient()) return;
+  __voiceHandsFree = true;
   __voicePerson = null; __voiceRememberOnSaved = onSaved || null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   renderHomeListening();
@@ -924,6 +940,7 @@ window.tcVoiceRemember = tcVoiceRemember;
 let __voicePerson = null;
 function tcVoiceNote(personId, personName, onSaved){
   if (!voiceAllowedClient()) return;
+  __voiceHandsFree = true;
   __voicePerson = { id: personId, name: personName || 'them', onSaved: onSaved || null };
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   renderHomeListening();
@@ -1102,6 +1119,8 @@ window.startPlanFromText = startPlanFromText;
 function tcResumeRemember(transcript){
   const t = String(transcript || '').trim();
   if (!t) return; // nothing held → companion falls back to opening the home
+  // Magic-link return: the user is at a keyboard, not hands-free — confirm by tap only.
+  __voiceHandsFree = false;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   __voicePerson = null; __voiceRememberOnSaved = null;
   rememberFromText(t);
@@ -1151,6 +1170,7 @@ function factsListHtml(facts){
   return `<ul style="text-align:left;display:inline-block;margin:10px 0 4px;padding-left:18px;color:var(--ink,#3b362e);">${lines.map(l => `<li style="margin:3px 0;">${escapeHtml(l)}</li>`).join('')}</ul>`;
 }
 function renderRememberCard(cap){
+  stopConfirmListen(); // TC-63: never carry a listen from a previous card into this one
   const first = (n) => String(n || '').trim().split(/\s+/)[0] || 'them';
   const facts = factsListHtml(cap.facts);
   if (cap.kind === 'pick'){
@@ -1189,9 +1209,15 @@ function renderRememberCard(cap){
         <button type="button" class="cta" id="reConfirm">${isUpdate ? `Yes, add it` : `Yes, remember ${escapeHtml(first(name))}`}</button>
         <button type="button" class="link-btn" id="reCancel">Cancel</button>
       </div>
+      <div class="re-listen-cue" id="reListenCue" hidden></div>
     </div>`;
-  document.getElementById('reConfirm').onclick = () => confirmRemember(cap, isUpdate ? { personId: cap.personId } : { newPersonName: cap.personHint });
-  document.getElementById('reCancel').onclick = () => nextOrClose();
+  const choice = isUpdate ? { personId: cap.personId } : { newPersonName: cap.personHint };
+  // Same save whether confirmed by tap or by a spoken "yes" (TC-63); a tap stops the listen.
+  const doConfirm = () => { stopConfirmListen(); confirmRemember(cap, choice); };
+  const doCancel = () => { stopConfirmListen(); nextOrClose(); };
+  document.getElementById('reConfirm').onclick = doConfirm;
+  document.getElementById('reCancel').onclick = doCancel;
+  startConfirmListen({ onYes: doConfirm, onNo: doCancel });
   scrim.scrollTop = 0;
 }
 function nextOrClose(){ if (__voiceQueue.length) renderNextRememberCard(); else closeFlow(); }
@@ -1252,6 +1278,7 @@ function renderLockedEmpty(message){
   document.getElementById('lkClose').onclick = closeFlow;
 }
 function renderLockedConfirm(cap){
+  stopConfirmListen(); // TC-63: fresh card, fresh (or no) listen
   const name = cap.personName || (__voicePerson && __voicePerson.name) || 'them';
   const facts = factsListHtml(cap.facts);
   stage.innerHTML = `
@@ -1264,9 +1291,12 @@ function renderLockedConfirm(cap){
         <button type="button" class="cta" id="lkConfirm">Yes, add it</button>
         <button type="button" class="link-btn" id="lkCancel">Cancel</button>
       </div>
+      <div class="re-listen-cue" id="reListenCue" hidden></div>
     </div>`;
   scrim.scrollTop = 0;
-  document.getElementById('lkConfirm').onclick = async () => {
+  // Same save whether confirmed by tap or by a spoken "yes" (TC-63); a tap stops the listen.
+  const doConfirm = async () => {
+    stopConfirmListen();
     stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Saving…</p></div>`;
     try {
       await window.TCCompanion.captureConfirm({ captureId: cap.captureId, personId: cap.personId });
@@ -1275,7 +1305,144 @@ function renderLockedConfirm(cap){
       if (typeof cb === 'function') cb();
     } catch(e){ renderHomeError((e && e.message) || "We couldn't save that — try again."); }
   };
-  document.getElementById('lkCancel').onclick = closeFlow;
+  const doCancel = () => { stopConfirmListen(); closeFlow(); };
+  document.getElementById('lkConfirm').onclick = doConfirm;
+  document.getElementById('lkCancel').onclick = doCancel;
+  startConfirmListen({ onYes: doConfirm, onNo: doCancel });
+}
+
+// ---- Hands-free confirm: voice "yes"/"no" on an add/update card (TC-63) ----
+// Confirm-before-save NEVER goes away — this only adds a spoken shortcut for the exact
+// same Yes/Cancel the buttons do, so a note dictated while driving can be saved without
+// touching the screen. It rides the SAME /api/transcribe (Whisper) pipeline as capture
+// (one voice stack to maintain, audio on our own endpoint), not the browser's speech API.
+//
+// Trust bar (load-bearing): we save ONLY on a clear affirmative. Anything ambiguous or
+// unheard does nothing — the card stays and the tap buttons still work. When in doubt we
+// lean to NOT writing. Ambient speech that isn't a plain "yes" can't save a wrong detail.
+
+// A tight yes/no read. Negatives are checked first, so "not right" / "no, wrong person"
+// resolve to cancel, never to a save. Weak ambient words (ok/sure/right-alone) are left
+// out on purpose — they mis-trigger too easily; we want a deliberate "yes".
+function parseYesNo(text){
+  const t = String(text || '').toLowerCase().replace(/[^a-z\s']/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!t) return 'none';
+  const neg = /\b(no|nope|nah|cancel|stop|don't|dont|do not|not right|not quite|that's wrong|thats wrong|wrong|wait|never ?mind|hold on)\b/;
+  const pos = /\b(yes|yeah|yep|yup|yeh|correct|confirm|save it|add it|do it|sounds good|sounds right|that's right|thats right|go ahead|please do)\b/;
+  if (neg.test(t)) return 'no';
+  if (pos.test(t)) return 'yes';
+  return 'ambiguous';
+}
+
+// A dedicated short-answer recorder (kept separate from the note recorder __hrec/__rec so
+// their states never collide). Voice-activity detection off the mic level ends it ~0.7s
+// after the speaker stops, so a "yes" feels instant; a hard cap stops a silent window.
+const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null, raf: null, audioCtx: null, spoke: false, silenceStart: 0, aborted: false };
+function stopConfirmMeter(){
+  try { if (__crec.raf){ cancelAnimationFrame(__crec.raf); __crec.raf = null; } } catch(e){}
+  try { if (__crec.audioCtx){ __crec.audioCtx.close(); __crec.audioCtx = null; } } catch(e){}
+}
+function stopConfirmRecording(){ try { if (__crec.active && __crec.mr && __crec.mr.state === 'recording') __crec.mr.stop(); } catch(e){} }
+function abortConfirmRecording(){
+  __crec.aborted = true; __crec.active = false;
+  stopConfirmMeter();
+  try { if (__crec.mr && __crec.mr.state === 'recording'){ __crec.mr.onstop = null; __crec.mr.stop(); } } catch(e){}
+  try { __crec.stream && __crec.stream.getTracks().forEach(t => t.stop()); } catch(e){}
+  if (__crec.timer){ clearTimeout(__crec.timer); __crec.timer = null; }
+}
+// Record a short spoken answer and hand the transcript (or '' if nothing usable) to onText.
+// Returns false if the browser can't record or permission is denied → caller falls to tap.
+async function beginConfirmRecording(onText){
+  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') return false;
+  let stream;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch(e){ return false; }
+  // A tap (or navigation) may have resolved the card while the mic was opening — if so,
+  // don't bring a live recorder up behind it. Release the stream and bow out.
+  if (!__confirmActive){ try { stream.getTracks().forEach(t => t.stop()); } catch(e){} return false; }
+  __crec.stream = stream; __crec.chunks = []; __crec.active = true; __crec.spoke = false; __crec.silenceStart = 0; __crec.aborted = false;
+  // VAD: watch mic loudness; end shortly after speech stops.
+  try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = ctx.createMediaStreamSource(stream);
+    const analyser = ctx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.8;
+    src.connect(analyser);
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const loop = () => {
+      if (!__crec.active) return;
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0; for (let i = 0; i < buf.length; i++){ const v = (buf[i] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / buf.length);
+      const now = performance.now();
+      if (rms > 0.05){ __crec.spoke = true; __crec.silenceStart = 0; }
+      else if (__crec.spoke){ if (!__crec.silenceStart) __crec.silenceStart = now; else if (now - __crec.silenceStart > 700){ stopConfirmRecording(); return; } }
+      __crec.raf = requestAnimationFrame(loop);
+    };
+    loop(); __crec.audioCtx = ctx;
+  } catch(e){ /* no analyser → the hard cap below ends it */ }
+  const mr = new MediaRecorder(stream); __crec.mr = mr;
+  mr.ondataavailable = e => { if (e.data && e.data.size) __crec.chunks.push(e.data); };
+  mr.onstop = async () => {
+    __crec.active = false; stopConfirmMeter();
+    if (__crec.timer){ clearTimeout(__crec.timer); __crec.timer = null; }
+    try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
+    if (__crec.aborted) return; // user tapped or navigated away → ignore this recording
+    const blob = new Blob(__crec.chunks, { type: mr.mimeType || 'audio/webm' });
+    if (!blob.size || !__crec.spoke){ onText(''); return; } // silence → no-op, tap remains
+    setListenCue('thinking'); // heard something → reading it while the cue settles
+    try {
+      const b64 = await blobToBase64(blob);
+      const headers = { 'content-type': 'application/json' };
+      try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
+      const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }) });
+      const d = await r.json();
+      onText((r.ok && d.text) ? d.text : '');
+    } catch(e){ onText(''); }
+  };
+  mr.start();
+  // Hard cap: if they never answer out loud, stop and let them tap — don't hold the mic.
+  __crec.timer = setTimeout(() => { if (__crec.active) stopConfirmRecording(); }, 8000);
+  return true;
+}
+
+// The calm cue under a confirm card while we listen. Tap is always the visible primary.
+function setListenCue(state){
+  const el = document.getElementById('reListenCue'); if (!el) return;
+  if (state === 'hidden'){ el.hidden = true; el.innerHTML = ''; return; }
+  const dot = state === 'thinking' ? '' : '<span class="re-listen-dot" aria-hidden="true"></span>';
+  let txt = '';
+  if (state === 'listening') txt = 'Listening — say “yes,” or tap above';
+  else if (state === 'thinking') txt = 'One sec…';
+  else if (state === 'retry') txt = 'Didn’t catch that — say “yes,” or just tap';
+  el.innerHTML = dot + '<span aria-live="polite">' + txt + '</span>';
+  el.hidden = false;
+}
+
+// Arm the hands-free listen for the current add/update confirm card. No-op unless we got
+// here by voice and the gate is open. onYes/onNo fire the SAME actions as the buttons.
+let __confirmActive = false;
+async function startConfirmListen(opts){
+  const onYes = opts.onYes, onNo = opts.onNo, attempt = opts.attempt || 0;
+  if (!__voiceHandsFree || !voiceAllowedClient()) return; // typed / gated → tap only
+  __confirmActive = true;
+  setListenCue('listening');
+  const ok = await beginConfirmRecording((text) => {
+    if (!__confirmActive) return; // a tap already resolved the card
+    const verdict = parseYesNo(text);
+    if (verdict === 'yes'){ __confirmActive = false; setListenCue('thinking'); onYes(); return; }
+    if (verdict === 'no'){ __confirmActive = false; setListenCue('hidden'); onNo(); return; }
+    // Heard something unclear → offer one more listen; otherwise settle to tap silently.
+    if (verdict === 'ambiguous' && attempt === 0){ setListenCue('retry'); startConfirmListen({ onYes, onNo, attempt: 1 }); return; }
+    __confirmActive = false; setListenCue('hidden');
+  });
+  if (!ok){ __confirmActive = false; setListenCue('hidden'); } // can't record → tap only
+}
+// Stop listening + hide the cue. Safe to call anytime (tap, navigation, closeFlow).
+function stopConfirmListen(){
+  if (!__confirmActive && !__crec.active) { setListenCue('hidden'); return; }
+  __confirmActive = false;
+  abortConfirmRecording();
+  setListenCue('hidden');
 }
 
 // Combine the selected chips and the free text for a step into one answer string.
