@@ -35,6 +35,10 @@ t("actual births still route to new_baby", () => {
   assert.equal(classifyOccasion("my sister just gave birth to a baby"), "new_baby");
   assert.equal(classifyOccasion("they're expecting a newborn"), "new_baby");
 });
+t("'wedding anniversary' routes to anniversary, not wedding_engagement", () => {
+  assert.equal(classifyOccasion("my parents' 40th wedding anniversary"), "anniversary");
+  assert.equal(classifyOccasion("they just got engaged"), "wedding_engagement"); // pure wedding still works
+});
 t("a birthday moment retrieves the birthday exemplars end-to-end", () => {
   const occ = classifyOccasion("my niece's birthday is coming up");
   const ex = getExemplars({ occasion: occ });
@@ -72,7 +76,7 @@ t("relationship refinement still respects the cap", () => {
 
 console.log("\n# getExemplars — miss");
 t("returns null for an unseeded occasion", () => {
-  assert.equal(getExemplars({ occasion: "anniversary" }), null); // not seeded yet
+  assert.equal(getExemplars({ occasion: "retirement" }), null); // not seeded yet (librarian TC-65)
 });
 t("returns null for unspecified / missing bucket", () => {
   assert.equal(getExemplars({ occasion: "unspecified" }), null);
