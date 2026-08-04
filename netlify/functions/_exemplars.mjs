@@ -136,6 +136,78 @@ export const EXEMPLARS = {
       "Drop off their favorite coffee or treat with a short note, no occasion needed.",
     ],
   },
+
+  birthday: {
+    what_to_say: [
+      "Not just \"happy birthday\" — I'm genuinely glad you were born. The world's better with you in it.",
+      "Every year I know you, I'm more grateful we're in each other's lives.",
+      "Hope today feels like everything you are to the people who love you.",
+    ],
+    what_not_to_say: [
+      "\"Another year older, huh?\" — the aging joke lands flat; celebrate them, don't remind them of the number.",
+      "A bare \"HBD\" or a wall post you clearly sent to five other people — effortless reads as thoughtless on the one day that's theirs.",
+      "\"We should catch up sometime!\" with no actual plan — a vague someday can feel like a brush-off on their day.",
+    ],
+    gestures: [
+      "Skip the public wall post — send a private message that names one specific thing you love about them.",
+      "Recall a specific moment from the past year: \"I still laugh about…\" — proof you were paying attention.",
+      "If you can, call instead of text. Your voice on their day beats another notification.",
+    ],
+  },
+
+  thank_you: {
+    what_to_say: [
+      "I don't think I ever properly told you what it meant — so I want to now.",
+      "You probably don't realize how much that mattered to me. It did.",
+      "I've been carrying this gratitude around for a while. Thank you, genuinely.",
+    ],
+    what_not_to_say: [
+      "\"Thanks for everything!\" — the catch-all is warm but forgettable; name the specific thing they did.",
+      "\"I owe you one\" — it turns a heartfelt thank-you into a debt to settle.",
+      "Waiting for the \"perfect\" moment forever — a slightly late, specific thank-you beats a perfect one that never comes.",
+    ],
+    gestures: [
+      "Name the impact, not just the act: \"When you did X, it changed Y for me.\" Specificity is what makes gratitude land.",
+      "Put it in writing — a short handwritten note they can keep and re-read outlasts a text.",
+      "Thank them in front of someone whose opinion they value — sincere recognition, witnessed, is a rare gift.",
+    ],
+  },
+
+  wedding_engagement: {
+    what_to_say: [
+      "So happy for you both — you two just make sense together.",
+      "I've loved watching who you are with them. Congratulations, truly.",
+      "This is wonderful news. Can't wait to celebrate you.",
+    ],
+    what_not_to_say: [
+      "\"Well, marriage is hard work…\" — save the seasoned-veteran realism; let them have the joy today.",
+      "\"So when's the baby coming?\" / \"You're next!\" — it rushes past this milestone to the next expectation.",
+      "Turning their news into a story about your own relationship — keep the spotlight on them.",
+    ],
+    gestures: [
+      "Tell them specifically what you admire about them together — what you see that works. It means more than \"congrats.\"",
+      "If you're close, offer a concrete hand: \"Want a second set of eyes on anything — or a night off from wedding talk?\"",
+      "Mark the engagement itself, not just the wedding — the long in-between gets forgotten by almost everyone else.",
+    ],
+  },
+
+  graduation: {
+    what_to_say: [
+      "You did the work, and it shows. I'm proud of you.",
+      "This wasn't handed to you — you earned every bit of it.",
+      "Can't wait to see what you do next. The world's lucky to have you in it.",
+    ],
+    what_not_to_say: [
+      "\"So what's the plan now?\" / \"Got a job yet?\" — the pressure question deflates the thing they just earned.",
+      "\"A degree in THAT?\" — even joking, questioning their path steps on their moment.",
+      "\"Enjoy the real world…\" — the ominous warning undercuts a day that should feel like a win.",
+    ],
+    gestures: [
+      "Name a specific hard thing you watched them push through to get here — proof you saw the effort, not just the result.",
+      "Show up to the ceremony or celebration if you possibly can — presence on the day says more than any card.",
+      "Write down what you believe they're capable of — a note they can keep for the wobbly early days of what's next.",
+    ],
+  },
 };
 
 const FIELDS = ["what_to_say", "what_not_to_say", "gestures"];

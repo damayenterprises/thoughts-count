@@ -42,7 +42,7 @@ t("relationship refinement still respects the cap", () => {
 
 console.log("\n# getExemplars — miss");
 t("returns null for an unseeded occasion", () => {
-  assert.equal(getExemplars({ occasion: "wedding_engagement" }), null);
+  assert.equal(getExemplars({ occasion: "anniversary" }), null); // not seeded yet
 });
 t("returns null for unspecified / missing bucket", () => {
   assert.equal(getExemplars({ occasion: "unspecified" }), null);
@@ -53,7 +53,7 @@ t("returns null for unspecified / missing bucket", () => {
 console.log("\n# buildExemplarBlock");
 t("returns empty string for null (no-regression path)", () => {
   assert.equal(buildExemplarBlock(null), "");
-  assert.equal(buildExemplarBlock(getExemplars({ occasion: "birthday" })), "");
+  assert.equal(buildExemplarBlock(getExemplars({ occasion: "retirement" })), ""); // not seeded yet
 });
 
 t("non-empty block carries the load-bearing guardrail framing", () => {

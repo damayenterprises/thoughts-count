@@ -40,6 +40,10 @@ const SCENARIOS = {
   illness_diagnosis: { moment: "My brother was just diagnosed with cancer and starts treatment soon.", relationship: "my brother", constraints: "" },
   new_baby: { moment: "My friend just had her first baby and is home from the hospital.", relationship: "a good friend", constraints: "" },
   job_loss: { moment: "My coworker was just laid off in a round of cuts.", relationship: "a coworker", constraints: "" },
+  birthday: { moment: "It's my good friend's birthday this week.", relationship: "a close friend", constraints: "" },
+  thank_you: { moment: "A mentor went out of their way to help me and I want to thank them.", relationship: "a mentor", constraints: "" },
+  wedding_engagement: { moment: "My friend just got engaged.", relationship: "a good friend", constraints: "" },
+  graduation: { moment: "My niece is graduating from college.", relationship: "my niece", constraints: "" },
 };
 
 async function generate(answers, useExemplars) {
