@@ -1463,53 +1463,95 @@ function setListenCue(state){
 let __confirmActive = false;
 let __confirmRetryTimer = null; // holds the brief "didn't catch that" beat before a re-listen
 
-// --- Spoken confirmation (TC-67 prototype): the app reads the card aloud, THEN listens ---
-// Browser speechSynthesis only — local, on-device, no key, nothing leaves the browser (even
-// more private than our own transcribe endpoint). TRUST-CRITICAL: we NEVER open the mic while
-// speaking. The mic starts only after speech ends (+ a short pause), so the app can't hear its
-// own "say yes to save" and false-save. If voice output isn't available it degrades to the
-// existing text + listen behavior with no change.
+// --- Spoken confirmation (TC-67): the app reads the card aloud in a warm voice, THEN listens ---
+// The voice is generated server-side (/api/speak → OpenAI); the browser just plays the audio.
+// TRUST-CRITICAL: we NEVER open the mic while speaking. The mic starts only after playback ends
+// (+ a short pause), so the app can't hear its own "say yes to save" and false-save. If voice
+// output is off/unavailable it degrades to the existing text + listen behavior with no change.
 let __ttsFallback = null;
-function ttsAvailable(){ try { return !!(window.speechSynthesis && window.SpeechSynthesisUtterance); } catch(e){ return false; } }
+// TC-67: the readback is a WARM, human voice generated server-side (OpenAI tts-1-hd "nova",
+// 0.9x — the gentle/slower delivery David picked), NOT the robotic built-in browser voice.
+// The server (/api/speak) holds the key; the browser just plays the returned audio. So voice
+// output is "available" whenever the browser can fetch + play audio (virtually everywhere).
+function ttsAvailable(){ try { return typeof window.Audio !== 'undefined' && typeof window.fetch === 'function'; } catch(e){ return false; } }
 // Per-device preference (TC-67): read confirmations aloud. OFF by default — the user opts in
 // only when their surroundings are private, so a personal note is never spoken unless they
 // asked for it. Stored per-device (localStorage) because it's an environment choice: on in
-// the car, off at a desk. voiceReplyOn() = the browser can speak AND the user turned it on.
+// the car, off at a desk. voiceReplyOn() = we can play audio AND the user turned it on.
 function readAloudEnabled(){ try { return localStorage.getItem('tc_read_aloud') === '1'; } catch(e){ return false; } }
 function setReadAloud(on){ try { localStorage.setItem('tc_read_aloud', on ? '1' : '0'); } catch(e){} }
 function voiceReplyOn(){ return ttsAvailable() && readAloudEnabled(); }
-// iOS Safari only lets a web page speak if speech is kicked off inside a user gesture (a tap).
-// Our real spoken reply fires a moment LATER — after we record + transcribe — which iOS blocks
-// silently. So we "prime" the speech engine with a silent utterance on the user's taps into the
-// voice flow; once primed within a gesture, iOS permits the later spoken reply. No-op elsewhere.
-// Called on every entry tap (cheap) and skips priming if real speech is already in flight.
+
+// One reused <audio> element for all playback — reusing the SAME element is what lets iOS keep
+// it "unlocked" after the first gesture-primed play.
+let __ttsAudio = null;
+function getTtsAudio(){
+  if (!__ttsAudio){
+    __ttsAudio = new Audio();
+    try { __ttsAudio.setAttribute('playsinline', ''); } catch(e){}
+    __ttsAudio.preload = 'auto';
+  }
+  return __ttsAudio;
+}
+// iOS only allows programmatic audio playback if the element's play() was first called inside a
+// user gesture. Our real reply plays a moment later (after record + transcribe + generate), which
+// iOS would block — so we "prime" the reused element with a tiny silent clip on the taps into the
+// voice flow. Once primed within a gesture, later programmatic plays are permitted. No-op else.
+let __audioUnlocked = false;
 function unlockSpeech(){
   try {
-    if (!ttsAvailable()) return;
-    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return; // don't cut off real speech
-    const u = new SpeechSynthesisUtterance(' ');
-    u.volume = 0; // silent prime
-    window.speechSynthesis.speak(u);
+    if (__audioUnlocked || !ttsAvailable()) return;
+    const a = getTtsAudio();
+    a.src = '/silent.mp3';
+    const p = a.play();
+    if (p && p.then) p.then(() => { try { a.pause(); a.currentTime = 0; } catch(e){} }).catch(() => {});
+    __audioUnlocked = true;
   } catch(e){}
 }
+
+let __ttsCtrl = null; // AbortController for the in-flight /api/speak request
+let __ttsUrl = null;  // object URL of the current clip, revoked on cleanup
 function cancelSpeech(){
-  try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch(e){}
+  if (__ttsCtrl){ try { __ttsCtrl.abort(); } catch(e){} __ttsCtrl = null; }
   if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
+  try { const a = __ttsAudio; if (a){ a.onended = null; a.onerror = null; a.pause(); } } catch(e){}
+  if (__ttsUrl){ try { URL.revokeObjectURL(__ttsUrl); } catch(e){} __ttsUrl = null; }
 }
-// Speak `text`, then call onDone exactly once (on end, on error, or a GENEROUS fallback if the
-// browser drops onend — the fallback is long enough that the mic never opens mid-speech).
-function speakPrompt(text, onDone){
+// Fetch a warm spoken version of `text` and play it, then call onDone exactly once (on ended,
+// on error, or a generous fallback). onDone GATES the mic on the confirm cards, so it MUST fire
+// even if playback fails — otherwise the flow would stall. The mic opens only after this, so the
+// app never hears its own voice.
+async function speakPrompt(text, onDone){
   let done = false;
-  const finish = () => { if (done) return; done = true; if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; } onDone(); };
+  const finish = () => {
+    if (done) return; done = true;
+    if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
+    if (__ttsUrl){ try { URL.revokeObjectURL(__ttsUrl); } catch(e){} __ttsUrl = null; }
+    onDone();
+  };
   try {
     if (!ttsAvailable() || !text){ finish(); return; }
-    window.speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(text);
-    u.rate = 0.98; u.pitch = 1.0; u.lang = 'en-US'; // calm, unhurried
-    u.onend = finish; u.onerror = finish;
-    __ttsFallback = setTimeout(finish, Math.min(20000, 3000 + text.length * 90)); // only fires AFTER real speech
-    window.speechSynthesis.speak(u);
-  } catch(e){ finish(); }
+    const ctrl = new AbortController(); __ttsCtrl = ctrl;
+    const headers = { 'content-type': 'application/json' };
+    try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
+    const r = await fetch('/api/speak', { method: 'POST', headers, body: JSON.stringify({ text }), signal: ctrl.signal });
+    if (__ttsCtrl === ctrl) __ttsCtrl = null;
+    if (done) return; // cancelled during fetch
+    if (!r.ok){ finish(); return; }
+    const blob = await r.blob();
+    if (done) return;
+    const url = URL.createObjectURL(blob); __ttsUrl = url;
+    const a = getTtsAudio();
+    a.onended = finish; a.onerror = finish;
+    a.src = url;
+    // Backstop so onDone always fires even if 'ended' is dropped (well past the clip's length).
+    __ttsFallback = setTimeout(finish, Math.min(30000, 6000 + text.length * 120));
+    const p = a.play();
+    if (p && p.catch) p.catch(() => finish());
+  } catch(e){
+    if (e && e.name === 'AbortError') return; // cancelSpeech already cleaned up
+    finish();
+  }
 }
 
 // Arm a hands-free confirm on the current add/update card: speak the prompt (if voice output

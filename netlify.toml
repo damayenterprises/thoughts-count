@@ -59,6 +59,12 @@
   to = "/.netlify/functions/transcribe"
   status = 200
 
+# Warm spoken readback — reads the confirmation aloud in a human voice (TC-67, opt-in)
+[[redirects]]
+  from = "/api/speak"
+  to = "/.netlify/functions/speak"
+  status = 200
+
 # Send the weekly report now (admin token required) — preview / manual re-send
 [[redirects]]
   from = "/api/send-digest"
