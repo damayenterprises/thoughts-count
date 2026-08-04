@@ -928,6 +928,7 @@ setupHomeVoice();
 
 function startHomeVoice(){
   if (!voiceAllowedClient()) return;
+  unlockSpeech(); // prime iOS speech within this tap so later spoken replies aren't blocked
   __voiceHandsFree = true; // spoken from the home mic → confirm cards can listen for "yes"
   __voicePerson = null; __voiceRememberOnSaved = null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
@@ -939,6 +940,7 @@ function startHomeVoice(){
 let __voiceRememberOnSaved = null;
 function tcVoiceRemember(onSaved){
   if (!voiceAllowedClient()) return;
+  unlockSpeech();
   __voiceHandsFree = true;
   __voicePerson = null; __voiceRememberOnSaved = onSaved || null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
@@ -951,6 +953,7 @@ window.tcVoiceRemember = tcVoiceRemember;
 let __voicePerson = null;
 function tcVoiceNote(personId, personName, onSaved){
   if (!voiceAllowedClient()) return;
+  unlockSpeech();
   __voiceHandsFree = true;
   __voicePerson = { id: personId, name: personName || 'them', onSaved: onSaved || null };
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
@@ -978,11 +981,12 @@ function renderHomeListening(){
       ${ttsAvailable() ? `<div><label class="tc-readaloud"><input type="checkbox" id="homeReadAloud" class="tc-switch-input"${readAloudEnabled() ? ' checked' : ''}><span class="tc-switch" aria-hidden="true"></span><span>Read my replies aloud (hands-free)</span></label></div>` : ''}
     </div>`;
   scrim.scrollTop = 0;
-  document.getElementById('homeDoneBtn').onclick = () => { toProcessing(); stopHomeRecording(); };
+  document.getElementById('homeDoneBtn').onclick = () => { unlockSpeech(); toProcessing(); stopHomeRecording(); };
   document.getElementById('homeCancelBtn').onclick = () => { cancelHomeRecording(); closeFlow(); };
   // TC-67: per-device opt-in for spoken confirmations (off by default). Persists immediately.
+  // Priming iOS speech the moment they turn it ON (a tap) unlocks the later spoken replies.
   const raBox = document.getElementById('homeReadAloud');
-  if (raBox) raBox.onchange = () => setReadAloud(raBox.checked);
+  if (raBox) raBox.onchange = () => { setReadAloud(raBox.checked); if (raBox.checked) unlockSpeech(); };
 }
 // Calm hand-off from "listening" to "taking that in": ripples fade, core settles,
 // the copy changes, controls hide. Runs the instant Done is tapped (not after the
@@ -1083,9 +1087,10 @@ function renderHomeReflect(text){
       </div>
     </div>`;
   scrim.scrollTop = 0;
-  document.getElementById('homePlanBtn').onclick = () => startPlanFromText(t);
+  document.getElementById('homePlanBtn').onclick = () => { cancelSpeech(); startPlanFromText(t); };
   const rememberBtn = document.getElementById('homeRememberBtn');
   if (rememberBtn) rememberBtn.onclick = () => {
+    cancelSpeech(); unlockSpeech(); // stop the readback; keep iOS speech primed for the confirm
     if (signedIn) rememberFromText(t);
     else {
       // anon → safekeeping sign-in (holds the request). Close the reflect flow first:
@@ -1096,8 +1101,14 @@ function renderHomeReflect(text){
       window.TCCompanion.promptSignInToRemember(t);
     }
   };
-  document.getElementById('homeEditBtn').onclick = () => { openFlow(); answers.moment = t; renderStep(); };
-  document.getElementById('homeCancel2').onclick = closeFlow;
+  document.getElementById('homeEditBtn').onclick = () => { cancelSpeech(); openFlow(); answers.moment = t; renderStep(); };
+  document.getElementById('homeCancel2').onclick = closeFlow; // closeFlow → stopConfirmListen → cancelSpeech
+  // TC-67 (read-aloud on): speak the readback so the home voice path is audible end-to-end.
+  // Output only — this screen is a tap-choice, so no mic opens here (no feedback-loop risk).
+  if (voiceReplyOn()){
+    const ask = canRemember ? 'Make a plan, or remember this about them?' : 'Make your plan from this?';
+    speakPrompt(`Here's what I heard: ${t}. ${ask}`, () => {});
+  }
 }
 function renderHomeError(msg){
   stage.innerHTML = `
@@ -1467,6 +1478,20 @@ function ttsAvailable(){ try { return !!(window.speechSynthesis && window.Speech
 function readAloudEnabled(){ try { return localStorage.getItem('tc_read_aloud') === '1'; } catch(e){ return false; } }
 function setReadAloud(on){ try { localStorage.setItem('tc_read_aloud', on ? '1' : '0'); } catch(e){} }
 function voiceReplyOn(){ return ttsAvailable() && readAloudEnabled(); }
+// iOS Safari only lets a web page speak if speech is kicked off inside a user gesture (a tap).
+// Our real spoken reply fires a moment LATER — after we record + transcribe — which iOS blocks
+// silently. So we "prime" the speech engine with a silent utterance on the user's taps into the
+// voice flow; once primed within a gesture, iOS permits the later spoken reply. No-op elsewhere.
+// Called on every entry tap (cheap) and skips priming if real speech is already in flight.
+function unlockSpeech(){
+  try {
+    if (!ttsAvailable()) return;
+    if (window.speechSynthesis.speaking || window.speechSynthesis.pending) return; // don't cut off real speech
+    const u = new SpeechSynthesisUtterance(' ');
+    u.volume = 0; // silent prime
+    window.speechSynthesis.speak(u);
+  } catch(e){}
+}
 function cancelSpeech(){
   try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch(e){}
   if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
