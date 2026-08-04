@@ -228,6 +228,26 @@ export const EXEMPLARS = {
       "Write down what you believe they're capable of — a note they can keep for the wobbly early days of what's next.",
     ],
   },
+
+  anniversary: {
+    what_to_say: [
+      "However many years in, I hope today feels like proof of everything you've built together.",
+      "Still rooting for you two, always. Happy anniversary.",
+      "The life you've made together is the good kind of rare. Congratulations.",
+      "Thank you for showing the rest of us what going the distance actually looks like.",
+      "Here's to you both — and to all the ordinary days that added up to this.",
+    ],
+    what_not_to_say: [
+      "\"So when's the next big milestone?\" — let the years they've earned be the whole point today, not a setup for what's next.",
+      "\"Marriage sure is a lot of work, huh?\" — save the weary realism; celebrate what's working.",
+      "A generic \"happy anniversary!\" with nothing personal — on a day about their specific story, effortless reads as an afterthought.",
+    ],
+    gestures: [
+      "Name a specific moment you've witnessed between them — a small thing that shows what they have. Specific beats grand.",
+      "If it's your own anniversary, plan one thing that's actually about them, not the logistics — recreate an early date, or just put the phones away for the evening.",
+      "Mark it the way they'd genuinely love — a quiet dinner, a long walk, a note recalling the year you've had. The gesture that fits beats the expensive one.",
+    ],
+  },
 };
 
 const FIELDS = ["what_to_say", "what_not_to_say", "gestures"];

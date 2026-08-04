@@ -44,6 +44,7 @@ const SCENARIOS = {
   thank_you: { moment: "A mentor went out of their way to help me and I want to thank them.", relationship: "a mentor", constraints: "" },
   wedding_engagement: { moment: "My friend just got engaged.", relationship: "a good friend", constraints: "" },
   graduation: { moment: "My niece is graduating from college.", relationship: "my niece", constraints: "" },
+  anniversary: { moment: "It's my parents' 40th wedding anniversary.", relationship: "my parents", constraints: "" },
 };
 
 async function generate(answers, useExemplars) {
