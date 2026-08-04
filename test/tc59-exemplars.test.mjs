@@ -2,6 +2,7 @@
 // network. Run: node test/tc59-exemplars.test.mjs
 import assert from "node:assert";
 import { EXEMPLARS, getExemplars, buildExemplarBlock } from "../netlify/functions/_exemplars.mjs";
+import { classifyOccasion } from "../netlify/functions/_analytics.mjs";
 
 let pass = 0, fail = 0;
 function t(name, fn) { try { fn(); pass++; console.log(`  ok   ${name}`); } catch (e) { fail++; console.log(`  FAIL ${name} — ${e.message}`); } }
@@ -23,6 +24,21 @@ t("caps each field to <= 3 snippets", () => {
       if (ex[f]) assert.ok(ex[f].length <= 3, `${occ}.${f} within cap (got ${ex[f].length})`);
     }
   }
+});
+
+console.log("\n# classifyOccasion — routing precedence (birthday not swallowed by new_baby)");
+t("'her birthday' routes to birthday, not new_baby", () => {
+  assert.equal(classifyOccasion("It's my friend's birthday this week"), "birthday");
+  assert.equal(classifyOccasion("she's turning 40 next month"), "birthday");
+});
+t("actual births still route to new_baby", () => {
+  assert.equal(classifyOccasion("my sister just gave birth to a baby"), "new_baby");
+  assert.equal(classifyOccasion("they're expecting a newborn"), "new_baby");
+});
+t("a birthday moment retrieves the birthday exemplars end-to-end", () => {
+  const occ = classifyOccasion("my niece's birthday is coming up");
+  const ex = getExemplars({ occasion: occ });
+  assert.ok(ex && ex.what_to_say.length === 3, "birthday bucket is reachable + populated");
 });
 
 console.log("\n# getExemplars — rotation (cross-user variety, TC-59 addendum)");

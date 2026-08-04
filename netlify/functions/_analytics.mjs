@@ -242,12 +242,15 @@ export function classifyValence(momentText) {
   return "other";
 }
 
+// Order matters: classifyOccasion returns the FIRST matching label. Keep more-specific
+// keys ahead of substrings they contain. `birthday` MUST precede `new_baby` — "birthday"
+// contains "birth", so new_baby would otherwise swallow every birthday (TC-59 fix).
 const OCCASION_MAP = [
+  ["birthday", ["birthday", "turning "]],
   ["new_baby", ["baby", "born", "birth", "pregn", "expecting", "newborn"]],
   ["wedding_engagement", ["wedding", "engag", "married", "marry", "bride", "groom"]],
   ["new_job_promotion", ["new job", "new role", "promot", "first day", "career", "hired"]],
   ["graduation", ["graduat", "diploma", "commencement"]],
-  ["birthday", ["birthday", "turning "]],
   ["anniversary", ["anniversar"]],
   ["retirement", ["retire"]],
   ["bereavement", ["died", "death", "passed", "loss of", "lost ", "funeral", "grief", "grieving"]],

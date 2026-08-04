@@ -191,7 +191,7 @@ export const EXEMPLARS = {
 
   wedding_engagement: {
     what_to_say: [
-      "So happy for you both — you two just make sense together.",
+      "So happy for you both — the way you are together just fits, and everyone can see it.",
       "I've loved watching who you are with them. Congratulations, truly.",
       "This is wonderful news. Can't wait to celebrate you.",
       "You've found your person, and it shows on you. I couldn't be happier for you both.",
@@ -213,7 +213,7 @@ export const EXEMPLARS = {
     what_to_say: [
       "You did the work, and it shows. I'm proud of you.",
       "This wasn't handed to you — you earned every bit of it.",
-      "Can't wait to see what you do next. The world's lucky to have you in it.",
+      "Can't wait to see what you do next — and I mean that. You've got something.",
       "Every late night and hard semester led here. You should be so proud — I am.",
       "Whatever comes next, you've already proven you can do hard things. Congratulations.",
     ],
