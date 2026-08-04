@@ -242,17 +242,22 @@ export function classifyValence(momentText) {
   return "other";
 }
 
+// Order matters: classifyOccasion returns the FIRST matching label. Keep more-specific
+// keys ahead of substrings they contain (TC-59 fixes):
+//  - `birthday` MUST precede `new_baby` ("birthday" contains "birth").
+//  - `anniversary` MUST precede `wedding_engagement` ("wedding anniversary" contains "wedding").
+//  - `job_loss` MUST precede `bereavement` ("lost his/her/their job" contains "lost ", a bereavement key).
 const OCCASION_MAP = [
+  ["birthday", ["birthday", "turning "]],
   ["new_baby", ["baby", "born", "birth", "pregn", "expecting", "newborn"]],
+  ["anniversary", ["anniversar"]],
   ["wedding_engagement", ["wedding", "engag", "married", "marry", "bride", "groom"]],
   ["new_job_promotion", ["new job", "new role", "promot", "first day", "career", "hired"]],
   ["graduation", ["graduat", "diploma", "commencement"]],
-  ["birthday", ["birthday", "turning "]],
-  ["anniversary", ["anniversar"]],
   ["retirement", ["retire"]],
+  ["job_loss", ["laid off", "layoff", "fired", "job loss", "unemploy", "lost his job", "lost her job", "lost their job"]],
   ["bereavement", ["died", "death", "passed", "loss of", "lost ", "funeral", "grief", "grieving"]],
   ["illness_diagnosis", ["cancer", "diagnos", "sick", "illness", "hospice", "surgery", "hospital", "injur"]],
-  ["job_loss", ["laid off", "layoff", "fired", "job loss", "unemploy", "lost his job", "lost her job", "lost their job"]],
   ["breakup_divorce", ["divorce", "breakup", "broke up", "split"]],
   ["thank_you", ["thank", "grateful", "apprecia"]],
   ["encouragement", ["hard week", "hard time", "struggl", "depress", "anxiet", "burnout", "just because", "thinking of you"]],

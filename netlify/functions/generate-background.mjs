@@ -11,11 +11,12 @@
 
 import { getStore } from "@netlify/blobs";
 import { logEvent, bucketOf } from "./_analytics.mjs";
+import { getExemplars, buildExemplarBlock } from "./_exemplars.mjs";
 
-const MODEL = "claude-sonnet-4-6";
-const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
+export const MODEL = "claude-sonnet-4-6";
+export const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
 
-const PLAN_SCHEMA = {
+export const PLAN_SCHEMA = {
   type: "object",
   properties: {
     plan_title: { type: "string", description: "A short 3-6 word label for saving this plan, leading with the person's NAME if one was given, then the occasion. E.g. 'Todd Hudgens, new job', 'Mom, cancer diagnosis', 'Sarah, new baby'. If no name was given, use the relationship, e.g. 'A coworker, new job'. No quotes, no 'Thoughts Count' prefix." },
@@ -73,7 +74,7 @@ const PLAN_SCHEMA = {
   required: ["plan_title", "headline", "what_matters_most", "what_to_say", "what_not_to_say", "thoughtful_actions", "spend_guidance", "gift_ideas", "follow_up", "closing_encouragement"],
 };
 
-const SYSTEM_PROMPT = `You are the intelligence behind Thoughts Count — an AI relationship companion that helps people show up for life's most important moments.
+export const SYSTEM_PROMPT = `You are the intelligence behind Thoughts Count — an AI relationship companion that helps people show up for life's most important moments.
 
 You are NOT a gift website, a greeting-card writer, or a generic chatbot. You are a thoughtful, emotionally intelligent guide. The person talking to you cares deeply and is a little afraid of getting it wrong. Your job is to replace their uncertainty with confidence.
 
@@ -106,6 +107,15 @@ export default async (req) => {
       return new Response("ok", { status: 202 });
     }
 
+    // Classify the intake to its non-identifying bucket BEFORE the call so we can retrieve
+    // curated craft exemplars for this kind of moment (TC-59) and inject them as few-shot
+    // guidance. `a`/`bucket` are reused below for storage + analytics. No exemplars for a
+    // bucket → empty block → the call is byte-identical to before (no regression).
+    const a = body?.answers || {};
+    const bucket = bucketOf(a);
+    const exemplars = getExemplars(bucket);
+    const system = SYSTEM_PROMPT + buildExemplarBlock(exemplars);
+
     const apiKey =
       (typeof Netlify !== "undefined" && Netlify.env?.get("ANTHROPIC_API_KEY")) ||
       process.env.ANTHROPIC_API_KEY;
@@ -124,7 +134,7 @@ export default async (req) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_OUTPUT_TOKENS,
-        system: SYSTEM_PROMPT,
+        system,
         tools: [{ name: "generate_action_plan", description: "Return a complete, personalized action plan for showing up in this moment.", input_schema: PLAN_SCHEMA }],
         tool_choice: { type: "tool", name: "generate_action_plan" },
         messages: [{ role: "user", content: userMessage }],
@@ -163,11 +173,9 @@ export default async (req) => {
       await enrichOnlineIdeas(toolUse.input, etsyKey, shoppingKey);
     }
 
-    // The plan's non-identifying bucket (occasion/valence/relationship/budget). Stored
-    // with the plan so the browser receives it and can echo it back with feedback
-    // (TC-58) — the client never has to re-send raw story text to attribute a rating.
-    const a = body?.answers || {};
-    const bucket = bucketOf(a);
+    // The plan's non-identifying bucket (occasion/valence/relationship/budget) — computed
+    // above for craft-exemplar retrieval (TC-59) — is stored with the plan so the browser
+    // can echo it back with feedback (TC-58) without ever re-sending raw story text.
     await store.setJSON(jobId, { status: "done", plan: toolUse.input, bucket });
 
     // Anonymized "what people need" signal — buckets only, never raw text/names.
@@ -180,6 +188,7 @@ export default async (req) => {
         gift_fit: gifts.length > 0,
         gift_count: gifts.length,
         followups: Array.isArray(toolUse.input?.follow_up) ? toolUse.input.follow_up.length : 0,
+        exemplars_used: !!exemplars, // TC-59 coverage: did this bucket have craft exemplars?
       }, { test: !!body?.test });
     } catch (e) { console.error("plan analytics failed", e); }
 
@@ -191,7 +200,7 @@ export default async (req) => {
   }
 };
 
-function buildUserMessage(a) {
+export function buildUserMessage(a) {
   const moment = (a?.moment || "").trim();
   const relationship = (a?.relationship || "").trim();
   const name = (a?.name || "").trim();
