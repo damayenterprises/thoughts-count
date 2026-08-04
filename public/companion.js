@@ -739,8 +739,8 @@ async function mountSaveToPerson(stageEl, plan) {
   const followupOpt = followups.length ? `
     <label class="k-remind" style="margin-top:12px;"><input type="checkbox" id="tcRemindFollow" checked /> Also remind me to follow through — we'll gently nudge you the morning each of this plan's ${followups.length} “keep showing up” date${followups.length > 1 ? "s" : ""} arrives</label>` : "";
   card.innerHTML = `
-    <h4>Keep this plan with your people</h4>
-    <p class="k-sub">Save it to ${recipient ? esc(recipient) : "someone"}, and we'll remind you at just the right time to follow through.</p>
+    <h4>Save to People I care about</h4>
+    <p class="k-sub">Save it to ${recipient ? esc(recipient) : "someone"} in your People I care about, and we'll remind you at just the right time to follow through.</p>
     <select id="tcPersonSel" class="tc-select">
       <option value="__new">+ New person${recipient ? `: ${esc(recipient)}` : ""}</option>
       ${opts}
