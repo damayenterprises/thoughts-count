@@ -310,6 +310,13 @@ async function enrichOnlineIdeas(plan, etsyKey, shoppingKey) {
   for (const g of online) {
     const q = (g.search_query || g.title || "").trim();
     if (!q) continue;
+    // TC-79: don't pin a specific product to a BESPOKE/composed gift idea (a custom
+    // gesture — "letterpress card + a scratch-off ticket tucked inside", a handwritten
+    // note, a DIY kit — that no single real listing actually matches). Any listing we'd
+    // attach mismatches the concept (the live repro: a new-job card idea linked to a box
+    // of holiday cards). Skip enrichment → the client falls back to the illustration tile
+    // + "find one like this →" search link. Only concrete single-item ideas get a product.
+    if (isBespokeIdea(g)) continue;
     let product = null;
     // Pass the whole idea so the resolver can confirm the found listing plausibly
     // matches THIS described gift (title + price) before we ever show its photo (TC-69).
@@ -332,10 +339,57 @@ async function enrichOnlineIdeas(plan, etsyKey, shoppingKey) {
 // A listing that fails is dropped (we return null → the client shows the Etsy search
 // link instead). Better no photo than a mismatched one.
 const STOPWORDS = new Set(["a","an","and","or","the","for","with","of","to","in","on","gift","set","idea","them","their","present","by","from"]);
+// TC-79: generic filler that describes the FORMAT/packaging of a gift, not WHICH gift it is.
+// Keyword overlap satisfied only by these can't confirm a match — the live repro passed the
+// TC-69 guard purely on "letterpress"/"card" while the theme (new-job gesture) was wrong.
+// These are stripped from the DISTINCTIVE-token comparison (they stay searchable elsewhere).
+const FILLER = new Set(["letterpress","card","cards","set","sets","holiday","artisan","gift","gifts","box","boxed","pack","packs","packed","handmade","bundle","bundled","kit","kits","assorted","pcs","piece","pieces","personalized","custom","note"]);
 // Words that mark a listing as a different KIND of thing than a physical, giftable object.
 const WRONG_KIND = ["digital","download","downloadable","printable","print at home","print-at-home","svg","png file","clip art","clipart","template","sticker","stickers","decal","greeting card","thank you card","card set","note card","postcard","pdf","instant download"];
 function tokenize(s) {
   return String(s || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOPWORDS.has(w));
+}
+// TC-79: distinctive tokens only — drop generic filler so overlap must be on a
+// theme-bearing word (e.g. "candle", "succulent"), not "card"/"set"/"gift".
+function distinctiveTokens(s) {
+  return tokenize(s).filter((w) => !FILLER.has(w));
+}
+// TC-79: is this gift idea a BESPOKE / composed gesture rather than ONE literally-shoppable
+// item? Such ideas (a card + a tucked-in ticket, a handwritten-note pairing, a DIY kit) have
+// no single real listing that matches, so pinning a product always mismatches. Conservative
+// but biased toward NOT pinning when the text clearly describes a combination or a custom act.
+// Signals in the idea's own text (title/blurb/search_query):
+//   • an explicit combination joiner: " + ", "＋", "X and a Y" (two distinct items). We do
+//     NOT treat a bare "X with a Y" as combo — that also describes a single decorated item
+//     ("candle with a wooden wick", "notebook with a fun design"), which should still resolve.
+//   • an enumerated set of items: "X, Y, and Z" / "X, Y and a Z" (a comma-listed collection,
+//     e.g. "fun pens, sticky notes, and a small notepad" — a curated multi-item set no single
+//     listing matches). Requires a comma so single items ("Blue, cream mug") aren't caught.
+//   • a curated COLLECTION paired with a second item: "…set/kit/basket/bundle/box/package…
+//     with/and a …" ("tea set with a handmade mug", "care package with a candle").
+//   • "tucked inside" / "tucked in"
+//   • a personal message: "with a note", "a note that says", "note reading", "handwritten",
+//     "monogrammed", "personalized message", a custom/personalized inscription
+//   • DIY / make-it-yourself: "DIY", "make", "homemade", "hand-make"
+const COMBO_JOIN_RE = /\s(?:\+|＋)\s|\b\w+\s+(?:and|plus)\s+a\s+\w+|,[^,]*\s+and\s+\w+/i;
+// A curated collection ("…set/kit/basket/bundle/box/care package…") plus a second item.
+const COLLECTION_COMBO_RE = /\b(?:set|kit|basket|bundle|box|package|assortment|sampler)\b[^.]*?\b(?:with|and|plus)\s+a\s+\w+/i;
+const BESPOKE_PHRASES = [
+  "tucked inside", "tucked in", "tucked into",
+  "with a note", "a note that says", "note that says", "note reading", "note saying",
+  "handwritten", "hand-written", "hand written", "monogrammed", "monogram",
+  "personalized message", "personalised message", "custom message", "custom note",
+  "homemade", "hand-make", "hand make", "make your own", "diy",
+];
+function isBespokeIdea(idea) {
+  const text = `${idea?.title || ""} ${idea?.blurb || ""} ${idea?.search_query || ""}`.toLowerCase();
+  if (!text.trim()) return false;
+  if (BESPOKE_PHRASES.some((p) => text.includes(p))) return true;
+  // "make" as a verb/instruction (a homemade gesture), not "makeup"/"homemaker" substrings.
+  if (/\bmake\b/.test(text) && !/\bmakes\b/.test(text)) return true;
+  if (COMBO_JOIN_RE.test(text)) return true;
+  if (COLLECTION_COMBO_RE.test(text)) return true;
+  return false;
 }
 function priceValue(it) {
   if (it && it.price && it.price.amount != null) return Number(it.price.amount) / Number(it.price.divisor || 100);
@@ -373,14 +427,17 @@ function etsyListingMatches(it, idea) {
   //    (stickers/prints/digital), not the artisan good the plan described.
   const price = priceValue(it);
   if (price != null && price < 8) return false;
-  // 1) Keyword overlap: at least one meaningful, idea-specific token must appear in the
+  // 1) Keyword overlap: at least one DISTINCTIVE, idea-specific token must appear in the
   //    listing title. We compare against the idea's own words (title/blurb), not just the
   //    broad search query, so a generic query can't rubber-stamp an off-topic listing.
-  const ideaTokens = new Set([...tokenize(idea?.title), ...tokenize(idea?.search_query), ...tokenize(idea?.blurb)]);
-  if (!ideaTokens.size) return true; // nothing to check against → don't block
-  const titleTokens = new Set(tokenize(title));
+  //    TC-79: overlap must be on a theme-bearing token, not generic filler like
+  //    "letterpress"/"card"/"set" — that filler is what let a holiday-card box match a
+  //    new-job card idea. distinctiveTokens strips the filler stoplist first.
+  const ideaTokens = new Set([...distinctiveTokens(idea?.title), ...distinctiveTokens(idea?.search_query), ...distinctiveTokens(idea?.blurb)]);
+  if (!ideaTokens.size) return true; // nothing distinctive to check against → don't block
+  const titleTokens = new Set(distinctiveTokens(title));
   for (const t of ideaTokens) { if (titleTokens.has(t)) return true; }
-  return false; // no shared meaningful keyword → treat as a mismatch, drop it
+  return false; // no shared distinctive keyword → treat as a mismatch, drop it
 }
 
 // TC-77 confidence guard for the Google Shopping FALLBACK — the same discipline TC-69
@@ -418,12 +475,14 @@ function shoppingResultMatches(it, idea) {
     const ceiling = rangeHigh != null ? rangeHigh * 2.5 : 250;
     if (price > ceiling) return false;
   }
-  // 1) Keyword overlap — at least one meaningful, idea-specific token in the listing title.
-  const ideaTokens = new Set([...tokenize(idea?.title), ...tokenize(idea?.search_query), ...tokenize(idea?.blurb)]);
-  if (!ideaTokens.size) return true; // nothing to check against → don't block
-  const titleTokens = new Set(tokenize(title));
+  // 1) Keyword overlap — at least one DISTINCTIVE, idea-specific token in the listing title.
+  //    TC-79: strip generic filler ("card"/"set"/"gift"…) so overlap must be on a
+  //    theme-bearing token, never generic vocabulary alone.
+  const ideaTokens = new Set([...distinctiveTokens(idea?.title), ...distinctiveTokens(idea?.search_query), ...distinctiveTokens(idea?.blurb)]);
+  if (!ideaTokens.size) return true; // nothing distinctive to check against → don't block
+  const titleTokens = new Set(distinctiveTokens(title));
   for (const t of ideaTokens) { if (titleTokens.has(t)) return true; }
-  return false; // no shared meaningful keyword → treat as a mismatch, drop it
+  return false; // no shared distinctive keyword → treat as a mismatch, drop it
 }
 // The HIGH end of an idea's price band ("$30–45" → 45, "$30" → 30), for the ceiling above.
 function parsePriceHigh(s) {
