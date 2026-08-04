@@ -386,9 +386,16 @@
   @keyframes re-listen-pulse { 0% { box-shadow: 0 0 0 0 rgba(194,138,99,.45); } 100% { box-shadow: 0 0 0 10px rgba(194,138,99,0); } }
   @media (prefers-reduced-motion: reduce) { .re-listen-dot { animation: none !important; } }
 
-  /* TC-67: "Read replies aloud" opt-in on the listening screen. Calm, out of the way. */
-  .tc-readaloud { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 13px; color: var(--ink-soft, #7a7263); cursor: pointer; user-select: none; }
-  .tc-readaloud input { width: 16px; height: 16px; margin: 0; accent-color: var(--sage, #7d8a68); cursor: pointer; }
+  /* TC-67: "Read replies aloud" opt-in on the listening screen. Calm, out of the way —
+     a small brand-styled switch (not a native checkbox) to match the hand-crafted UI. */
+  .tc-readaloud { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 13px; color: var(--ink-soft, #7a7263); cursor: pointer; user-select: none; }
+  .tc-switch-input { position: absolute; opacity: 0; width: 0; height: 0; }
+  .tc-switch { position: relative; flex: 0 0 auto; width: 34px; height: 20px; border-radius: 999px; background: #cfc8b8; transition: background .18s ease; }
+  .tc-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .18s ease; }
+  .tc-switch-input:checked + .tc-switch { background: var(--sage, #7d8a68); }
+  .tc-switch-input:checked + .tc-switch::after { transform: translateX(14px); }
+  .tc-switch-input:focus-visible + .tc-switch { box-shadow: 0 0 0 3px var(--mist, #e7ecdd); }
+  @media (prefers-reduced-motion: reduce) { .tc-switch, .tc-switch::after { transition: none; } }
 
   /* Clean printout / save-as-PDF: only the plan, no animated background or chrome. */
   @media print {
@@ -968,7 +975,7 @@ function renderHomeListening(){
         <button type="button" class="cta" id="homeDoneBtn">Done</button>
         <button type="button" class="link-btn" id="homeCancelBtn">Cancel</button>
       </div>
-      ${ttsAvailable() ? `<div><label class="tc-readaloud"><input type="checkbox" id="homeReadAloud"${readAloudEnabled() ? ' checked' : ''}> <span>Read my replies aloud (hands-free)</span></label></div>` : ''}
+      ${ttsAvailable() ? `<div><label class="tc-readaloud"><input type="checkbox" id="homeReadAloud" class="tc-switch-input"${readAloudEnabled() ? ' checked' : ''}><span class="tc-switch" aria-hidden="true"></span><span>Read my replies aloud (hands-free)</span></label></div>` : ''}
     </div>`;
   scrim.scrollTop = 0;
   document.getElementById('homeDoneBtn').onclick = () => { toProcessing(); stopHomeRecording(); };
@@ -1235,8 +1242,8 @@ function renderRememberCard(cap){
   // TC-67: spoken confirmation reads back exactly what will be saved, then listens.
   const ft = factsPlain(cap.facts);
   const spoken = isUpdate
-    ? (ft ? `I'll add this to ${name}: ${ft}. Say yes to save, or tap.` : `I'll add this to ${name}. Say yes to save, or tap.`)
-    : (ft ? `I'll remember ${name} and note: ${ft}. Say yes to save, or tap.` : `I'll remember ${name}. Say yes to save, or tap.`);
+    ? (ft ? `I'll add this to ${name}: ${ft}. Sound right? Say yes, or tap.` : `I'll add this to ${name}. Sound right? Say yes, or tap.`)
+    : (ft ? `I'll remember ${name} and note: ${ft}. Sound right? Say yes, or tap.` : `I'll remember ${name}. Sound right? Say yes, or tap.`);
   startConfirmListen({ onYes: doConfirm, onNo: doCancel, speak: spoken });
   scrim.scrollTop = 0;
 }
@@ -1330,7 +1337,7 @@ function renderLockedConfirm(cap){
   document.getElementById('lkCancel').onclick = doCancel;
   // TC-67: spoken confirmation reads back exactly what will be saved, then listens.
   const ft = factsPlain(cap.facts);
-  const spoken = ft ? `I'll add this to ${name}: ${ft}. Say yes to save, or tap.` : `I'll add this to ${name}. Say yes to save, or tap.`;
+  const spoken = ft ? `I'll add this to ${name}: ${ft}. Sound right? Say yes, or tap.` : `I'll add this to ${name}. Sound right? Say yes, or tap.`;
   startConfirmListen({ onYes: doConfirm, onNo: doCancel, speak: spoken });
 }
 
@@ -1514,7 +1521,7 @@ function onConfirmAnswer(text, onYes, onNo, attempt){
   // show the "didn't catch that" text for ~900ms so it's visible before re-listening.
   if (verdict === 'ambiguous' && attempt === 0){
     if (voiceReplyOn()){
-      speakThenListen("Sorry, I didn't catch that. Say yes to save, or tap.", onYes, onNo, 1);
+      speakThenListen("Sorry, I didn't quite catch that. Say yes, or tap.", onYes, onNo, 1);
     } else {
       setListenCue('retry');
       if (__confirmRetryTimer) clearTimeout(__confirmRetryTimer);
