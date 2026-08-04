@@ -1085,30 +1085,80 @@ function renderHomeReflect(text){
         <button type="button" class="link-btn" id="homeEditBtn">Add details / edit first</button>
         <button type="button" class="link-btn" id="homeCancel2">Cancel</button>
       </div>
+      <div class="re-listen-cue" id="reListenCue" hidden></div>
     </div>`;
   scrim.scrollTop = 0;
-  document.getElementById('homePlanBtn').onclick = () => { cancelSpeech(); startPlanFromText(t); };
-  const rememberBtn = document.getElementById('homeRememberBtn');
-  if (rememberBtn) rememberBtn.onclick = () => {
-    cancelSpeech(); unlockSpeech(); // stop the readback; keep iOS speech primed for the confirm
+  // Named so voice and tap fire the SAME actions; each stops any active readback/listen first.
+  const doPlan = () => { stopConfirmListen(); startPlanFromText(t); };
+  const doRemember = () => {
+    stopConfirmListen(); unlockSpeech(); // stop readback/listen; keep iOS audio primed for the confirm
     if (signedIn) rememberFromText(t);
     else {
-      // anon → safekeeping sign-in (holds the request). Close the reflect flow first:
-      // the sign-in card lives in the companion modal (#tcModal, z-index 50) which sits
-      // BEHIND this flow's #scrim (z-index 70) — without this the card opens invisibly
-      // and the button appears to do nothing.
+      // anon → safekeeping sign-in (holds the request). Close the reflect flow first: the sign-in
+      // card lives in the companion modal (#tcModal, z-index 50) which sits BEHIND this flow's
+      // #scrim (z-index 70) — without this the card opens invisibly and the button seems dead.
       closeFlow();
       window.TCCompanion.promptSignInToRemember(t);
     }
   };
-  document.getElementById('homeEditBtn').onclick = () => { cancelSpeech(); openFlow(); answers.moment = t; renderStep(); };
+  const doEdit = () => { stopConfirmListen(); openFlow(); answers.moment = t; renderStep(); };
+  document.getElementById('homePlanBtn').onclick = doPlan;
+  const rememberBtn = document.getElementById('homeRememberBtn');
+  if (rememberBtn) rememberBtn.onclick = doRemember;
+  document.getElementById('homeEditBtn').onclick = doEdit;
   document.getElementById('homeCancel2').onclick = closeFlow; // closeFlow → stopConfirmListen → cancelSpeech
-  // TC-67 (read-aloud on): speak the readback so the home voice path is audible end-to-end.
-  // Output only — this screen is a tap-choice, so no mic opens here (no feedback-loop risk).
+  // TC-67 (read-aloud on): speak the readback AND listen for the spoken choice, so the home voice
+  // path is eyes-free through the fork too. Speak first, THEN open the mic (after playback ends),
+  // so the app never hears its own "make a plan, or remember this". Tap always works alongside.
   if (voiceReplyOn()){
+    __confirmActive = true;
     const ask = canRemember ? 'Make a plan, or remember this about them?' : 'Make your plan from this?';
-    speakPrompt(`Here's what I heard: ${t}. ${ask}`, () => {});
+    reflectSpeakListen(`Here's what I heard: ${t}. ${ask}`, canRemember, doPlan, doRemember, 0);
   }
+}
+// Speak the reflect readback, then listen once (with one gentle re-ask) for the spoken choice
+// and route it. Mirrors the confirm-card speak→listen, but parses a choice instead of yes/no.
+function reflectSpeakListen(line, canRemember, doPlan, doRemember, attempt){
+  const listen = () => {
+    if (!__confirmActive) return; // a tap resolved it during the readback
+    setListenCue(canRemember ? 'choice' : 'listening');
+    beginConfirmRecording((text) => onReflectAnswer(text, canRemember, doPlan, doRemember, attempt)).then((ok) => {
+      if (!ok && __confirmActive){ __confirmActive = false; setListenCue('hidden'); }
+    });
+  };
+  if (line && voiceReplyOn()){
+    setListenCue('speaking');
+    speakPrompt(line, () => setTimeout(() => { if (__confirmActive) listen(); }, 300));
+  } else { listen(); }
+}
+function onReflectAnswer(text, canRemember, doPlan, doRemember, attempt){
+  if (!__confirmActive) return;
+  const choice = parseReflectChoice(text, canRemember);
+  if (choice === 'plan'){ __confirmActive = false; setListenCue('thinking'); doPlan(); return; }
+  if (choice === 'remember' && canRemember){ __confirmActive = false; setListenCue('thinking'); doRemember(); return; }
+  // Unclear → one gentle spoken re-ask, then settle to the buttons.
+  if (attempt === 0){
+    const re = canRemember
+      ? "Sorry — you can say, make a plan, or, remember this."
+      : "Sorry — say, make my plan, to go on.";
+    reflectSpeakListen(re, canRemember, doPlan, doRemember, 1);
+    return;
+  }
+  __confirmActive = false; setListenCue('hidden');
+}
+// Map a spoken reply to a reflect choice. Conservative: only a clear match routes; anything
+// else stays put so the app never guesses the user into the wrong path.
+function parseReflectChoice(text, canRemember){
+  const s = String(text || '').toLowerCase().replace(/[^a-z\s']/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!s) return 'none';
+  const plan = /\b(plan|planning|first|option one|number one)\b/.test(s);
+  const remember = /\b(remember|save (it|this|him|her|them)|keep (it|this|him|her|them)|note (it|this|him|her|them)|second|option two|number two)\b/.test(s);
+  if (!canRemember){ // single option → treat a plan word OR a plain yes as "go"
+    return (plan || /\b(yes|yeah|yep|yup|go|go ahead|do it|sure|okay|ok)\b/.test(s)) ? 'plan' : 'ambiguous';
+  }
+  if (plan && !remember) return 'plan';
+  if (remember && !plan) return 'remember';
+  return 'ambiguous'; // both or neither → re-ask
 }
 function renderHomeError(msg){
   stage.innerHTML = `
@@ -1453,6 +1503,7 @@ function setListenCue(state){
   const dot = state === 'thinking' ? '' : '<span class="re-listen-dot" aria-hidden="true"></span>';
   let txt = '';
   if (state === 'listening') txt = 'Listening — say “yes,” or tap above';
+  else if (state === 'choice') txt = 'Listening — say “make a plan” or “remember this,” or tap';
   else if (state === 'speaking') txt = 'Reading it back to you…';
   else if (state === 'thinking') txt = 'One sec…';
   else if (state === 'retry') txt = 'Didn’t catch that — say “yes,” or just tap';
