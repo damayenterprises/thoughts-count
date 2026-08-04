@@ -386,6 +386,10 @@
   @keyframes re-listen-pulse { 0% { box-shadow: 0 0 0 0 rgba(194,138,99,.45); } 100% { box-shadow: 0 0 0 10px rgba(194,138,99,0); } }
   @media (prefers-reduced-motion: reduce) { .re-listen-dot { animation: none !important; } }
 
+  /* TC-67: "Read replies aloud" opt-in on the listening screen. Calm, out of the way. */
+  .tc-readaloud { display: inline-flex; align-items: center; gap: 8px; margin-top: 18px; font-size: 13px; color: var(--ink-soft, #7a7263); cursor: pointer; user-select: none; }
+  .tc-readaloud input { width: 16px; height: 16px; margin: 0; accent-color: var(--sage, #7d8a68); cursor: pointer; }
+
   /* Clean printout / save-as-PDF: only the plan, no animated background or chrome. */
   @media print {
     body.printing #bg, body.printing .bar, body.printing main, body.printing footer,
@@ -964,10 +968,14 @@ function renderHomeListening(){
         <button type="button" class="cta" id="homeDoneBtn">Done</button>
         <button type="button" class="link-btn" id="homeCancelBtn">Cancel</button>
       </div>
+      ${ttsAvailable() ? `<div><label class="tc-readaloud"><input type="checkbox" id="homeReadAloud"${readAloudEnabled() ? ' checked' : ''}> <span>Read my replies aloud (hands-free)</span></label></div>` : ''}
     </div>`;
   scrim.scrollTop = 0;
   document.getElementById('homeDoneBtn').onclick = () => { toProcessing(); stopHomeRecording(); };
   document.getElementById('homeCancelBtn').onclick = () => { cancelHomeRecording(); closeFlow(); };
+  // TC-67: per-device opt-in for spoken confirmations (off by default). Persists immediately.
+  const raBox = document.getElementById('homeReadAloud');
+  if (raBox) raBox.onchange = () => setReadAloud(raBox.checked);
 }
 // Calm hand-off from "listening" to "taking that in": ripples fade, core settles,
 // the copy changes, controls hide. Runs the instant Done is tapped (not after the
@@ -1445,6 +1453,13 @@ let __confirmRetryTimer = null; // holds the brief "didn't catch that" beat befo
 // existing text + listen behavior with no change.
 let __ttsFallback = null;
 function ttsAvailable(){ try { return !!(window.speechSynthesis && window.SpeechSynthesisUtterance); } catch(e){ return false; } }
+// Per-device preference (TC-67): read confirmations aloud. OFF by default — the user opts in
+// only when their surroundings are private, so a personal note is never spoken unless they
+// asked for it. Stored per-device (localStorage) because it's an environment choice: on in
+// the car, off at a desk. voiceReplyOn() = the browser can speak AND the user turned it on.
+function readAloudEnabled(){ try { return localStorage.getItem('tc_read_aloud') === '1'; } catch(e){ return false; } }
+function setReadAloud(on){ try { localStorage.setItem('tc_read_aloud', on ? '1' : '0'); } catch(e){} }
+function voiceReplyOn(){ return ttsAvailable() && readAloudEnabled(); }
 function cancelSpeech(){
   try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch(e){}
   if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
@@ -1482,7 +1497,7 @@ function speakThenListen(line, onYes, onNo, attempt){
       if (!ok && __confirmActive){ __confirmActive = false; setListenCue('hidden'); } // can't record → tap only
     });
   };
-  if (line && ttsAvailable()){
+  if (line && voiceReplyOn()){
     setListenCue('speaking');
     // Short pause after speech before the mic opens, so no audio tail is captured.
     speakPrompt(line, () => setTimeout(() => { if (__confirmActive) listen(); }, 300));
@@ -1498,7 +1513,7 @@ function onConfirmAnswer(text, onYes, onNo, attempt){
   // Unclear → one more try. With voice output we SPEAK a short retry (its own beat); without it,
   // show the "didn't catch that" text for ~900ms so it's visible before re-listening.
   if (verdict === 'ambiguous' && attempt === 0){
-    if (ttsAvailable()){
+    if (voiceReplyOn()){
       speakThenListen("Sorry, I didn't catch that. Say yes to save, or tap.", onYes, onNo, 1);
     } else {
       setListenCue('retry');
