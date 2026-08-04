@@ -1421,6 +1421,7 @@ function setListenCue(state){
 // Arm the hands-free listen for the current add/update confirm card. No-op unless we got
 // here by voice and the gate is open. onYes/onNo fire the SAME actions as the buttons.
 let __confirmActive = false;
+let __confirmRetryTimer = null; // holds the brief "didn't catch that" beat before a re-listen
 async function startConfirmListen(opts){
   const onYes = opts.onYes, onNo = opts.onNo, attempt = opts.attempt || 0;
   if (!__voiceHandsFree || !voiceAllowedClient()) return; // typed / gated → tap only
@@ -1431,14 +1432,24 @@ async function startConfirmListen(opts){
     const verdict = parseYesNo(text);
     if (verdict === 'yes'){ __confirmActive = false; setListenCue('thinking'); onYes(); return; }
     if (verdict === 'no'){ __confirmActive = false; setListenCue('hidden'); onNo(); return; }
-    // Heard something unclear → offer one more listen; otherwise settle to tap silently.
-    if (verdict === 'ambiguous' && attempt === 0){ setListenCue('retry'); startConfirmListen({ onYes, onNo, attempt: 1 }); return; }
+    // Heard something unclear → show the "didn't catch that" beat, THEN re-arm and listen
+    // once more. The re-listen must be delayed: startConfirmListen() sets the cue back to
+    // "listening" synchronously, so calling it inline would overwrite the retry copy in the
+    // same tick and the user would never see it. Guarded by __confirmActive so a tap or
+    // closeFlow during the beat cancels cleanly (the timer is cleared in stopConfirmListen).
+    if (verdict === 'ambiguous' && attempt === 0){
+      setListenCue('retry');
+      if (__confirmRetryTimer) clearTimeout(__confirmRetryTimer);
+      __confirmRetryTimer = setTimeout(() => { __confirmRetryTimer = null; if (__confirmActive) startConfirmListen({ onYes, onNo, attempt: 1 }); }, 900);
+      return;
+    }
     __confirmActive = false; setListenCue('hidden');
   });
   if (!ok){ __confirmActive = false; setListenCue('hidden'); } // can't record → tap only
 }
 // Stop listening + hide the cue. Safe to call anytime (tap, navigation, closeFlow).
 function stopConfirmListen(){
+  if (__confirmRetryTimer){ clearTimeout(__confirmRetryTimer); __confirmRetryTimer = null; } // cancel a pending re-listen
   if (!__confirmActive && !__crec.active) { setListenCue('hidden'); return; }
   __confirmActive = false;
   abortConfirmRecording();
