@@ -39,6 +39,11 @@ t("'wedding anniversary' routes to anniversary, not wedding_engagement", () => {
   assert.equal(classifyOccasion("my parents' 40th wedding anniversary"), "anniversary");
   assert.equal(classifyOccasion("they just got engaged"), "wedding_engagement"); // pure wedding still works
 });
+t("'lost his job' routes to job_loss, not bereavement; grief 'lost' still bereavement", () => {
+  assert.equal(classifyOccasion("my friend just lost his job"), "job_loss");
+  assert.equal(classifyOccasion("she lost her job in the layoffs"), "job_loss");
+  assert.equal(classifyOccasion("he lost his mother last week"), "bereavement"); // grief 'lost ' still routes right
+});
 t("a birthday moment retrieves the birthday exemplars end-to-end", () => {
   const occ = classifyOccasion("my niece's birthday is coming up");
   const ex = getExemplars({ occasion: occ });
