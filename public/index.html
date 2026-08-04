@@ -598,7 +598,6 @@ const STEPS = [
 
 const answers = {};   // raw free-text per step
 const picks = {};      // selected chips per step (kept separate from free text)
-const nudged = {};     // steps we've already gently nudged once (so a 2nd Continue proceeds)
 const __rec = { mr: null, chunks: [], active: false, stream: null }; // voice recorder state (TC-51)
 let idx = 0;
 let currentPlan = null;
@@ -639,8 +638,7 @@ function openFlow(preset){
   idx = 0;
   flowPerson = null; window.__tcFlowPersonId = null;
   for (const k in answers) delete answers[k];
-  for (const k in picks) delete picks[k];
-  for (const k in nudged) delete nudged[k];
+  for (const k in picks) delete picks[k];
   genAttempts = 0;
   if (preset) picks.moment = [preset];
   try { window.tcTrack && tcTrack('intake_start', preset ? { label: preset } : {}); } catch(e){}
@@ -651,8 +649,7 @@ function openFlowForPerson(person){
   idx = 0;
   flowPerson = person || null;
   for (const k in answers) delete answers[k];
-  for (const k in picks) delete picks[k];
-  for (const k in nudged) delete nudged[k];
+  for (const k in picks) delete picks[k];
   genAttempts = 0;
   if (person){
     answers.name = person.name || '';
@@ -779,15 +776,10 @@ function renderStep(){
       ta.focus({ preventScroll: true });
       return;
     }
-    // Gentle, skippable nudge on the "about them" step — a blank here makes for a
-    // generic plan on the one moment they wanted to feel personal. We ask once.
-    if (s2.key === 'about' && !composeAnswer('about') && !nudged.about){
-      nudged.about = true;
-      ta.style.borderColor = '#c9b98f';
-      if (stepMsg){ stepMsg.className = 'k-msg'; stepMsg.style.color = '#8a7f68'; stepMsg.textContent = 'Even one line about them makes this feel like them, not a template. Add a sentence — or press Continue again to skip.'; stepMsg.style.display = 'block'; }
-      ta.focus({ preventScroll: true });
-      return;
-    }
+    // TC-72: optional steps (everything after the required "moment") must advance on the
+    // FIRST Continue press — a button that needs two presses reads as broken. We no longer
+    // gate the optional "about them" step behind a "press Continue again to skip" nudge;
+    // it advances immediately. (The step help text already invites adding a line.)
     if (idx < STEPS.length-1){ idx++; renderStep(); } else generate();
   };
 }
@@ -1102,8 +1094,7 @@ function renderHomeError(msg){
 // the add/update-by-voice routing later; slice 1 routes every home utterance to a plan).
 function startPlanFromText(text){
   for (const k in answers) delete answers[k];
-  for (const k in picks) delete picks[k];
-  for (const k in nudged) delete nudged[k];
+  for (const k in picks) delete picks[k];
   genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; __fromVoice = true;
   answers.moment = String(text || '').trim();
   try { window.tcTrack && tcTrack('intake_start', { label: 'voice_home' }); } catch(e){}
