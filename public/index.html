@@ -346,7 +346,16 @@
   .keep .k-msg.ok { color: var(--sage-deep); font-weight: 700; }
   .keep .k-msg.bad { color: #a04a2e; }
   .keep .k-privacy { margin-top: 10px; font-size: 12px; color: #b3a58c; }
-  .plan-actions { display: flex; gap: 11px; justify-content: center; padding: 20px 32px 6px; flex-wrap: wrap; }
+  /* TC-71: unified "Keep this plan" card holding both save ways (email + to a person). */
+  .keep-unified .keep-way-label { font-size: 13px; font-weight: 700; color: var(--sage-deep); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 9px; }
+  .keep-unified .keep-way-person { margin-top: 4px; }
+  .keep-or { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; color: #b3a58c; font-size: 12.5px; }
+  .keep-or::before, .keep-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  /* TC-71: secondary actions demoted to a quiet row below the single save card. */
+  .plan-secondary { padding: 18px 32px 2px; }
+  .plan-actions { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .plan-actions .ps-dot { color: #cbbfa4; }
+  .plan-actions .link-btn { font-size: 14px; }
   .disclaimer { text-align: center; font-size: 12.5px; color: #b3a58c; padding: 16px 32px 4px; }
   .err { background: #f3e4da; border: 1px solid #e2c3b1; color: #8a4f34; border-radius: 14px; padding: 15px 17px; font-size: 15px; margin-bottom: 16px; }
 
@@ -1774,25 +1783,37 @@ function renderPlan(p){
       <div class="closing">${escapeHtml(p.closing_encouragement||'')}</div>
     </div>
     <div style="padding:8px 32px 0;">
-      <div class="keep">
-        <h4>Keep this plan close</h4>
-        <p class="k-sub">We'll email it to you so it's there when you need it — and remind you at just the right time to follow through.</p>
-        <div class="k-row">
-          <input type="email" id="planEmail" placeholder="you@email.com" autocomplete="email" />
-          <button class="cta" id="emailPlanBtn">Email me my plan</button>
+      <!-- TC-71: one unified "keep this plan" card. Both ways to save live here — email it
+           to yourself (below) and, for signed-in users, save it to one of your people (the
+           companion layer injects that option into #savePersonMount). -->
+      <div class="keep keep-unified">
+        <h4>Keep this plan</h4>
+        <p class="k-sub">Have it when you need it — and get a gentle nudge at just the right time to follow through.</p>
+        <div class="keep-way">
+          <div class="keep-way-label">Email it to you</div>
+          <div class="k-row">
+            <input type="email" id="planEmail" placeholder="you@email.com" autocomplete="email" />
+            <button class="cta" id="emailPlanBtn">Email me my plan</button>
+          </div>
+          <label class="k-remind"><input type="checkbox" id="wantReminders" /> Also email me the "keep showing up" reminders, on their dates</label>
+          <div class="k-msg" id="emailMsg"></div>
+          <div class="k-privacy">We use your email only for this — no account, no sharing. <a href="/privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">See how we handle your data →</a></div>
         </div>
-        <label class="k-remind"><input type="checkbox" id="wantReminders" /> Also email me the "keep showing up" reminders, on their dates</label>
-        <div class="k-msg" id="emailMsg"></div>
-        <div class="k-privacy">We use your email only for this — no account, no sharing. <a href="/privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">See how we handle your data →</a></div>
+        <!-- Save-to-a-person option is injected here by the companion layer (same card). -->
+        <div id="savePersonMount"></div>
       </div>
     </div>
-    <div class="plan-actions">
-      <button class="cta ghost" onclick="restart()">Plan for someone else</button>
-      <button class="cta" onclick="savePlan()">Save as PDF / print</button>
+    <!-- TC-71: quieter secondary row — the single save card above is the main action. -->
+    <div class="plan-secondary">
+      <div class="plan-actions">
+        <button class="link-btn" onclick="restart()">Plan for someone else</button>
+        <span class="ps-dot">·</span>
+        <button class="link-btn" onclick="savePlan()">Save as PDF / print</button>
+      </div>
+      ${fbBlock}
+      <div style="text-align:center;margin-top:14px;"><a href="/guides/" style="color:var(--sage-deep);font-weight:600;font-size:14px;">Explore more guides on showing up →</a></div>
     </div>
     <div class="disclaimer">A thoughtful starting point, made for your situation — trust your own heart on the details.</div>
-    ${fbBlock}
-    <div style="text-align:center;margin-top:18px;"><a href="/guides/" style="color:var(--sage-deep);font-weight:700;font-size:14.5px;">Explore more guides on showing up →</a></div>
     <div style="height:16px"></div>`;
 
   // Wire up "Set reminder" buttons — each downloads a calendar event the user can
