@@ -236,6 +236,7 @@ export const EXEMPLARS = {
       "The life you've made together is the good kind of rare. Congratulations.",
       "Thank you for showing the rest of us what going the distance actually looks like.",
       "Here's to you both — and to all the ordinary days that added up to this.",
+      "Every year with you, I'd choose this life all over again. Happy anniversary.",
     ],
     what_not_to_say: [
       "\"So when's the next big milestone?\" — let the years they've earned be the whole point today, not a setup for what's next.",
