@@ -234,6 +234,14 @@
   .progress .fill { height: 100%; background: var(--sage); width: 0%; transition: width .35s ease; }
 
   .panel-body { padding: 32px 32px 28px; }
+  /* TC-73: anchor the intake step card so it doesn't grow/shrink between the 5 steps
+     (which nudged content vertically and felt unanchored). A comfortable min-height
+     holds the card stable; Back/Continue sit at the bottom of the reserved space.
+     Uses flex so short steps fill the min-height without stretching the controls. */
+  .step-body { display: flex; flex-direction: column; min-height: 440px; }
+  .step-body .nav { margin-top: auto; }
+  /* Degrade gracefully on short viewports — never force overflow on small screens. */
+  @media (max-height: 620px) { .step-body { min-height: 0; } }
   .q-eyebrow { font-size: 13px; letter-spacing: .04em; color: var(--sage-deep); font-weight: 700; text-transform: uppercase; }
   .q-title { font-size: clamp(23px, 3.4vw, 28px); font-weight: 500; margin: 10px 0 4px; }
   .q-help { color: var(--ink-soft); font-size: 15px; margin: 0 0 22px; }
@@ -638,7 +646,7 @@ function openFlow(preset){
   idx = 0;
   flowPerson = null; window.__tcFlowPersonId = null;
   for (const k in answers) delete answers[k];
-  for (const k in picks) delete picks[k];
+  for (const k in picks) delete picks[k];
   genAttempts = 0;
   if (preset) picks.moment = [preset];
   try { window.tcTrack && tcTrack('intake_start', preset ? { label: preset } : {}); } catch(e){}
@@ -649,7 +657,7 @@ function openFlowForPerson(person){
   idx = 0;
   flowPerson = person || null;
   for (const k in answers) delete answers[k];
-  for (const k in picks) delete picks[k];
+  for (const k in picks) delete picks[k];
   genAttempts = 0;
   if (person){
     answers.name = person.name || '';
@@ -712,7 +720,7 @@ function renderStep(){
       return `<button type="button" class="pick${on?' active':''}" aria-pressed="${on}" data-v="${v}">${p}</button>`; }).join('')
   }</div>` : "";
   stage.innerHTML = `
-    <div class="panel-body">
+    <div class="panel-body step-body">
       <div class="q-eyebrow">${sEyebrow} · ${idx+1} of ${STEPS.length}</div>
       <h2 class="q-title">${sTitle}</h2>
       <p class="q-help">${sHelp}</p>
@@ -1094,7 +1102,7 @@ function renderHomeError(msg){
 // the add/update-by-voice routing later; slice 1 routes every home utterance to a plan).
 function startPlanFromText(text){
   for (const k in answers) delete answers[k];
-  for (const k in picks) delete picks[k];
+  for (const k in picks) delete picks[k];
   genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; __fromVoice = true;
   answers.moment = String(text || '').trim();
   try { window.tcTrack && tcTrack('intake_start', { label: 'voice_home' }); } catch(e){}
