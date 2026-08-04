@@ -483,8 +483,8 @@
     <div class="hero-start">
       <div class="hero-start-label">I want to show up for someone…</div>
       <div class="hero-actions">
-        <button type="button" class="cta sage" id="homeMicBtn" style="display:none;"></button>
         <button type="button" class="cta" id="homeTypeBtn" onclick="openFlow()"></button>
+        <button type="button" class="cta sage" id="homeMicBtn" style="display:none;"></button>
       </div>
     </div>
     <div class="reassure">No account needed · <b>Free to try</b> · Ready in about a minute</div>
@@ -907,10 +907,10 @@ async function setupHomeVoice(){
   mic.style.display = '';
   mic.onclick = startHomeVoice;
   mic.innerHTML = micSvg(19, 'currentColor', '#c28a63') + '<span class="mic-label">Talk it through</span>';
-  // Two equal ways to start the same thing — put the one that fits the device first.
-  const typeBtn = document.getElementById('homeTypeBtn');
-  mic.style.order = isPhone ? '0' : '1';
-  if (typeBtn) typeBtn.style.order = isPhone ? '1' : '0';
+  // TC-70: stable, consistent CTAs — "Type it out" is always the primary (terracotta,
+  // lower-friction no-mic path) and comes first; "Talk it through" is the sage secondary
+  // that comes second. Order no longer swaps by device, so the hero reads the same every
+  // load (source order already places Type before Talk — no `order` overrides needed).
 }
 window.addEventListener('tc-voice-gate-ready', setupHomeVoice);
 setupHomeVoice();
