@@ -1169,6 +1169,13 @@ function factsListHtml(facts){
   if (!lines.length) return '';
   return `<ul style="text-align:left;display:inline-block;margin:10px 0 4px;padding-left:18px;color:var(--ink,#3b362e);">${lines.map(l => `<li style="margin:3px 0;">${escapeHtml(l)}</li>`).join('')}</ul>`;
 }
+// Plain-text version of the same facts, for the spoken confirmation (TC-67). No HTML escaping —
+// this is read aloud, not rendered.
+function factsPlain(facts){
+  let lines = [];
+  try { lines = (window.TCCompanion.factsToText(facts) || []); } catch(e){}
+  return lines.filter(Boolean).join(', ');
+}
 function renderRememberCard(cap){
   stopConfirmListen(); // TC-63: never carry a listen from a previous card into this one
   const first = (n) => String(n || '').trim().split(/\s+/)[0] || 'them';
@@ -1217,7 +1224,12 @@ function renderRememberCard(cap){
   const doCancel = () => { stopConfirmListen(); nextOrClose(); };
   document.getElementById('reConfirm').onclick = doConfirm;
   document.getElementById('reCancel').onclick = doCancel;
-  startConfirmListen({ onYes: doConfirm, onNo: doCancel });
+  // TC-67: spoken confirmation reads back exactly what will be saved, then listens.
+  const ft = factsPlain(cap.facts);
+  const spoken = isUpdate
+    ? (ft ? `I'll add this to ${name}: ${ft}. Say yes to save, or tap.` : `I'll add this to ${name}. Say yes to save, or tap.`)
+    : (ft ? `I'll remember ${name} and note: ${ft}. Say yes to save, or tap.` : `I'll remember ${name}. Say yes to save, or tap.`);
+  startConfirmListen({ onYes: doConfirm, onNo: doCancel, speak: spoken });
   scrim.scrollTop = 0;
 }
 function nextOrClose(){ if (__voiceQueue.length) renderNextRememberCard(); else closeFlow(); }
@@ -1308,7 +1320,10 @@ function renderLockedConfirm(cap){
   const doCancel = () => { stopConfirmListen(); closeFlow(); };
   document.getElementById('lkConfirm').onclick = doConfirm;
   document.getElementById('lkCancel').onclick = doCancel;
-  startConfirmListen({ onYes: doConfirm, onNo: doCancel });
+  // TC-67: spoken confirmation reads back exactly what will be saved, then listens.
+  const ft = factsPlain(cap.facts);
+  const spoken = ft ? `I'll add this to ${name}: ${ft}. Say yes to save, or tap.` : `I'll add this to ${name}. Say yes to save, or tap.`;
+  startConfirmListen({ onYes: doConfirm, onNo: doCancel, speak: spoken });
 }
 
 // ---- Hands-free confirm: voice "yes"/"no" on an add/update card (TC-63) ----
@@ -1412,44 +1427,92 @@ function setListenCue(state){
   const dot = state === 'thinking' ? '' : '<span class="re-listen-dot" aria-hidden="true"></span>';
   let txt = '';
   if (state === 'listening') txt = 'Listening — say “yes,” or tap above';
+  else if (state === 'speaking') txt = 'Reading it back to you…';
   else if (state === 'thinking') txt = 'One sec…';
   else if (state === 'retry') txt = 'Didn’t catch that — say “yes,” or just tap';
   el.innerHTML = dot + '<span aria-live="polite">' + txt + '</span>';
   el.hidden = false;
 }
 
-// Arm the hands-free listen for the current add/update confirm card. No-op unless we got
-// here by voice and the gate is open. onYes/onNo fire the SAME actions as the buttons.
 let __confirmActive = false;
 let __confirmRetryTimer = null; // holds the brief "didn't catch that" beat before a re-listen
-async function startConfirmListen(opts){
-  const onYes = opts.onYes, onNo = opts.onNo, attempt = opts.attempt || 0;
+
+// --- Spoken confirmation (TC-67 prototype): the app reads the card aloud, THEN listens ---
+// Browser speechSynthesis only — local, on-device, no key, nothing leaves the browser (even
+// more private than our own transcribe endpoint). TRUST-CRITICAL: we NEVER open the mic while
+// speaking. The mic starts only after speech ends (+ a short pause), so the app can't hear its
+// own "say yes to save" and false-save. If voice output isn't available it degrades to the
+// existing text + listen behavior with no change.
+let __ttsFallback = null;
+function ttsAvailable(){ try { return !!(window.speechSynthesis && window.SpeechSynthesisUtterance); } catch(e){ return false; } }
+function cancelSpeech(){
+  try { if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch(e){}
+  if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
+}
+// Speak `text`, then call onDone exactly once (on end, on error, or a GENEROUS fallback if the
+// browser drops onend — the fallback is long enough that the mic never opens mid-speech).
+function speakPrompt(text, onDone){
+  let done = false;
+  const finish = () => { if (done) return; done = true; if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; } onDone(); };
+  try {
+    if (!ttsAvailable() || !text){ finish(); return; }
+    window.speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text);
+    u.rate = 0.98; u.pitch = 1.0; u.lang = 'en-US'; // calm, unhurried
+    u.onend = finish; u.onerror = finish;
+    __ttsFallback = setTimeout(finish, Math.min(20000, 3000 + text.length * 90)); // only fires AFTER real speech
+    window.speechSynthesis.speak(u);
+  } catch(e){ finish(); }
+}
+
+// Arm a hands-free confirm on the current add/update card: speak the prompt (if voice output
+// is available), THEN listen for a spoken yes/no. onYes/onNo mirror the buttons exactly.
+function startConfirmListen(opts){
   if (!__voiceHandsFree || !voiceAllowedClient()) return; // typed / gated → tap only
   __confirmActive = true;
-  setListenCue('listening');
-  const ok = await beginConfirmRecording((text) => {
-    if (!__confirmActive) return; // a tap already resolved the card
-    const verdict = parseYesNo(text);
-    if (verdict === 'yes'){ __confirmActive = false; setListenCue('thinking'); onYes(); return; }
-    if (verdict === 'no'){ __confirmActive = false; setListenCue('hidden'); onNo(); return; }
-    // Heard something unclear → show the "didn't catch that" beat, THEN re-arm and listen
-    // once more. The re-listen must be delayed: startConfirmListen() sets the cue back to
-    // "listening" synchronously, so calling it inline would overwrite the retry copy in the
-    // same tick and the user would never see it. Guarded by __confirmActive so a tap or
-    // closeFlow during the beat cancels cleanly (the timer is cleared in stopConfirmListen).
-    if (verdict === 'ambiguous' && attempt === 0){
+  speakThenListen(opts.speak || '', opts.onYes, opts.onNo, 0);
+}
+// Read `line` aloud (or nothing), then open the mic. Splitting speak→listen is what keeps the
+// app from hearing itself. A tap or closeFlow during either phase cancels cleanly.
+function speakThenListen(line, onYes, onNo, attempt){
+  const listen = () => {
+    if (!__confirmActive) return; // a tap/close resolved the card during speech
+    setListenCue('listening');
+    beginConfirmRecording((text) => onConfirmAnswer(text, onYes, onNo, attempt)).then((ok) => {
+      if (!ok && __confirmActive){ __confirmActive = false; setListenCue('hidden'); } // can't record → tap only
+    });
+  };
+  if (line && ttsAvailable()){
+    setListenCue('speaking');
+    // Short pause after speech before the mic opens, so no audio tail is captured.
+    speakPrompt(line, () => setTimeout(() => { if (__confirmActive) listen(); }, 300));
+  } else {
+    listen();
+  }
+}
+function onConfirmAnswer(text, onYes, onNo, attempt){
+  if (!__confirmActive) return; // a tap already resolved the card
+  const verdict = parseYesNo(text);
+  if (verdict === 'yes'){ __confirmActive = false; setListenCue('thinking'); onYes(); return; }
+  if (verdict === 'no'){ __confirmActive = false; setListenCue('hidden'); onNo(); return; }
+  // Unclear → one more try. With voice output we SPEAK a short retry (its own beat); without it,
+  // show the "didn't catch that" text for ~900ms so it's visible before re-listening.
+  if (verdict === 'ambiguous' && attempt === 0){
+    if (ttsAvailable()){
+      speakThenListen("Sorry, I didn't catch that. Say yes to save, or tap.", onYes, onNo, 1);
+    } else {
       setListenCue('retry');
       if (__confirmRetryTimer) clearTimeout(__confirmRetryTimer);
-      __confirmRetryTimer = setTimeout(() => { __confirmRetryTimer = null; if (__confirmActive) startConfirmListen({ onYes, onNo, attempt: 1 }); }, 900);
-      return;
+      __confirmRetryTimer = setTimeout(() => { __confirmRetryTimer = null; if (__confirmActive) speakThenListen('', onYes, onNo, 1); }, 900);
     }
-    __confirmActive = false; setListenCue('hidden');
-  });
-  if (!ok){ __confirmActive = false; setListenCue('hidden'); } // can't record → tap only
+    return;
+  }
+  __confirmActive = false; setListenCue('hidden');
 }
-// Stop listening + hide the cue. Safe to call anytime (tap, navigation, closeFlow).
+// Stop listening + speaking + hide the cue. Safe to call anytime (tap, navigation, closeFlow).
 function stopConfirmListen(){
   if (__confirmRetryTimer){ clearTimeout(__confirmRetryTimer); __confirmRetryTimer = null; } // cancel a pending re-listen
+  cancelSpeech(); // stop the app mid-sentence if the user taps/closes while it's talking
   if (!__confirmActive && !__crec.active) { setListenCue('hidden'); return; }
   __confirmActive = false;
   abortConfirmRecording();
