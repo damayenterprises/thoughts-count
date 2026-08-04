@@ -706,7 +706,8 @@ function closeFlow(){
   const peopleOpen = (() => { const m = document.getElementById('tcModal'); return !!(m && m.classList.contains('open')); })();
   document.body.style.overflow = peopleOpen ? 'hidden' : '';
 }
-scrim.addEventListener('click', e => { if (e.target === scrim) closeFlow(); });
+// TC-78: an outside/backdrop click must NEVER discard a generated plan or in-progress work.
+// Backdrop-click dismissal removed — the explicit ✕ (closeFlow) is the one intentional close.
 function setProgress(p){ fill.style.width = p + '%'; }
 
 function renderStep(){
