@@ -314,7 +314,9 @@ async function enrichOnlineIdeas(plan, etsyKey, shoppingKey) {
     // Pass the whole idea so the resolver can confirm the found listing plausibly
     // matches THIS described gift (title + price) before we ever show its photo (TC-69).
     if (etsyKey) { try { product = await etsyLookup(q, etsyKey, g); } catch (e) { console.error("etsy lookup failed", e); } }
-    if (!product && shoppingKey) { try { product = await shoppingLookup(q, shoppingKey); } catch (e) { console.error("shopping lookup failed", e); } }
+    // Pass the whole idea so the shopping fallback can confirm the found listing plausibly
+    // matches THIS described gift (keyword/kind/price) before we show its photo (TC-77).
+    if (!product && shoppingKey) { try { product = await shoppingLookup(q, shoppingKey, g); } catch (e) { console.error("shopping lookup failed", e); } }
     if (product && product.image && product.url) g.product = product;
   }
 }
@@ -339,6 +341,25 @@ function priceValue(it) {
   if (it && it.price && it.price.amount != null) return Number(it.price.amount) / Number(it.price.divisor || 100);
   return null;
 }
+// Parse a dollar figure out of a free-text price string ("$413.00", "$30–45",
+// "From $12.99") → a Number, or null. For a range we take the LOW end (the most
+// charitable read — a listing is only rejected as "too pricey" if even its floor
+// blows past the budget). Strips thousands separators so "$1,299" reads as 1299.
+function parsePrice(s) {
+  const m = String(s || "").replace(/,/g, "").match(/\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+// Words that mark a listing as a BULK / wholesale lot rather than the single ordinary
+// gift the plan described — the TC-77 repro was a "25+ Copies… $413.00" book listing
+// surfacing for a single-book idea. "pack of N"/"lot of"/"case of"/"set of N" and a bare
+// "N+ copies/pack/count" quantity prefix all read as wholesale, not a giftable single item.
+const BULK_KIND = ["wholesale", "bulk", "case of", "lot of", "carton", "pallet", "in bulk", "resale", "for resale"];
+const BULK_RE = /\b(\d{2,}\+?\s*(?:copies|copy|pack|packs|count|ct|pcs|pieces|units|bulk)|(?:pack|lot|case|box|set|carton)\s*of\s*\d{2,}|\d{2,}\s*(?:pack|pk|count|ct)\b)/i;
+function isBulkListing(title) {
+  const tl = String(title || "").toLowerCase();
+  if (BULK_KIND.some((b) => tl.includes(b))) return true;
+  return BULK_RE.test(tl);
+}
 // Returns true if this Etsy listing plausibly matches the described gift idea.
 function etsyListingMatches(it, idea) {
   const title = String(it.title || "");
@@ -360,6 +381,55 @@ function etsyListingMatches(it, idea) {
   const titleTokens = new Set(tokenize(title));
   for (const t of ideaTokens) { if (titleTokens.has(t)) return true; }
   return false; // no shared meaningful keyword → treat as a mismatch, drop it
+}
+
+// TC-77 confidence guard for the Google Shopping FALLBACK — the same discipline TC-69
+// gave the Etsy path, adapted to the shopping result shape ({ title, price: "$413.00" }).
+// When a correct Etsy match is rejected we fall through to Shopping, which likewise
+// returns loosely-related hits: a single-book gift idea surfaced a "25+ Copies… $413.00"
+// bulk/wholesale listing. Before attaching one we require it to plausibly match the idea:
+//   1) meaningful keyword overlap between the idea and the listing title,
+//   2) not the wrong KIND — a digital/printable/card item (WRONG_KIND) OR a bulk/wholesale
+//      lot (isBulkListing) when the idea describes a single ordinary gift, and
+//   3) price sanity — not implausibly cheap for a physical item (same <$8 rule) AND not
+//      wildly above what the idea described (the $413 book). We derive a ceiling from the
+//      idea's own price_range when present, else fall back to an everyday-gift cap.
+// A listing that fails is dropped → the client shows the search-link tile. Better no
+// photo than a mismatched one.
+function shoppingResultMatches(it, idea) {
+  const title = String(it?.title || "");
+  const tl = title.toLowerCase();
+  const ideaText = `${idea?.title || ""} ${idea?.blurb || ""} ${idea?.search_query || ""}`.toLowerCase();
+  // 2) Wrong KIND — digital/printable/card posing as a physical gift…
+  for (const bad of WRONG_KIND) {
+    if (tl.includes(bad) && !ideaText.includes(bad)) return false;
+  }
+  //    …or a bulk/wholesale lot when the idea describes a single ordinary gift.
+  if (isBulkListing(title) && !/\b(bulk|wholesale|pack|lot|case|dozen)\b/.test(ideaText)) return false;
+  // 3) Price sanity. Shopping prices are free-text strings ("$413.00", "$30–45").
+  const price = parsePrice(it?.price);
+  if (price != null) {
+    if (price < 8) return false; // implausibly cheap for a physical good → likely a mismatch
+    // Upper bound: prefer the idea's own budget band. Reject only when the listing runs
+    // FAR above it (2.5× the band's high end) so normal price scatter isn't over-filtered.
+    // With no stated band, cap everyday gifts at $250 — well above a boutique gift, well
+    // below the $413 bulk-book outlier this guard exists to reject. Null-safe throughout.
+    const rangeHigh = parsePriceHigh(idea?.price_range);
+    const ceiling = rangeHigh != null ? rangeHigh * 2.5 : 250;
+    if (price > ceiling) return false;
+  }
+  // 1) Keyword overlap — at least one meaningful, idea-specific token in the listing title.
+  const ideaTokens = new Set([...tokenize(idea?.title), ...tokenize(idea?.search_query), ...tokenize(idea?.blurb)]);
+  if (!ideaTokens.size) return true; // nothing to check against → don't block
+  const titleTokens = new Set(tokenize(title));
+  for (const t of ideaTokens) { if (titleTokens.has(t)) return true; }
+  return false; // no shared meaningful keyword → treat as a mismatch, drop it
+}
+// The HIGH end of an idea's price band ("$30–45" → 45, "$30" → 30), for the ceiling above.
+function parsePriceHigh(s) {
+  const nums = String(s || "").replace(/,/g, "").match(/\d+(?:\.\d+)?/g);
+  if (!nums || !nums.length) return null;
+  return Number(nums[nums.length - 1]);
 }
 
 async function etsyLookup(query, key, idea) {
@@ -400,7 +470,7 @@ async function etsyPrimaryImage(listingId, key) {
   }
 }
 
-async function shoppingLookup(query, key) {
+async function shoppingLookup(query, key, idea) {
   const url = `https://www.searchapi.io/api/v1/search?engine=google_shopping&num=12&q=${encodeURIComponent(query)}&api_key=${key}`;
   const res = await fetch(url);
   if (!res.ok) return null;
@@ -412,10 +482,15 @@ async function shoppingLookup(query, key) {
     const link = it.product_link || it.link || it.offers_link || "";
     const image = it.thumbnail || it.image || "";
     if (!link || !image || isBigBox(merchant, link)) continue;
-    candidates.push({ source: "shopping", title: it.title || "", image, price: it.price || "", url: link, merchant });
+    const cand = { source: "shopping", title: it.title || "", image, price: it.price || "", url: link, merchant };
+    // TC-77: keep only listings that plausibly match the DESCRIBED gift (keyword overlap,
+    // right KIND — no digital/bulk, price sanity). If none pass we return null so the client
+    // falls back to the search-link tile — never a mismatched/implausible result.
+    if (idea && !shoppingResultMatches(cand, idea)) continue;
+    candidates.push(cand);
     if (candidates.length >= 6) break;
   }
-  return pickVaried(candidates, 4); // vary among the top boutique matches
+  return pickVaried(candidates, 4); // vary among the top *matching* boutique listings
 }
 
 // For each "local" gift idea, look up one real nearby business via Google Places
