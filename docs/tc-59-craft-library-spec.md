@@ -141,3 +141,15 @@ No new screen/layout/flow, BUT the seed exemplar **copy is user-facing brand voi
 2. **Both the Design Lead AND the UX Reviewer weigh in and edit** the exemplar copy (brand voice + how it lands in a real generated plan) — this is the gate between Builder and Validator.
 3. **David** does the final tone pass before merge (MIX authoring — the voice stays his).
 4. **Validator** spot-checks plan quality on seeded buckets (esp. that grief/illness plans don't regress or turn pushy about gifts).
+
+---
+
+## ADDENDUM (2026-08-04) — rotation for variety (David's anti-repetition fear)
+
+Concern: injecting the *same* few snippets every time risks a strong line recurring across many users' plans (homogenization). Fix = rotate.
+
+- **Rotation semantics.** When a bucket's field pool exceeds `CAP` (3), `getExemplars` selects a **random** `CAP`-sized subset per generation (`Math.random`, fine in the function runtime) instead of always the first 3. Relationship-specific snippets stay **preferred** (included first, up to CAP), then remaining slots are random-filled from the base pool. Applies to all three fields; a no-op where a pool ≤ 3, so it degrades gracefully.
+- **Pool depth policy.** To give rotation real teeth on day one, deepen the **`what_to_say`** pool (the most-seen, most-repetition-sensitive field) to ~5 per bucket now. `what_not_to_say`/`gestures` deepen over time via the librarian (TC-65); rotation kicks in automatically once any pool exceeds 3.
+- **No change** to the no-exemplar path (unseeded → `null` → empty block → no regression) or the guardrail framing.
+- **Tests** assert membership, cap, and relationship-preference — not fixed order — so randomness is compatible.
+- This is the **cross-user** anti-repetition layer. The **same-person** no-repeat layer is per-user memory (TC-66, Loop 3) — out of scope here.

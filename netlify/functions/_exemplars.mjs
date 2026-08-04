@@ -27,6 +27,8 @@ export const EXEMPLARS = {
       "I don't have the right words, and I won't pretend to — but I'm here, and I'm not going anywhere.",
       "I keep thinking about them. Whenever you're ready — even months from now — I'd love for you to tell me a story about them.",
       "You don't have to be okay around me. Whatever you're feeling is allowed.",
+      "There's nothing you need to say or do right now. I'm just here, and I'll keep being here.",
+      "I'll check in, and there's never any pressure to answer — you don't owe me a reply.",
     ],
     what_not_to_say: [
       "\"They're in a better place\" — even if you believe it, it can feel like their loss is being explained away.",
@@ -55,6 +57,8 @@ export const EXEMPLARS = {
       "No pressure to write back — I just wanted all of you to know I'm thinking of you.",
       "You're going to be wonderful at this, even on the days it doesn't feel like it.",
       "How are YOU doing? Not the baby — you.",
+      "No advice from me, I promise — just tell me what would actually help this week.",
+      "You don't have to host or tidy or entertain. I'd love to see you, exactly as things are.",
     ],
     what_not_to_say: [
       "\"Sleep when the baby sleeps\" — well-meant, but it lands as one more thing they're failing at.",
@@ -73,6 +77,8 @@ export const EXEMPLARS = {
       "They saw what the people who love you already knew. This wasn't luck — it was you.",
       "So proud of you. I want to hear the whole story — the part where you found out, all of it.",
       "You earned every bit of this. Can't wait to hear all about it.",
+      "This is the good kind of news, and you deserve every bit of it. Congratulations.",
+      "I've watched how hard you've worked for this — seeing it pay off makes my whole week.",
     ],
     what_not_to_say: [
       "\"More money means more stress, right?\" — don't undercut the win with a caveat.",
@@ -91,6 +97,8 @@ export const EXEMPLARS = {
       "I'm here for the long haul, not just this week. Lean on me.",
       "You don't have to stay positive for my sake. Tell me how it actually is.",
       "I want to help without adding to your plate — can I take one thing off it?",
+      "However today is going, I'm on your team — the good days and the scary ones both.",
+      "You don't have to have the answers or a brave face with me. Just be however you are.",
     ],
     what_not_to_say: [
       "\"My aunt had that and she's totally fine now\" — comparisons can feel dismissive of their specific fear.",
@@ -109,6 +117,8 @@ export const EXEMPLARS = {
       "This one's on them, not you — you're good at what you do, and the right place will see it.",
       "This says nothing about your worth. How are you holding up?",
       "I'm in your corner — want to vent, want help, or just a distraction tonight?",
+      "You didn't do anything wrong here. Companies make cuts; that's not a verdict on you.",
+      "Take the time you need to land — and lean on me for whatever makes the meantime easier.",
     ],
     what_not_to_say: [
       "\"Everything happens for a reason\" — it minimizes a real and scary loss.",
@@ -126,6 +136,8 @@ export const EXEMPLARS = {
       "No reason — just thinking of you and wanted you to know.",
       "You've been carrying a lot. I see it, and I'm proud of how you keep showing up.",
       "Rooting for you today.",
+      "No need to reply — I just wanted to be a small good thing in your day.",
+      "Whatever this stretch is asking of you, you don't have to face it by yourself.",
     ],
     what_not_to_say: [
       "\"It could be worse\" — comparison rarely comforts.",
@@ -142,6 +154,8 @@ export const EXEMPLARS = {
       "Not just \"happy birthday\" — I'm genuinely glad you were born. The world's better with you in it.",
       "Every year I know you, I'm more grateful we're in each other's lives.",
       "Hope today feels like everything you are to the people who love you.",
+      "Of all the people I'm lucky to know, you're one I'd choose again in a heartbeat. Happy birthday.",
+      "However you want to spend today, I hope it's exactly your kind of good.",
     ],
     what_not_to_say: [
       "\"Another year older, huh?\" — the aging joke lands flat; celebrate them, don't remind them of the number.",
@@ -160,6 +174,8 @@ export const EXEMPLARS = {
       "I don't think I ever properly told you what it meant — so I want to now.",
       "You probably don't realize how much that mattered to me. It did.",
       "I've been carrying this gratitude around for a while. Thank you, genuinely.",
+      "You didn't have to do that, and you did it anyway. I noticed, and I won't forget it.",
+      "The way you showed up for me when it counted — that's who I try to be for others now.",
     ],
     what_not_to_say: [
       "\"Thanks for everything!\" — the catch-all is warm but forgettable; name the specific thing they did.",
@@ -178,6 +194,8 @@ export const EXEMPLARS = {
       "So happy for you both — you two just make sense together.",
       "I've loved watching who you are with them. Congratulations, truly.",
       "This is wonderful news. Can't wait to celebrate you.",
+      "You've found your person, and it shows on you. I couldn't be happier for you both.",
+      "Here's to all of it — the big day and the ordinary Tuesdays that make a life together.",
     ],
     what_not_to_say: [
       "\"Well, marriage is hard work…\" — save the seasoned-veteran realism; let them have the joy today.",
@@ -196,6 +214,8 @@ export const EXEMPLARS = {
       "You did the work, and it shows. I'm proud of you.",
       "This wasn't handed to you — you earned every bit of it.",
       "Can't wait to see what you do next. The world's lucky to have you in it.",
+      "Every late night and hard semester led here. You should be so proud — I am.",
+      "Whatever comes next, you've already proven you can do hard things. Congratulations.",
     ],
     what_not_to_say: [
       "\"So what's the plan now?\" / \"Got a job yet?\" — the pressure question deflates the thing they just earned.",
@@ -213,13 +233,27 @@ export const EXEMPLARS = {
 const FIELDS = ["what_to_say", "what_not_to_say", "gestures"];
 const CAP = 3; // max snippets per field injected, to keep the prompt tight
 
-// Merge relationship-specific snippets (preferred, first) with the occasion base, dedupe,
-// and cap. Returns [] if neither has content for a field.
+// Fisher-Yates shuffle (returns a copy). Math.random is fine in the function runtime.
+function shuffle(arr) {
+  const a = arr.slice();
+  for (let i = a.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [a[i], a[j]] = [a[j], a[i]];
+  }
+  return a;
+}
+
+// Merge relationship-specific snippets (always preferred, kept first) with a RANDOM
+// rotation of the occasion base pool, dedupe, and cap. When a pool has more than CAP
+// snippets, each generation sees a different subset — so a strong line doesn't recur
+// across everyone's plans (TC-59 addendum: cross-user anti-repetition). Returns [] if
+// neither has content for a field.
 function mergeField(base, rel, field) {
-  const merged = [...((rel && rel[field]) || []), ...((base && base[field]) || [])];
+  const relSnips = (rel && rel[field]) || [];             // relationship refinement: preferred
+  const baseSnips = shuffle((base && base[field]) || []); // rotate the base pool for variety
   const seen = new Set();
   const out = [];
-  for (const s of merged) {
+  for (const s of [...relSnips, ...baseSnips]) {
     const v = String(s || "").trim();
     if (!v || seen.has(v)) continue;
     seen.add(v);

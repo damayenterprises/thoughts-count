@@ -25,6 +25,20 @@ t("caps each field to <= 3 snippets", () => {
   }
 });
 
+console.log("\n# getExemplars — rotation (cross-user variety, TC-59 addendum)");
+t("a deep pool (>CAP) surfaces different subsets across calls", () => {
+  // bereavement.what_to_say has 5 snippets; each call returns 3. Over many calls we
+  // should see more than 3 distinct lines surface (proof of rotation), while any single
+  // call still returns exactly 3.
+  const seen = new Set();
+  for (let i = 0; i < 40; i++) {
+    const ex = getExemplars({ occasion: "bereavement" });
+    assert.equal(ex.what_to_say.length, 3, "each call still returns exactly CAP");
+    ex.what_to_say.forEach((s) => seen.add(s));
+  }
+  assert.ok(seen.size > 3, `rotation should surface >3 distinct lines over 40 calls (saw ${seen.size})`);
+});
+
 console.log("\n# getExemplars — relationship refinement");
 t("prefers by_relationship snippet when relationship matches", () => {
   const base = getExemplars({ occasion: "bereavement", relationship: "friend" });
