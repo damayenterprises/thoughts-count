@@ -311,19 +311,70 @@ async function enrichOnlineIdeas(plan, etsyKey, shoppingKey) {
     const q = (g.search_query || g.title || "").trim();
     if (!q) continue;
     let product = null;
-    if (etsyKey) { try { product = await etsyLookup(q, etsyKey); } catch (e) { console.error("etsy lookup failed", e); } }
+    // Pass the whole idea so the resolver can confirm the found listing plausibly
+    // matches THIS described gift (title + price) before we ever show its photo (TC-69).
+    if (etsyKey) { try { product = await etsyLookup(q, etsyKey, g); } catch (e) { console.error("etsy lookup failed", e); } }
     if (!product && shoppingKey) { try { product = await shoppingLookup(q, shoppingKey); } catch (e) { console.error("shopping lookup failed", e); } }
     if (product && product.image && product.url) g.product = product;
   }
 }
 
-async function etsyLookup(query, key) {
+// TC-69 confidence guard. Etsy keyword search returns loosely-related listings, so a
+// "thank-you sticker set" can surface for "artisan snack bundle" and its $5.98 price
+// then renders under the described gift — a trust-breaker (wrong photo AND wrong price).
+// Before attaching a listing's photo/price we require it to plausibly match the idea:
+//   1) meaningful keyword overlap between the idea and the listing title, and
+//   2) not obviously the wrong KIND of product (a digital/printable/sticker/card item
+//      when the idea describes a physical good), and
+//   3) not implausibly cheap for the described physical item.
+// A listing that fails is dropped (we return null → the client shows the Etsy search
+// link instead). Better no photo than a mismatched one.
+const STOPWORDS = new Set(["a","an","and","or","the","for","with","of","to","in","on","gift","set","idea","them","their","present","by","from"]);
+// Words that mark a listing as a different KIND of thing than a physical, giftable object.
+const WRONG_KIND = ["digital","download","downloadable","printable","print at home","print-at-home","svg","png file","clip art","clipart","template","sticker","stickers","decal","greeting card","thank you card","card set","note card","postcard","pdf","instant download"];
+function tokenize(s) {
+  return String(s || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOPWORDS.has(w));
+}
+function priceValue(it) {
+  if (it && it.price && it.price.amount != null) return Number(it.price.amount) / Number(it.price.divisor || 100);
+  return null;
+}
+// Returns true if this Etsy listing plausibly matches the described gift idea.
+function etsyListingMatches(it, idea) {
+  const title = String(it.title || "");
+  const tl = title.toLowerCase();
+  // 2) Wrong KIND of product (a digital/printable/card item posing as a physical gift).
+  const ideaText = `${idea?.title || ""} ${idea?.blurb || ""} ${idea?.search_query || ""}`.toLowerCase();
+  for (const bad of WRONG_KIND) {
+    if (tl.includes(bad) && !ideaText.includes(bad)) return false;
+  }
+  // 3) Implausibly cheap for a described physical item → almost certainly a mismatch
+  //    (stickers/prints/digital), not the artisan good the plan described.
+  const price = priceValue(it);
+  if (price != null && price < 8) return false;
+  // 1) Keyword overlap: at least one meaningful, idea-specific token must appear in the
+  //    listing title. We compare against the idea's own words (title/blurb), not just the
+  //    broad search query, so a generic query can't rubber-stamp an off-topic listing.
+  const ideaTokens = new Set([...tokenize(idea?.title), ...tokenize(idea?.search_query), ...tokenize(idea?.blurb)]);
+  if (!ideaTokens.size) return true; // nothing to check against → don't block
+  const titleTokens = new Set(tokenize(title));
+  for (const t of ideaTokens) { if (titleTokens.has(t)) return true; }
+  return false; // no shared meaningful keyword → treat as a mismatch, drop it
+}
+
+async function etsyLookup(query, key, idea) {
   const url = `https://openapi.etsy.com/v3/application/listings/active?limit=10&sort_on=score&keywords=${encodeURIComponent(query)}`;
   const res = await fetch(url, { headers: { "x-api-key": key } });
   if (!res.ok) return null;
   const data = await res.json();
   const results = (data.results || []).filter((r) => r.listing_id && r.url);
-  const it = pickVaried(results, 4); // vary among the top few relevant matches
+  if (!results.length) return null;
+  // TC-69: keep only listings that plausibly match the DESCRIBED gift, then vary among
+  // those (not among all keyword hits). If none pass the confidence guard, return null so
+  // we never show a wrong photo/price — the client falls back to the Etsy search link.
+  const confident = idea ? results.filter((r) => etsyListingMatches(r, idea)) : results;
+  if (!confident.length) return null;
+  const it = pickVaried(confident, 4); // vary among the top few *matching* listings
   if (!it) return null;
   // The `includes=Images` association isn't populated for app-key (non-OAuth) auth,
   // so pull the listing's primary image from the dedicated images endpoint.
