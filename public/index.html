@@ -102,7 +102,6 @@
   .tc-empty { color: var(--ink-soft); font-size: 14px; font-style: italic; }
   .tc-add-date { color: var(--sage-deep) !important; font-weight: 700; margin-top: 10px; }
   .tc-addwrap h4 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; margin: 0 0 12px; }
-  .tc-savecard { border: 1.5px solid var(--sage); }
   .tc-showup { width: 100%; justify-content: center; margin-top: 14px; }
   .tc-savedplans { margin-top: 14px; }
   .tc-sp-label { font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 7px; }
@@ -234,6 +233,14 @@
   .progress .fill { height: 100%; background: var(--sage); width: 0%; transition: width .35s ease; }
 
   .panel-body { padding: 32px 32px 28px; }
+  /* TC-73: anchor the intake step card so it doesn't grow/shrink between the 5 steps
+     (which nudged content vertically and felt unanchored). A comfortable min-height
+     holds the card stable; Back/Continue sit at the bottom of the reserved space.
+     Uses flex so short steps fill the min-height without stretching the controls. */
+  .step-body { display: flex; flex-direction: column; min-height: 440px; }
+  .step-body .nav { margin-top: auto; }
+  /* Degrade gracefully on short viewports — never force overflow on small screens. */
+  @media (max-height: 620px) { .step-body { min-height: 0; } }
   .q-eyebrow { font-size: 13px; letter-spacing: .04em; color: var(--sage-deep); font-weight: 700; text-transform: uppercase; }
   .q-title { font-size: clamp(23px, 3.4vw, 28px); font-weight: 500; margin: 10px 0 4px; }
   .q-help { color: var(--ink-soft); font-size: 15px; margin: 0 0 22px; }
@@ -338,7 +345,16 @@
   .keep .k-msg.ok { color: var(--sage-deep); font-weight: 700; }
   .keep .k-msg.bad { color: #a04a2e; }
   .keep .k-privacy { margin-top: 10px; font-size: 12px; color: #b3a58c; }
-  .plan-actions { display: flex; gap: 11px; justify-content: center; padding: 20px 32px 6px; flex-wrap: wrap; }
+  /* TC-71: unified "Keep this plan" card holding both save ways (email + to a person). */
+  .keep-unified .keep-way-label { font-size: 13px; font-weight: 700; color: var(--sage-deep); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 9px; }
+  .keep-unified .keep-way-person { margin-top: 4px; }
+  .keep-or { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; color: #b3a58c; font-size: 12.5px; }
+  .keep-or::before, .keep-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
+  /* TC-71: secondary actions demoted to a quiet row below the single save card. */
+  .plan-secondary { padding: 18px 32px 2px; }
+  .plan-actions { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
+  .plan-actions .ps-dot { color: #cbbfa4; }
+  .plan-actions .link-btn { font-size: 14px; }
   .disclaimer { text-align: center; font-size: 12.5px; color: #b3a58c; padding: 16px 32px 4px; }
   .err { background: #f3e4da; border: 1px solid #e2c3b1; color: #8a4f34; border-radius: 14px; padding: 15px 17px; font-size: 15px; margin-bottom: 16px; }
 
@@ -364,6 +380,17 @@
   .hero-start-label { font-family: 'Fraunces', serif; font-style: italic; font-size: 15px; color: var(--ink-soft); margin-bottom: 12px; }
   .hero-actions { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
   .hero-actions .cta { justify-content: center; }
+  /* TC-81: quiet inline "View your last plan" recovery affordance. */
+  .tc-lastplan { margin: 16px auto 0; display: none; }
+  .tc-lastplan.show { display: block; }
+  .tc-lastplan-link { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--sage-deep); cursor: pointer; padding: 6px 8px; display: inline-flex; align-items: center; gap: 6px; line-height: 1; opacity: .9; transition: opacity .15s ease; }
+  .tc-lastplan-link:hover { opacity: 1; text-decoration: underline; }
+  /* TC-81: gentle, non-blocking toast (bottom-center, thumb zone, auto-dismiss). */
+  .tc-toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(12px); z-index: 9999; max-width: min(420px, calc(100vw - 32px)); background: var(--ink, #3b362e); color: #fff; border-radius: 14px; box-shadow: 0 8px 30px rgba(40,34,24,.28); padding: 13px 14px 13px 18px; display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.4; opacity: 0; pointer-events: none; transition: opacity .28s ease, transform .28s ease; }
+  .tc-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
+  .tc-toast .tc-toast-x { flex: 0 0 auto; background: none; border: none; color: rgba(255,255,255,.92); cursor: pointer; padding: 4px; line-height: 0; border-radius: 8px; }
+  .tc-toast .tc-toast-x:hover { color: #fff; }
+  @media (prefers-reduced-motion: reduce) { .tc-toast { transition: opacity .28s ease; transform: translateX(-50%); } .tc-toast.show { transform: translateX(-50%); } }
   #homeMicBtn svg { animation: tc-mic-nudge 5.5s ease-in-out infinite; transform-origin: center; }
   @keyframes tc-mic-nudge { 0%, 88%, 100% { transform: scale(1); opacity: 1; } 94% { transform: scale(1.12); opacity: .85; } }
   .tc-listen { --level: 0; position: relative; width: 132px; height: 132px; margin: 8px auto 4px; display: grid; place-items: center; }
@@ -494,8 +521,15 @@
     <div class="hero-start">
       <div class="hero-start-label">I want to show up for someone…</div>
       <div class="hero-actions">
-        <button type="button" class="cta sage" id="homeMicBtn" style="display:none;"></button>
         <button type="button" class="cta" id="homeTypeBtn" onclick="openFlow()"></button>
+        <button type="button" class="cta sage" id="homeMicBtn" style="display:none;"></button>
+      </div>
+      <!-- TC-81: quiet recovery link — shown only when a valid, unexpired plan is stored on this device. -->
+      <div class="tc-lastplan" id="lastPlanAffordance">
+        <button type="button" class="tc-lastplan-link" id="lastPlanLink">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 4v4h4"/></svg>
+          <span>View your last plan</span>
+        </button>
       </div>
     </div>
     <div class="reassure">No account needed · <b>Free to try</b> · Ready in about a minute</div>
@@ -596,6 +630,12 @@
   </div>
 </div>
 
+<!-- TC-81: gentle non-blocking toast (bottom-center). Hidden until shown. -->
+<div class="tc-toast" id="tcToast" role="status" aria-live="polite">
+  <span id="tcToastMsg"></span>
+  <button type="button" class="tc-toast-x" id="tcToastX" aria-label="Dismiss"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+</div>
+
 <script>
 const STEPS = [
   { key: "moment", eyebrow: "First, the moment", title: "What happened?", help: "Pick what's closest, or tell us in your own words. The more you share, the more personal we can make this.", picks: ["Lost a loved one","New baby","A hard diagnosis","Beat cancer","Engagement","New job","Promotion","Job loss","Lost a pet","Retirement","Just a hard week"], placeholder: "e.g. My coworker's father passed away suddenly last weekend." },
@@ -609,10 +649,12 @@ const STEPS = [
 
 const answers = {};   // raw free-text per step
 const picks = {};      // selected chips per step (kept separate from free text)
-const nudged = {};     // steps we've already gently nudged once (so a 2nd Continue proceeds)
 const __rec = { mr: null, chunks: [], active: false, stream: null }; // voice recorder state (TC-51)
 let idx = 0;
 let currentPlan = null;
+// TC-81: true once the current plan has been kept somewhere durable (emailed OR saved to a
+// person). Reset each time a fresh plan renders. When true, closing shows NO nudge toast.
+let __planSaved = false;
 let __fromVoice = false; // true when a plan was started by voice from the home screen
 let flowPerson = null; // set when the flow was launched from a saved person
 let genTimer = null;   // drives the gentle progress + rotating lines while a plan generates
@@ -651,7 +693,6 @@ function openFlow(preset){
   flowPerson = null; window.__tcFlowPersonId = null;
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
-  for (const k in nudged) delete nudged[k];
   genAttempts = 0;
   if (preset) picks.moment = [preset];
   try { window.tcTrack && tcTrack('intake_start', preset ? { label: preset } : {}); } catch(e){}
@@ -663,7 +704,6 @@ function openFlowForPerson(person){
   flowPerson = person || null;
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
-  for (const k in nudged) delete nudged[k];
   genAttempts = 0;
   if (person){
     answers.name = person.name || '';
@@ -692,19 +732,32 @@ function openFlowForPerson(person){
 }
 window.openFlowForPerson = openFlowForPerson;
 // Re-open a previously saved plan for viewing.
-function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; window.__tcBucket = null; renderPlan(plan); }
+function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; window.__tcBucket = null; renderPlan(plan); __planSaved = true; /* TC-81: a re-opened SAVED plan is already kept → no nudge on close (the device-recovery link overrides this back to false for its own path). */ }
 window.renderSavedPlan = renderSavedPlan;
 function closeFlow(){
   stopGenProgress(); stopRecordingIfAny(); if (typeof cancelHomeRecording === 'function') cancelHomeRecording();
   if (typeof stopConfirmListen === 'function') stopConfirmListen(); // TC-63: release the confirm mic
+
+  // TC-81: detect whether a plan was on screen at close time (the plan view is the only
+  // stage that carries the "Email me my plan" button). Read it BEFORE we tear the scrim down.
+  const planWasShowing = !!(stage && stage.querySelector('#emailPlanBtn'));
 
   scrim.classList.remove('open');
   // If we opened over the "People" modal (voice-from-People), it's still open underneath —
   // keep the page locked so it doesn't scroll behind it.
   const peopleOpen = (() => { const m = document.getElementById('tcModal'); return !!(m && m.classList.contains('open')); })();
   document.body.style.overflow = peopleOpen ? 'hidden' : '';
+
+  // TC-81: if the user closed a plan they haven't kept (emailed or saved to a person),
+  // gently nudge — non-blocking, auto-dismissing. Kept plans get no toast. Then refresh
+  // the quiet home-screen recovery affordance so "View your last plan" appears.
+  if (planWasShowing && !__planSaved) {
+    tcToast('Saved on this device. Email it or save to your people to keep it anywhere.');
+  }
+  tcRefreshLastPlanAffordance();
 }
-scrim.addEventListener('click', e => { if (e.target === scrim) closeFlow(); });
+// TC-78: an outside/backdrop click must NEVER discard a generated plan or in-progress work.
+// Backdrop-click dismissal removed — the explicit ✕ (closeFlow) is the one intentional close.
 function setProgress(p){ fill.style.width = p + '%'; }
 
 function renderStep(){
@@ -726,7 +779,7 @@ function renderStep(){
       return `<button type="button" class="pick${on?' active':''}" aria-pressed="${on}" data-v="${v}">${p}</button>`; }).join('')
   }</div>` : "";
   stage.innerHTML = `
-    <div class="panel-body">
+    <div class="panel-body step-body">
       <div class="q-eyebrow">${sEyebrow} · ${idx+1} of ${STEPS.length}</div>
       <h2 class="q-title">${sTitle}</h2>
       <p class="q-help">${sHelp}</p>
@@ -790,15 +843,10 @@ function renderStep(){
       ta.focus({ preventScroll: true });
       return;
     }
-    // Gentle, skippable nudge on the "about them" step — a blank here makes for a
-    // generic plan on the one moment they wanted to feel personal. We ask once.
-    if (s2.key === 'about' && !composeAnswer('about') && !nudged.about){
-      nudged.about = true;
-      ta.style.borderColor = '#c9b98f';
-      if (stepMsg){ stepMsg.className = 'k-msg'; stepMsg.style.color = '#8a7f68'; stepMsg.textContent = 'Even one line about them makes this feel like them, not a template. Add a sentence — or press Continue again to skip.'; stepMsg.style.display = 'block'; }
-      ta.focus({ preventScroll: true });
-      return;
-    }
+    // TC-72: optional steps (everything after the required "moment") must advance on the
+    // FIRST Continue press — a button that needs two presses reads as broken. We no longer
+    // gate the optional "about them" step behind a "press Continue again to skip" nudge;
+    // it advances immediately. (The step help text already invites adding a line.)
     if (idx < STEPS.length-1){ idx++; renderStep(); } else generate();
   };
 }
@@ -918,10 +966,10 @@ async function setupHomeVoice(){
   mic.style.display = '';
   mic.onclick = startHomeVoice;
   mic.innerHTML = micSvg(19, 'currentColor', '#c28a63') + '<span class="mic-label">Talk it through</span>';
-  // Two equal ways to start the same thing — put the one that fits the device first.
-  const typeBtn = document.getElementById('homeTypeBtn');
-  mic.style.order = isPhone ? '0' : '1';
-  if (typeBtn) typeBtn.style.order = isPhone ? '1' : '0';
+  // TC-70: stable, consistent CTAs — "Type it out" is always the primary (terracotta,
+  // lower-friction no-mic path) and comes first; "Talk it through" is the sage secondary
+  // that comes second. Order no longer swaps by device, so the hero reads the same every
+  // load (source order already places Type before Talk — no `order` overrides needed).
 }
 window.addEventListener('tc-voice-gate-ready', setupHomeVoice);
 setupHomeVoice();
@@ -1194,7 +1242,6 @@ function renderHomeError(msg){
 function startPlanFromText(text){
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
-  for (const k in nudged) delete nudged[k];
   genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; __fromVoice = true;
   answers.moment = String(text || '').trim();
   try { window.tcTrack && tcTrack('intake_start', { label: 'voice_home' }); } catch(e){}
@@ -1942,6 +1989,10 @@ const MORE_PLACES = [
 
 function renderPlan(p){
   currentPlan = p;
+  // TC-81: silently persist for device-local recovery (overwrites each render). A freshly
+  // rendered plan is not yet "kept" (email/save-to-person set the flag) → closing nudges.
+  __planSaved = false;
+  tcPersistLastPlan(p);
   stopGenProgress(); setProgress(100);
   try { window.tcTrack && tcTrack('plan_viewed'); } catch(e){}
   const li = arr => (arr||[]).map(x => `<li>${escapeHtml(x)}</li>`).join('');
@@ -2027,25 +2078,37 @@ function renderPlan(p){
       <div class="closing">${escapeHtml(p.closing_encouragement||'')}</div>
     </div>
     <div style="padding:8px 32px 0;">
-      <div class="keep">
-        <h4>Keep this plan close</h4>
-        <p class="k-sub">We'll email it to you so it's there when you need it — and remind you at just the right time to follow through.</p>
-        <div class="k-row">
-          <input type="email" id="planEmail" placeholder="you@email.com" autocomplete="email" />
-          <button class="cta" id="emailPlanBtn">Email me my plan</button>
+      <!-- TC-71: one unified "keep this plan" card. Both ways to save live here — email it
+           to yourself (below) and, for signed-in users, save it to one of your people (the
+           companion layer injects that option into #savePersonMount). -->
+      <div class="keep keep-unified">
+        <h4>Keep this plan</h4>
+        <p class="k-sub">Have it when you need it — and get a gentle nudge at just the right time to follow through.</p>
+        <div class="keep-way">
+          <div class="keep-way-label">Email it to you</div>
+          <div class="k-row">
+            <input type="email" id="planEmail" placeholder="you@email.com" autocomplete="email" />
+            <button class="cta" id="emailPlanBtn">Email me my plan</button>
+          </div>
+          <label class="k-remind"><input type="checkbox" id="wantReminders" /> Also email me the "keep showing up" reminders, on their dates</label>
+          <div class="k-msg" id="emailMsg"></div>
+          <div class="k-privacy">We use your email only for this — no account, no sharing. <a href="/privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">See how we handle your data →</a></div>
         </div>
-        <label class="k-remind"><input type="checkbox" id="wantReminders" /> Also email me the "keep showing up" reminders, on their dates</label>
-        <div class="k-msg" id="emailMsg"></div>
-        <div class="k-privacy">We use your email only for this — no account, no sharing. <a href="/privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">See how we handle your data →</a></div>
+        <!-- Save-to-a-person option is injected here by the companion layer (same card). -->
+        <div id="savePersonMount"></div>
       </div>
     </div>
-    <div class="plan-actions">
-      <button class="cta ghost" onclick="restart()">Plan for someone else</button>
-      <button class="cta" onclick="savePlan()">Save as PDF / print</button>
+    <!-- TC-71: quieter secondary row — the single save card above is the main action. -->
+    <div class="plan-secondary">
+      <div class="plan-actions">
+        <button class="link-btn" onclick="restart()">Plan for someone else</button>
+        <span class="ps-dot">·</span>
+        <button class="link-btn" onclick="savePlan()">Save as PDF / print</button>
+      </div>
+      ${fbBlock}
+      <div style="text-align:center;margin-top:14px;"><a href="/guides/" style="color:var(--sage-deep);font-weight:600;font-size:14px;">Explore more guides on showing up →</a></div>
     </div>
     <div class="disclaimer">A thoughtful starting point, made for your situation — trust your own heart on the details.</div>
-    ${fbBlock}
-    <div style="text-align:center;margin-top:18px;"><a href="/guides/" style="color:var(--sage-deep);font-weight:700;font-size:14.5px;">Explore more guides on showing up →</a></div>
     <div style="height:16px"></div>`;
 
   // Wire up "Set reminder" buttons — each downloads a calendar event the user can
@@ -2108,6 +2171,7 @@ function renderPlan(p){
       const r = await fetch('/api/send-plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, plan: p, wantReminders, test: window.__tcTest }) });
       const d = await r.json();
       if (r.ok && d.ok) {
+        __planSaved = true; // TC-81: emailed → this plan is kept → no nudge on close
         msg.className = 'k-msg ok';
         msg.textContent = (wantReminders && d.scheduled)
           ? `Sent! Check your inbox. We'll gently nudge you ${d.scheduled} more time${d.scheduled > 1 ? 's' : ''} as the dates come.`
@@ -2193,6 +2257,89 @@ function downloadReminder(f, plan){
 
 function restart(){ for(const k in answers) delete answers[k]; for(const k in picks) delete picks[k]; flowPerson=null; window.__tcFlowPersonId=null; idx=0; renderStep(); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+/* ================= TC-81: plan recovery ==================================
+   After TC-78 (backdrop can't discard), closing an unsaved anonymous plan via ✕
+   still lost it. UX chose PERSIST + a gentle nudge over confirm-on-close.
+   - Silently persist the last plan to localStorage on render (single key, overwritten
+     each generation), with a ~7-day TTL. The stored payload is ONLY the emailable plan
+     object (same data /api/send-plan already receives) + a timestamp. No extra sensitive
+     data; the recovery label is generic ("View your last plan") so a shared device never
+     reveals who was being planned for.
+   - A quiet inline link on the home screen reopens it via the existing renderSavedPlan().
+   - On close of a NOT-yet-kept plan, a dismissible bottom-center toast nudges to keep it.
+   - Cleared on sign-out (see companion.js). Degrades to nothing if missing/expired/malformed. */
+const TC_LAST_PLAN_KEY = 'tc_last_plan';
+const TC_LAST_PLAN_TTL_MS = 7 * 24 * 60 * 60 * 1000; // ~7 days
+
+// Persist the current plan payload. Called from renderPlan on every generation/render.
+function tcPersistLastPlan(plan){
+  try {
+    if (!plan || typeof plan !== 'object') return;
+    localStorage.setItem(TC_LAST_PLAN_KEY, JSON.stringify({ v: 1, ts: Date.now(), plan }));
+  } catch(e){ /* private mode / quota — recovery is best-effort, never block the plan */ }
+}
+
+// Read a valid, unexpired stored plan, or null. Discards expired/malformed entries.
+function tcReadLastPlan(){
+  let raw;
+  try { raw = localStorage.getItem(TC_LAST_PLAN_KEY); } catch(e){ return null; }
+  if (!raw) return null;
+  try {
+    const rec = JSON.parse(raw);
+    if (!rec || !rec.plan || typeof rec.ts !== 'number') { tcClearLastPlan(); return null; }
+    if (Date.now() - rec.ts > TC_LAST_PLAN_TTL_MS) { tcClearLastPlan(); return null; }
+    return rec.plan;
+  } catch(e){ tcClearLastPlan(); return null; }
+}
+
+function tcClearLastPlan(){ try { localStorage.removeItem(TC_LAST_PLAN_KEY); } catch(e){} }
+window.tcClearLastPlan = tcClearLastPlan; // companion.js calls this on sign-out
+// companion.js (separate script scope) marks a plan as kept after save-to-person succeeds.
+window.__tcMarkPlanSaved = function(){ __planSaved = true; };
+
+// Show/hide the quiet "View your last plan" affordance based on stored state.
+function tcRefreshLastPlanAffordance(){
+  const wrap = document.getElementById('lastPlanAffordance');
+  if (!wrap) return;
+  const plan = tcReadLastPlan();
+  wrap.classList.toggle('show', !!plan);
+}
+window.tcRefreshLastPlanAffordance = tcRefreshLastPlanAffordance;
+
+// Wire the recovery link → reopen the stored plan through the existing saved-plan path.
+(function(){
+  const link = document.getElementById('lastPlanLink');
+  if (link) link.addEventListener('click', () => {
+    const plan = tcReadLastPlan();
+    if (!plan) { tcRefreshLastPlanAffordance(); return; }
+    try { window.tcTrack && tcTrack('last_plan_reopened'); } catch(e){}
+    renderSavedPlan(plan);
+    // Device-recovered plan is NOT yet kept anywhere durable — closing it should still nudge.
+    // (renderSavedPlan defaults to "kept"; override for this recovery path.)
+    __planSaved = false;
+  });
+  tcRefreshLastPlanAffordance();
+})();
+
+// Gentle non-blocking toast. ~6s auto-dismiss, has an ✕, never blocks input.
+let __tcToastTimer = null;
+function tcToast(message){
+  const el = document.getElementById('tcToast');
+  const msg = document.getElementById('tcToastMsg');
+  if (!el || !msg) return;
+  msg.textContent = message;
+  el.classList.add('show');
+  if (__tcToastTimer) clearTimeout(__tcToastTimer);
+  __tcToastTimer = setTimeout(tcToastHide, 6000);
+}
+function tcToastHide(){
+  const el = document.getElementById('tcToast');
+  if (el) el.classList.remove('show');
+  if (__tcToastTimer) { clearTimeout(__tcToastTimer); __tcToastTimer = null; }
+}
+(function(){ const x = document.getElementById('tcToastX'); if (x) x.addEventListener('click', tcToastHide); })();
+/* ================= end TC-81 ============================================= */
 
 // Deep-link from the SEO guide pages: /?begin=<moment> opens the flow pre-filled.
 (function(){

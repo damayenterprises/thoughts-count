@@ -158,6 +158,10 @@ async function boot() {
     user = session?.user || null;
     accessToken = session?.access_token || null;
     renderAuthBtn();
+    // TC-81: any sign-out (button, expiry, other tab) clears the device-local recovered plan.
+    if (evt === "SIGNED_OUT") {
+      try { window.tcClearLastPlan && window.tcClearLastPlan(); window.tcRefreshLastPlanAffordance && window.tcRefreshLastPlanAffordance(); } catch (e) {}
+    }
     // Auto-open "Your People" ONCE, only on a genuine magic-link return. Supabase
     // re-fires SIGNED_IN on session restore and tab refocus, so we consume the flag
     // after the first open — otherwise the panel keeps popping up unbidden when the
@@ -629,7 +633,12 @@ function renderHome(people, opts = {}) {
     if (card) flashCard(card);
   }
 
-  modalBody().querySelector(".tc-signout").onclick = async () => { await sb.auth.signOut(); closeModal(); };
+  modalBody().querySelector(".tc-signout").onclick = async () => {
+    await sb.auth.signOut();
+    // TC-81: privacy — a device-local recovered plan must not survive a sign-out (shared device).
+    try { window.tcClearLastPlan && window.tcClearLastPlan(); window.tcRefreshLastPlanAffordance && window.tcRefreshLastPlanAffordance(); } catch (e) {}
+    closeModal();
+  };
   const exportBtn = modalBody().querySelector(".tc-export");
   if (exportBtn) exportBtn.onclick = async () => {
     exportBtn.disabled = true; const prev = exportBtn.textContent; exportBtn.textContent = "Preparing…";
@@ -716,19 +725,24 @@ function openAddDate(personId) {
 /* ---------------- save a plan to a person (called from the plan screen) ---------------- */
 async function mountSaveToPerson(stageEl, plan) {
   if (!sb) return;
-  const anchor = stageEl.querySelector(".keep");
+  // TC-71: the save-to-a-person option lives INSIDE the single unified "Keep this plan"
+  // card, as a second way to save (under an "or" divider) — not a separate card. Fall
+  // back to appending after the email card if the mount point isn't present.
+  const anchor = stageEl.querySelector("#savePersonMount") || stageEl.querySelector(".keep");
   const card = document.createElement("div");
-  card.className = "keep tc-savecard";
+  card.className = "keep-way keep-way-person";
   const ctx = window.__tcAnswers || {};
   const recipient = (ctx.name || "").trim();
   const occasion = (plan.plan_title || "").trim();
+  const divider = `<div class="keep-or"><span>or</span></div>`;
 
   if (!user) {
     card.innerHTML = `
-      <h4>Want us to remember ${recipient ? esc(recipient) : "them"}?</h4>
-      <p class="k-sub">Sign in with just your email to save this plan and get a gentle nudge before their important dates.</p>
+      ${divider}
+      <div class="keep-way-label">Save it to People I care about</div>
+      <p class="k-sub" style="margin-top:2px;">Sign in with just your email to save this plan and get a gentle nudge before ${recipient ? esc(recipient) : "their"} important dates.</p>
       <button class="cta" id="tcSaveSignin">Sign in to save →</button>`;
-    insert(card, anchor, stageEl);
+    mountInto(card, anchor, stageEl);
     card.querySelector("#tcSaveSignin").onclick = openSignIn;
     return;
   }
@@ -739,8 +753,9 @@ async function mountSaveToPerson(stageEl, plan) {
   const followupOpt = followups.length ? `
     <label class="k-remind" style="margin-top:12px;"><input type="checkbox" id="tcRemindFollow" checked /> Also remind me to follow through — we'll gently nudge you the morning each of this plan's ${followups.length} “keep showing up” date${followups.length > 1 ? "s" : ""} arrives</label>` : "";
   card.innerHTML = `
-    <h4>Keep this plan with your people</h4>
-    <p class="k-sub">Save it to ${recipient ? esc(recipient) : "someone"}, and we'll remind you at just the right time to follow through.</p>
+    ${divider}
+    <div class="keep-way-label">Save it to People I care about</div>
+    <p class="k-sub" style="margin-top:2px;">Save it to ${recipient ? esc(recipient) : "someone"} in your People I care about, and we'll remind you at just the right time to follow through.</p>
     <select id="tcPersonSel" class="tc-select">
       <option value="__new">+ New person${recipient ? `: ${esc(recipient)}` : ""}</option>
       ${opts}
@@ -749,7 +764,7 @@ async function mountSaveToPerson(stageEl, plan) {
     ${followupOpt}
     <div class="nav"><span></span><button class="cta" id="tcSavePlan">Save to my people →</button></div>
     <div class="k-msg" id="tcSaveMsg"></div>`;
-  insert(card, anchor, stageEl);
+  mountInto(card, anchor, stageEl);
 
   const sel = card.querySelector("#tcPersonSel"), nameEl = card.querySelector("#tcNewName");
   // If this plan was started from a saved person, save straight back to them.
@@ -774,6 +789,8 @@ async function mountSaveToPerson(stageEl, plan) {
         if (about) { try { await createNote(sb, personId, about); } catch (e) { console.error("intake note failed", e); } }
       }
       await savePlan(personId, plan, occasion);
+      // TC-81: saved to a person → this plan is kept → no "keep it anywhere" nudge on close.
+      try { window.__tcMarkPlanSaved && window.__tcMarkPlanSaved(); } catch (e) {}
       let reminderCount = 0;
       const wantFollow = card.querySelector("#tcRemindFollow");
       if (wantFollow && wantFollow.checked) {
@@ -789,7 +806,10 @@ async function mountSaveToPerson(stageEl, plan) {
     } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }
   };
 }
-function insert(card, anchor, stageEl) {
-  if (anchor && anchor.parentNode) anchor.parentNode.insertBefore(card, anchor.nextSibling);
-  else stageEl.appendChild(card);
+// TC-71: prefer to place the save-to-person block INSIDE the unified card's mount point
+// (#savePersonMount); otherwise fall back to inserting it right after the email card.
+function mountInto(card, anchor, stageEl) {
+  if (anchor && anchor.id === "savePersonMount") { anchor.appendChild(card); return; }
+  if (anchor && anchor.parentNode) { anchor.parentNode.insertBefore(card, anchor.nextSibling); return; }
+  stageEl.appendChild(card);
 }

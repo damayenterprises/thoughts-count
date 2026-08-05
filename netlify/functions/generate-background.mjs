@@ -310,20 +310,224 @@ async function enrichOnlineIdeas(plan, etsyKey, shoppingKey) {
   for (const g of online) {
     const q = (g.search_query || g.title || "").trim();
     if (!q) continue;
+    // TC-79: don't pin a specific product to a BESPOKE/composed gift idea (a custom
+    // gesture — "letterpress card + a scratch-off ticket tucked inside", a handwritten
+    // note, a DIY kit — that no single real listing actually matches). Any listing we'd
+    // attach mismatches the concept (the live repro: a new-job card idea linked to a box
+    // of holiday cards). Skip enrichment → the client falls back to the illustration tile
+    // + "find one like this →" search link. Only concrete single-item ideas get a product.
+    if (isBespokeIdea(g)) continue;
     let product = null;
-    if (etsyKey) { try { product = await etsyLookup(q, etsyKey); } catch (e) { console.error("etsy lookup failed", e); } }
-    if (!product && shoppingKey) { try { product = await shoppingLookup(q, shoppingKey); } catch (e) { console.error("shopping lookup failed", e); } }
+    // Pass the whole idea so the resolver can confirm the found listing plausibly
+    // matches THIS described gift (title + price) before we ever show its photo (TC-69).
+    if (etsyKey) { try { product = await etsyLookup(q, etsyKey, g); } catch (e) { console.error("etsy lookup failed", e); } }
+    // Pass the whole idea so the shopping fallback can confirm the found listing plausibly
+    // matches THIS described gift (keyword/kind/price) before we show its photo (TC-77).
+    if (!product && shoppingKey) { try { product = await shoppingLookup(q, shoppingKey, g); } catch (e) { console.error("shopping lookup failed", e); } }
     if (product && product.image && product.url) g.product = product;
   }
 }
 
-async function etsyLookup(query, key) {
+// TC-69 confidence guard. Etsy keyword search returns loosely-related listings, so a
+// "thank-you sticker set" can surface for "artisan snack bundle" and its $5.98 price
+// then renders under the described gift — a trust-breaker (wrong photo AND wrong price).
+// Before attaching a listing's photo/price we require it to plausibly match the idea:
+//   1) meaningful keyword overlap between the idea and the listing title, and
+//   2) not obviously the wrong KIND of product (a digital/printable/sticker/card item
+//      when the idea describes a physical good), and
+//   3) not implausibly cheap for the described physical item.
+// A listing that fails is dropped (we return null → the client shows the Etsy search
+// link instead). Better no photo than a mismatched one.
+const STOPWORDS = new Set(["a","an","and","or","the","for","with","of","to","in","on","gift","set","idea","them","their","present","by","from"]);
+// TC-79: generic filler that describes the FORMAT/packaging of a gift, not WHICH gift it is.
+// Keyword overlap satisfied only by these can't confirm a match — the live repro passed the
+// TC-69 guard purely on "letterpress"/"card" while the theme (new-job gesture) was wrong.
+// These are stripped from the DISTINCTIVE-token comparison (they stay searchable elsewhere).
+const FILLER = new Set(["letterpress","card","cards","set","sets","holiday","artisan","gift","gifts","box","boxed","pack","packs","packed","handmade","bundle","bundled","kit","kits","assorted","pcs","piece","pieces","personalized","custom","note"]);
+// Words that mark a listing as a different KIND of thing than a physical, giftable object.
+const WRONG_KIND = ["digital","download","downloadable","printable","print at home","print-at-home","svg","png file","clip art","clipart","template","sticker","stickers","decal","greeting card","thank you card","card set","note card","postcard","pdf","instant download"];
+function tokenize(s) {
+  return String(s || "").toLowerCase().replace(/[^a-z0-9\s]/g, " ").split(/\s+/).filter((w) => w.length > 2 && !STOPWORDS.has(w));
+}
+// TC-79: distinctive tokens only — drop generic filler so overlap must be on a
+// theme-bearing word (e.g. "candle", "succulent"), not "card"/"set"/"gift".
+function distinctiveTokens(s) {
+  return tokenize(s).filter((w) => !FILLER.has(w));
+}
+// TC-79: is this gift idea a BESPOKE / composed gesture rather than ONE literally-shoppable
+// item? Such ideas (a card + a tucked-in ticket, a handwritten-note pairing, a DIY kit) have
+// no single real listing that matches, so pinning a product always mismatches. Conservative
+// but biased toward NOT pinning when the text clearly describes a combination or a custom act.
+// Signals in the idea's own text (title/blurb/search_query):
+//   • an explicit combination joiner: " + ", "＋", "X and a Y" (two distinct items). We do
+//     NOT treat a bare "X with a Y" as combo — that also describes a single decorated item
+//     ("candle with a wooden wick", "notebook with a fun design"), which should still resolve.
+//   • an enumerated set of items: "X, Y, and Z" / "X, Y and a Z" (a comma-listed collection,
+//     e.g. "fun pens, sticky notes, and a small notepad" — a curated multi-item set no single
+//     listing matches). Requires a comma so single items ("Blue, cream mug") aren't caught.
+//   • a curated COLLECTION paired with a second item: "…set/kit/basket/bundle/box/package…
+//     with/and a …" ("tea set with a handmade mug", "care package with a candle").
+//   • "tucked inside" / "tucked in"
+//   • a personal message: "with a note", "a note that says", "note reading", "handwritten",
+//     "monogrammed", "personalized message", a custom/personalized inscription
+//   • DIY / make-it-yourself: "DIY", "make", "homemade", "hand-make"
+// A literal "+" / "＋" joiner ("card + ticket") is an unambiguous composition marker even
+// inside prose, so it stays scanned across ALL fields (incl. blurb). The comma/"and"-list
+// heuristics below are prose-tripping and get scoped to title+search_query only.
+const PLUS_JOIN_RE = /\s(?:\+|＋)\s/;
+const COMBO_JOIN_RE = /\s(?:\+|＋)\s|\b\w+\s+(?:and|plus)\s+a\s+\w+|,[^,]*\s+and\s+\w+/i;
+// A curated collection ("…set/kit/basket/bundle/box/care package…") plus a second item.
+const COLLECTION_COMBO_RE = /\b(?:set|kit|basket|bundle|box|package|assortment|sampler)\b[^.]*?\b(?:with|and|plus)\s+a\s+\w+/i;
+const BESPOKE_PHRASES = [
+  "tucked inside", "tucked in", "tucked into",
+  "with a note", "a note that says", "note that says", "note reading", "note saying",
+  "handwritten", "hand-written", "hand written", "monogrammed", "monogram",
+  "personalized message", "personalised message", "custom message", "custom note",
+  "homemade", "hand-make", "hand make", "make your own", "diy",
+];
+function isBespokeIdea(idea) {
+  // STRONG bespoke signals scan ALL fields incl. the blurb — a personal message, a
+  // "tucked inside", a DIY gesture, or a literal "+" is a true bespoke marker wherever
+  // it appears ("peace lily … with a heartfelt note tucked in" in prose must be caught).
+  const text = `${idea?.title || ""} ${idea?.blurb || ""} ${idea?.search_query || ""}`.toLowerCase();
+  if (!text.trim()) return false;
+  if (BESPOKE_PHRASES.some((p) => text.includes(p))) return true;
+  // "make" as a verb/instruction (a homemade gesture), not "makeup"/"homemaker" substrings.
+  if (/\bmake\b/.test(text) && !/\bmakes\b/.test(text)) return true;
+  // A literal "+" joiner is an unambiguous composition marker — keep reading all fields.
+  if (PLUS_JOIN_RE.test(text)) return true;
+  // TC-79 refine: the COMBINATION/COLLECTION heuristics ("X and a Y", "A, B, and Z" list
+  // joins, collection-word + second item) rely on comma/"and" list grammar that ordinary
+  // prose trips constantly ("beautiful, low-maintenance, and personal"). Restrict those to
+  // the TITLE + SEARCH_QUERY (terse, structured fields), NOT the free-text blurb — a blurb's
+  // comma list is almost always descriptive adjectives, not a two-item gift.
+  const structured = `${idea?.title || ""} ${idea?.search_query || ""}`.toLowerCase();
+  if (COMBO_JOIN_RE.test(structured)) return true;
+  if (COLLECTION_COMBO_RE.test(structured)) return true;
+  return false;
+}
+function priceValue(it) {
+  if (it && it.price && it.price.amount != null) return Number(it.price.amount) / Number(it.price.divisor || 100);
+  return null;
+}
+// Parse a dollar figure out of a free-text price string ("$413.00", "$30–45",
+// "From $12.99") → a Number, or null. For a range we take the LOW end (the most
+// charitable read — a listing is only rejected as "too pricey" if even its floor
+// blows past the budget). Strips thousands separators so "$1,299" reads as 1299.
+function parsePrice(s) {
+  const m = String(s || "").replace(/,/g, "").match(/\d+(?:\.\d+)?/);
+  return m ? Number(m[0]) : null;
+}
+// Words that mark a listing as a BULK / wholesale lot rather than the single ordinary
+// gift the plan described — the TC-77 repro was a "25+ Copies… $413.00" book listing
+// surfacing for a single-book idea. "pack of N"/"lot of"/"case of"/"set of N" and a bare
+// "N+ copies/pack/count" quantity prefix all read as wholesale, not a giftable single item.
+const BULK_KIND = ["wholesale", "bulk", "case of", "lot of", "carton", "pallet", "in bulk", "resale", "for resale"];
+const BULK_RE = /\b(\d{2,}\+?\s*(?:copies|copy|pack|packs|count|ct|pcs|pieces|units|bulk)|(?:pack|lot|case|box|set|carton)\s*of\s*\d{2,}|\d{2,}\s*(?:pack|pk|count|ct)\b)/i;
+function isBulkListing(title) {
+  const tl = String(title || "").toLowerCase();
+  if (BULK_KIND.some((b) => tl.includes(b))) return true;
+  return BULK_RE.test(tl);
+}
+// Returns true if this Etsy listing plausibly matches the described gift idea.
+function etsyListingMatches(it, idea) {
+  const title = String(it.title || "");
+  const tl = title.toLowerCase();
+  // 2) Wrong KIND of product (a digital/printable/card item posing as a physical gift).
+  const ideaText = `${idea?.title || ""} ${idea?.blurb || ""} ${idea?.search_query || ""}`.toLowerCase();
+  for (const bad of WRONG_KIND) {
+    if (tl.includes(bad) && !ideaText.includes(bad)) return false;
+  }
+  // 3) Implausibly cheap for a described physical item → almost certainly a mismatch
+  //    (stickers/prints/digital), not the artisan good the plan described.
+  const price = priceValue(it);
+  if (price != null) {
+    if (price < 8) return false;
+    // TC-80: upper-bound sanity — mirror the TC-77 Shopping ceiling. A baby journal
+    // resolved at $597,286 and would render a buy link; reject a listing running FAR
+    // above the described budget (2.5× the idea's band high end, else a $250 everyday
+    // cap). Reuses parsePriceHigh; null-safe (a missing/odd price never throws or blocks).
+    const rangeHigh = parsePriceHigh(idea?.price_range);
+    const ceiling = rangeHigh != null ? rangeHigh * 2.5 : 250;
+    if (price > ceiling) return false;
+  }
+  // 1) Keyword overlap: at least one DISTINCTIVE, idea-specific token must appear in the
+  //    listing title. We compare against the idea's own words (title/blurb), not just the
+  //    broad search query, so a generic query can't rubber-stamp an off-topic listing.
+  //    TC-79: overlap must be on a theme-bearing token, not generic filler like
+  //    "letterpress"/"card"/"set" — that filler is what let a holiday-card box match a
+  //    new-job card idea. distinctiveTokens strips the filler stoplist first.
+  const ideaTokens = new Set([...distinctiveTokens(idea?.title), ...distinctiveTokens(idea?.search_query), ...distinctiveTokens(idea?.blurb)]);
+  if (!ideaTokens.size) return true; // nothing distinctive to check against → don't block
+  const titleTokens = new Set(distinctiveTokens(title));
+  for (const t of ideaTokens) { if (titleTokens.has(t)) return true; }
+  return false; // no shared distinctive keyword → treat as a mismatch, drop it
+}
+
+// TC-77 confidence guard for the Google Shopping FALLBACK — the same discipline TC-69
+// gave the Etsy path, adapted to the shopping result shape ({ title, price: "$413.00" }).
+// When a correct Etsy match is rejected we fall through to Shopping, which likewise
+// returns loosely-related hits: a single-book gift idea surfaced a "25+ Copies… $413.00"
+// bulk/wholesale listing. Before attaching one we require it to plausibly match the idea:
+//   1) meaningful keyword overlap between the idea and the listing title,
+//   2) not the wrong KIND — a digital/printable/card item (WRONG_KIND) OR a bulk/wholesale
+//      lot (isBulkListing) when the idea describes a single ordinary gift, and
+//   3) price sanity — not implausibly cheap for a physical item (same <$8 rule) AND not
+//      wildly above what the idea described (the $413 book). We derive a ceiling from the
+//      idea's own price_range when present, else fall back to an everyday-gift cap.
+// A listing that fails is dropped → the client shows the search-link tile. Better no
+// photo than a mismatched one.
+function shoppingResultMatches(it, idea) {
+  const title = String(it?.title || "");
+  const tl = title.toLowerCase();
+  const ideaText = `${idea?.title || ""} ${idea?.blurb || ""} ${idea?.search_query || ""}`.toLowerCase();
+  // 2) Wrong KIND — digital/printable/card posing as a physical gift…
+  for (const bad of WRONG_KIND) {
+    if (tl.includes(bad) && !ideaText.includes(bad)) return false;
+  }
+  //    …or a bulk/wholesale lot when the idea describes a single ordinary gift.
+  if (isBulkListing(title) && !/\b(bulk|wholesale|pack|lot|case|dozen)\b/.test(ideaText)) return false;
+  // 3) Price sanity. Shopping prices are free-text strings ("$413.00", "$30–45").
+  const price = parsePrice(it?.price);
+  if (price != null) {
+    if (price < 8) return false; // implausibly cheap for a physical good → likely a mismatch
+    // Upper bound: prefer the idea's own budget band. Reject only when the listing runs
+    // FAR above it (2.5× the band's high end) so normal price scatter isn't over-filtered.
+    // With no stated band, cap everyday gifts at $250 — well above a boutique gift, well
+    // below the $413 bulk-book outlier this guard exists to reject. Null-safe throughout.
+    const rangeHigh = parsePriceHigh(idea?.price_range);
+    const ceiling = rangeHigh != null ? rangeHigh * 2.5 : 250;
+    if (price > ceiling) return false;
+  }
+  // 1) Keyword overlap — at least one DISTINCTIVE, idea-specific token in the listing title.
+  //    TC-79: strip generic filler ("card"/"set"/"gift"…) so overlap must be on a
+  //    theme-bearing token, never generic vocabulary alone.
+  const ideaTokens = new Set([...distinctiveTokens(idea?.title), ...distinctiveTokens(idea?.search_query), ...distinctiveTokens(idea?.blurb)]);
+  if (!ideaTokens.size) return true; // nothing distinctive to check against → don't block
+  const titleTokens = new Set(distinctiveTokens(title));
+  for (const t of ideaTokens) { if (titleTokens.has(t)) return true; }
+  return false; // no shared distinctive keyword → treat as a mismatch, drop it
+}
+// The HIGH end of an idea's price band ("$30–45" → 45, "$30" → 30), for the ceiling above.
+function parsePriceHigh(s) {
+  const nums = String(s || "").replace(/,/g, "").match(/\d+(?:\.\d+)?/g);
+  if (!nums || !nums.length) return null;
+  return Number(nums[nums.length - 1]);
+}
+
+async function etsyLookup(query, key, idea) {
   const url = `https://openapi.etsy.com/v3/application/listings/active?limit=10&sort_on=score&keywords=${encodeURIComponent(query)}`;
   const res = await fetch(url, { headers: { "x-api-key": key } });
   if (!res.ok) return null;
   const data = await res.json();
   const results = (data.results || []).filter((r) => r.listing_id && r.url);
-  const it = pickVaried(results, 4); // vary among the top few relevant matches
+  if (!results.length) return null;
+  // TC-69: keep only listings that plausibly match the DESCRIBED gift, then vary among
+  // those (not among all keyword hits). If none pass the confidence guard, return null so
+  // we never show a wrong photo/price — the client falls back to the Etsy search link.
+  const confident = idea ? results.filter((r) => etsyListingMatches(r, idea)) : results;
+  if (!confident.length) return null;
+  const it = pickVaried(confident, 4); // vary among the top few *matching* listings
   if (!it) return null;
   // The `includes=Images` association isn't populated for app-key (non-OAuth) auth,
   // so pull the listing's primary image from the dedicated images endpoint.
@@ -349,7 +553,7 @@ async function etsyPrimaryImage(listingId, key) {
   }
 }
 
-async function shoppingLookup(query, key) {
+async function shoppingLookup(query, key, idea) {
   const url = `https://www.searchapi.io/api/v1/search?engine=google_shopping&num=12&q=${encodeURIComponent(query)}&api_key=${key}`;
   const res = await fetch(url);
   if (!res.ok) return null;
@@ -361,10 +565,15 @@ async function shoppingLookup(query, key) {
     const link = it.product_link || it.link || it.offers_link || "";
     const image = it.thumbnail || it.image || "";
     if (!link || !image || isBigBox(merchant, link)) continue;
-    candidates.push({ source: "shopping", title: it.title || "", image, price: it.price || "", url: link, merchant });
+    const cand = { source: "shopping", title: it.title || "", image, price: it.price || "", url: link, merchant };
+    // TC-77: keep only listings that plausibly match the DESCRIBED gift (keyword overlap,
+    // right KIND — no digital/bulk, price sanity). If none pass we return null so the client
+    // falls back to the search-link tile — never a mismatched/implausible result.
+    if (idea && !shoppingResultMatches(cand, idea)) continue;
+    candidates.push(cand);
     if (candidates.length >= 6) break;
   }
-  return pickVaried(candidates, 4); // vary among the top boutique matches
+  return pickVaried(candidates, 4); // vary among the top *matching* boutique listings
 }
 
 // For each "local" gift idea, look up one real nearby business via Google Places
