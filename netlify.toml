@@ -17,6 +17,13 @@
   to = "/.netlify/functions/plan"
   status = 200
 
+# The advisor mind — a real conversation that decides when it has enough, then hands the
+# distilled inputs to /api/generate (TC-82 Phase 1, typed-first)
+[[redirects]]
+  from = "/api/converse"
+  to = "/.netlify/functions/converse"
+  status = 200
+
 # Email me my plan (+ opt into date-based email reminders)
 [[redirects]]
   from = "/api/send-plan"
