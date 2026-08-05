@@ -386,9 +386,9 @@
   .tc-lastplan-link { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--sage-deep); cursor: pointer; padding: 6px 8px; display: inline-flex; align-items: center; gap: 6px; line-height: 1; opacity: .9; transition: opacity .15s ease; }
   .tc-lastplan-link:hover { opacity: 1; text-decoration: underline; }
   /* TC-81: gentle, non-blocking toast (bottom-center, thumb zone, auto-dismiss). */
-  .tc-toast { position: fixed; left: 50%; bottom: 22px; transform: translateX(-50%) translateY(12px); z-index: 9999; max-width: min(420px, calc(100vw - 32px)); background: var(--ink, #3b362e); color: #fff; border-radius: 14px; box-shadow: 0 8px 30px rgba(40,34,24,.28); padding: 13px 14px 13px 18px; display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.4; opacity: 0; pointer-events: none; transition: opacity .28s ease, transform .28s ease; }
+  .tc-toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(12px); z-index: 9999; max-width: min(420px, calc(100vw - 32px)); background: var(--ink, #3b362e); color: #fff; border-radius: 14px; box-shadow: 0 8px 30px rgba(40,34,24,.28); padding: 13px 14px 13px 18px; display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.4; opacity: 0; pointer-events: none; transition: opacity .28s ease, transform .28s ease; }
   .tc-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
-  .tc-toast .tc-toast-x { flex: 0 0 auto; background: none; border: none; color: rgba(255,255,255,.75); cursor: pointer; padding: 4px; line-height: 0; border-radius: 8px; }
+  .tc-toast .tc-toast-x { flex: 0 0 auto; background: none; border: none; color: rgba(255,255,255,.92); cursor: pointer; padding: 4px; line-height: 0; border-radius: 8px; }
   .tc-toast .tc-toast-x:hover { color: #fff; }
   @media (prefers-reduced-motion: reduce) { .tc-toast { transition: opacity .28s ease; transform: translateX(-50%); } .tc-toast.show { transform: translateX(-50%); } }
   #homeMicBtn svg { animation: tc-mic-nudge 5.5s ease-in-out infinite; transform-origin: center; }
