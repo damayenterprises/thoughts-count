@@ -71,7 +71,9 @@ export default async (req) => {
   const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : mime.includes("wav") ? "wav" : "webm";
   const form = new FormData();
   form.append("file", new Blob([bytes], { type: mime }), `answer.${ext}`);
-  form.append("model", "whisper-1");
+  // gpt-4o-mini-transcribe is ~2x faster than whisper-1 at equal accuracy — cuts the wait
+  // before the app can reply (the biggest piece of the hands-free latency). Returns { text }.
+  form.append("model", "gpt-4o-mini-transcribe");
 
   try {
     const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {
