@@ -371,6 +371,10 @@ function distinctiveTokens(s) {
 //   • a personal message: "with a note", "a note that says", "note reading", "handwritten",
 //     "monogrammed", "personalized message", a custom/personalized inscription
 //   • DIY / make-it-yourself: "DIY", "make", "homemade", "hand-make"
+// A literal "+" / "＋" joiner ("card + ticket") is an unambiguous composition marker even
+// inside prose, so it stays scanned across ALL fields (incl. blurb). The comma/"and"-list
+// heuristics below are prose-tripping and get scoped to title+search_query only.
+const PLUS_JOIN_RE = /\s(?:\+|＋)\s/;
 const COMBO_JOIN_RE = /\s(?:\+|＋)\s|\b\w+\s+(?:and|plus)\s+a\s+\w+|,[^,]*\s+and\s+\w+/i;
 // A curated collection ("…set/kit/basket/bundle/box/care package…") plus a second item.
 const COLLECTION_COMBO_RE = /\b(?:set|kit|basket|bundle|box|package|assortment|sampler)\b[^.]*?\b(?:with|and|plus)\s+a\s+\w+/i;
@@ -382,13 +386,24 @@ const BESPOKE_PHRASES = [
   "homemade", "hand-make", "hand make", "make your own", "diy",
 ];
 function isBespokeIdea(idea) {
+  // STRONG bespoke signals scan ALL fields incl. the blurb — a personal message, a
+  // "tucked inside", a DIY gesture, or a literal "+" is a true bespoke marker wherever
+  // it appears ("peace lily … with a heartfelt note tucked in" in prose must be caught).
   const text = `${idea?.title || ""} ${idea?.blurb || ""} ${idea?.search_query || ""}`.toLowerCase();
   if (!text.trim()) return false;
   if (BESPOKE_PHRASES.some((p) => text.includes(p))) return true;
   // "make" as a verb/instruction (a homemade gesture), not "makeup"/"homemaker" substrings.
   if (/\bmake\b/.test(text) && !/\bmakes\b/.test(text)) return true;
-  if (COMBO_JOIN_RE.test(text)) return true;
-  if (COLLECTION_COMBO_RE.test(text)) return true;
+  // A literal "+" joiner is an unambiguous composition marker — keep reading all fields.
+  if (PLUS_JOIN_RE.test(text)) return true;
+  // TC-79 refine: the COMBINATION/COLLECTION heuristics ("X and a Y", "A, B, and Z" list
+  // joins, collection-word + second item) rely on comma/"and" list grammar that ordinary
+  // prose trips constantly ("beautiful, low-maintenance, and personal"). Restrict those to
+  // the TITLE + SEARCH_QUERY (terse, structured fields), NOT the free-text blurb — a blurb's
+  // comma list is almost always descriptive adjectives, not a two-item gift.
+  const structured = `${idea?.title || ""} ${idea?.search_query || ""}`.toLowerCase();
+  if (COMBO_JOIN_RE.test(structured)) return true;
+  if (COLLECTION_COMBO_RE.test(structured)) return true;
   return false;
 }
 function priceValue(it) {
