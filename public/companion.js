@@ -158,6 +158,10 @@ async function boot() {
     user = session?.user || null;
     accessToken = session?.access_token || null;
     renderAuthBtn();
+    // TC-81: any sign-out (button, expiry, other tab) clears the device-local recovered plan.
+    if (evt === "SIGNED_OUT") {
+      try { window.tcClearLastPlan && window.tcClearLastPlan(); window.tcRefreshLastPlanAffordance && window.tcRefreshLastPlanAffordance(); } catch (e) {}
+    }
     // Auto-open "Your People" ONCE, only on a genuine magic-link return. Supabase
     // re-fires SIGNED_IN on session restore and tab refocus, so we consume the flag
     // after the first open — otherwise the panel keeps popping up unbidden when the
@@ -629,7 +633,12 @@ function renderHome(people, opts = {}) {
     if (card) flashCard(card);
   }
 
-  modalBody().querySelector(".tc-signout").onclick = async () => { await sb.auth.signOut(); closeModal(); };
+  modalBody().querySelector(".tc-signout").onclick = async () => {
+    await sb.auth.signOut();
+    // TC-81: privacy — a device-local recovered plan must not survive a sign-out (shared device).
+    try { window.tcClearLastPlan && window.tcClearLastPlan(); window.tcRefreshLastPlanAffordance && window.tcRefreshLastPlanAffordance(); } catch (e) {}
+    closeModal();
+  };
   const exportBtn = modalBody().querySelector(".tc-export");
   if (exportBtn) exportBtn.onclick = async () => {
     exportBtn.disabled = true; const prev = exportBtn.textContent; exportBtn.textContent = "Preparing…";
@@ -780,6 +789,8 @@ async function mountSaveToPerson(stageEl, plan) {
         if (about) { try { await createNote(sb, personId, about); } catch (e) { console.error("intake note failed", e); } }
       }
       await savePlan(personId, plan, occasion);
+      // TC-81: saved to a person → this plan is kept → no "keep it anywhere" nudge on close.
+      try { window.__tcMarkPlanSaved && window.__tcMarkPlanSaved(); } catch (e) {}
       let reminderCount = 0;
       const wantFollow = card.querySelector("#tcRemindFollow");
       if (wantFollow && wantFollow.checked) {
