@@ -263,6 +263,15 @@ async function safeText(res) {
 export function humanizeText(s) {
   if (typeof s !== "string" || !s) return s;
   let t = s;
+  // Strip Markdown emphasis/code the model sometimes emits — it renders as literal
+  // *asterisks* / _underscores_ / `backticks`, an AI-tell in both her chat lines and plans.
+  // Keep the word, drop the markers. Paired-only, and underscore is word-boundary safe so
+  // it never touches identifiers like health_status.
+  t = t.replace(/\*\*([^*]+)\*\*/g, "$1");                 // **bold**
+  t = t.replace(/\*([^*\n]+)\*/g, "$1");                   // *italic*
+  t = t.replace(/__([^_]+)__/g, "$1");                     // __bold__
+  t = t.replace(/(?<![\w`])_([^_\n]+)_(?![\w])/g, "$1");   // _italic_
+  t = t.replace(/`([^`\n]+)`/g, "$1");                     // `code`
   t = t.replace(/[‘’‚‛]/g, "'");        // ' ' ‚ ‛ → '
   t = t.replace(/[“”„‟]/g, '"');        // " " „ ‟ → "
   t = t.replace(/…/g, "...");                            // … → ...

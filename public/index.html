@@ -973,10 +973,20 @@ function penSvg(size, stroke, accent){
     <line x1="14.5" y1="7" x2="17.5" y2="10" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
   </svg>`;
 }
+// A hand-drawn speech bubble for the "Talk it through" (typed conversation) button —
+// pairs with the mic on "Say it out loud" so the two doors read as typed vs spoken
+// conversation (stroke style matches the site's other icons). `accent` = clay lines.
+function bubbleSvg(size, stroke, accent){
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" width="${size}" height="${size}">
+    <path d="M20 11.5a7 7 0 0 1-9.8 6.4L5 19.5l1.2-3.6A7 7 0 1 1 20 11.5Z" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linejoin="round"/>
+    <line x1="9" y1="10.5" x2="16" y2="10.5" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="9" y1="13.5" x2="13.5" y2="13.5" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`;
+}
 // The typed method button (always available). The mic method is added by setupHomeVoice.
 function renderTypeBtn(){
   const t = document.getElementById('homeTypeBtn');
-  if (t) t.innerHTML = penSvg(18, 'currentColor', '#c28a63') + '<span class="mic-label">Talk it through</span>';
+  if (t) t.innerHTML = bubbleSvg(18, 'currentColor', '#c28a63') + '<span class="mic-label">Talk it through</span>';
 }
 renderTypeBtn();
 async function setupHomeVoice(){
@@ -1309,7 +1319,7 @@ function renderConverse(){
         </button>
       </div>
       <div class="tc-chat-foot" id="cvFoot"></div>
-      <div class="tc-chat-hint">She'll ask what she needs, then build your plan. You can say "that's enough, make my plan" any time.</div>
+      <div class="tc-chat-hint" id="cvHint">She'll ask what she needs, then build your plan. You can say "that's enough, make my plan" any time.</div>
     </div>`;
   cvAppend('her', CV_OPENER);
   const input = document.getElementById('cvInput');
@@ -1342,6 +1352,9 @@ function cvShowEscape(){
   btn.type = 'button'; btn.className = 'tc-makeplan'; btn.textContent = "That's enough — make my plan →";
   btn.onclick = cvMakePlan;
   foot.appendChild(btn);
+  // Once the escape link is visible, drop the redundant "you can say…" half of the hint —
+  // the link now speaks for itself; keep only the expectation-setting line. (UX finding 2.)
+  const h = document.getElementById('cvHint'); if (h) h.textContent = "She'll ask what she needs, then build your plan.";
 }
 function cvSetBusy(on){
   __cv.busy = on;
