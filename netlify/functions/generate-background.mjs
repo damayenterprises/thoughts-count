@@ -441,7 +441,16 @@ function etsyListingMatches(it, idea) {
   // 3) Implausibly cheap for a described physical item → almost certainly a mismatch
   //    (stickers/prints/digital), not the artisan good the plan described.
   const price = priceValue(it);
-  if (price != null && price < 8) return false;
+  if (price != null) {
+    if (price < 8) return false;
+    // TC-80: upper-bound sanity — mirror the TC-77 Shopping ceiling. A baby journal
+    // resolved at $597,286 and would render a buy link; reject a listing running FAR
+    // above the described budget (2.5× the idea's band high end, else a $250 everyday
+    // cap). Reuses parsePriceHigh; null-safe (a missing/odd price never throws or blocks).
+    const rangeHigh = parsePriceHigh(idea?.price_range);
+    const ceiling = rangeHigh != null ? rangeHigh * 2.5 : 250;
+    if (price > ceiling) return false;
+  }
   // 1) Keyword overlap: at least one DISTINCTIVE, idea-specific token must appear in the
   //    listing title. We compare against the idea's own words (title/blurb), not just the
   //    broad search query, so a generic query can't rubber-stamp an off-topic listing.
