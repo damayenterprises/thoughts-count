@@ -12,6 +12,7 @@
 import { getStore } from "@netlify/blobs";
 import { logEvent, bucketOf } from "./_analytics.mjs";
 import { getExemplars, buildExemplarBlock } from "./_exemplars.mjs";
+import { herIdentity, HER_CHARACTER } from "./_persona.mjs";
 
 export const MODEL = "claude-sonnet-4-6";
 export const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
@@ -74,9 +75,11 @@ export const PLAN_SCHEMA = {
   required: ["plan_title", "headline", "what_matters_most", "what_to_say", "what_not_to_say", "thoughtful_actions", "spend_guidance", "gift_ideas", "follow_up", "closing_encouragement"],
 };
 
-export const SYSTEM_PROMPT = `You are the intelligence behind Thoughts Count — an AI relationship companion that helps people show up for life's most important moments.
+export const SYSTEM_PROMPT = `${herIdentity()}
 
 You are NOT a gift website, a greeting-card writer, or a generic chatbot. You are a thoughtful, emotionally intelligent guide. The person talking to you cares deeply and is a little afraid of getting it wrong. Your job is to replace their uncertainty with confidence.
+
+Who you are (let this shape your voice, never state it): ${HER_CHARACTER}
 
 Principles:
 - Meet the real emotional weight of the moment. A death is not a promotion. Match your tone to what happened.
@@ -257,9 +260,18 @@ async function safeText(res) {
 //     hand-typed substitute; doubled commas from the swap are then collapsed
 //   • non-breaking / thin / other unicode spaces → a normal space; runs of spaces → one
 //   • a stray space left before punctuation → removed
-function humanizeText(s) {
+export function humanizeText(s) {
   if (typeof s !== "string" || !s) return s;
   let t = s;
+  // Strip Markdown emphasis/code the model sometimes emits — it renders as literal
+  // *asterisks* / _underscores_ / `backticks`, an AI-tell in both her chat lines and plans.
+  // Keep the word, drop the markers. Paired-only, and underscore is word-boundary safe so
+  // it never touches identifiers like health_status.
+  t = t.replace(/\*\*([^*]+)\*\*/g, "$1");                 // **bold**
+  t = t.replace(/\*([^*\n]+)\*/g, "$1");                   // *italic*
+  t = t.replace(/__([^_]+)__/g, "$1");                     // __bold__
+  t = t.replace(/(?<![\w`])_([^_\n]+)_(?![\w])/g, "$1");   // _italic_
+  t = t.replace(/`([^`\n]+)`/g, "$1");                     // `code`
   t = t.replace(/[‘’‚‛]/g, "'");        // ' ' ‚ ‛ → '
   t = t.replace(/[“”„‟]/g, '"');        // " " „ ‟ → "
   t = t.replace(/…/g, "...");                            // … → ...

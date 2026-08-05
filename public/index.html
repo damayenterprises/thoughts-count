@@ -521,7 +521,7 @@
     <div class="hero-start">
       <div class="hero-start-label">I want to show up for someone…</div>
       <div class="hero-actions">
-        <button type="button" class="cta" id="homeTypeBtn" onclick="openFlow()"></button>
+        <button type="button" class="cta" id="homeTypeBtn" onclick="openConverse()"></button>
         <button type="button" class="cta sage" id="homeMicBtn" style="display:none;"></button>
       </div>
       <!-- TC-81: quiet recovery link — shown only when a valid, unexpired plan is stored on this device. -->
@@ -614,6 +614,30 @@
     <span class="copyright">&copy; 2026 Damay Enterprises</span>
   </div>
 </footer>
+
+<!-- Advisor conversation (TC-82 Phase 1, typed) styles -->
+<style>
+  .tc-chat { display:flex; flex-direction:column; padding: 6px 20px 18px; }
+  .tc-chat-log { display:flex; flex-direction:column; gap:12px; max-height:56vh; overflow-y:auto; padding: 12px 2px; scroll-behavior:smooth; }
+  .tc-bubble { max-width: 84%; padding: 12px 15px; border-radius: 18px; font-size: 15.5px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
+  .tc-bubble.her { align-self:flex-start; background: var(--cloud, #f3efe7); color: var(--ink,#2e2a24); border-bottom-left-radius: 6px; }
+  .tc-bubble.me { align-self:flex-end; background: var(--clay,#c98a63); color:#fff; border-bottom-right-radius: 6px; }
+  .tc-typing { align-self:flex-start; display:inline-flex; gap:5px; padding:15px 16px; background:var(--cloud,#f3efe7); border-radius:18px; border-bottom-left-radius:6px; }
+  .tc-typing i { width:7px; height:7px; border-radius:50%; background:#b9b1a2; animation: tc-blink 1.2s infinite both; }
+  .tc-typing i:nth-child(2){ animation-delay:.18s } .tc-typing i:nth-child(3){ animation-delay:.36s }
+  @keyframes tc-blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
+  @media (prefers-reduced-motion: reduce){ .tc-typing i{ animation:none } }
+  .tc-chat-inputrow { display:flex; gap:10px; align-items:flex-end; margin-top:14px; }
+  .tc-chat-input { flex:1; resize:none; border:1.5px solid var(--line,#e0d8c9); border-radius:16px; padding:12px 14px; font-family:inherit; font-size:15.5px; line-height:1.45; max-height:120px; background:#fff; color:var(--ink,#2e2a24); }
+  .tc-chat-input:focus { outline:none; border-color: var(--sage,#8a9a72); box-shadow: 0 0 0 3px rgba(138,154,114,.15); }
+  .tc-send { flex:none; width:46px; height:46px; border-radius:50%; border:none; background:var(--clay,#c98a63); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition: background .18s ease; }
+  .tc-send:hover:not(:disabled){ background:var(--clay-deep,#b0714b); }
+  .tc-send:disabled { opacity:.45; cursor:default; }
+  .tc-chat-foot { text-align:center; margin-top:14px; min-height:18px; }
+  .tc-makeplan { background:transparent; border:none; color:var(--sage-deep,#5f6d4a); font-size:13.5px; cursor:pointer; font-family:inherit; }
+  .tc-makeplan:hover { text-decoration:underline; }
+  .tc-chat-hint { text-align:center; font-size:12px; color:var(--ink-soft,#8a8577); margin-top:10px; }
+</style>
 
 <!-- ================= CONVERSATION MODAL ================= -->
 <div class="scrim" id="scrim">
@@ -949,10 +973,20 @@ function penSvg(size, stroke, accent){
     <line x1="14.5" y1="7" x2="17.5" y2="10" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
   </svg>`;
 }
+// A hand-drawn speech bubble for the "Talk it through" (typed conversation) button —
+// pairs with the mic on "Say it out loud" so the two doors read as typed vs spoken
+// conversation (stroke style matches the site's other icons). `accent` = clay lines.
+function bubbleSvg(size, stroke, accent){
+  return `<svg viewBox="0 0 24 24" aria-hidden="true" width="${size}" height="${size}">
+    <path d="M20 11.5a7 7 0 0 1-9.8 6.4L5 19.5l1.2-3.6A7 7 0 1 1 20 11.5Z" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linejoin="round"/>
+    <line x1="9" y1="10.5" x2="16" y2="10.5" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
+    <line x1="9" y1="13.5" x2="13.5" y2="13.5" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
+  </svg>`;
+}
 // The typed method button (always available). The mic method is added by setupHomeVoice.
 function renderTypeBtn(){
   const t = document.getElementById('homeTypeBtn');
-  if (t) t.innerHTML = penSvg(18, 'currentColor', '#c28a63') + '<span class="mic-label">Type it out</span>';
+  if (t) t.innerHTML = bubbleSvg(18, 'currentColor', '#c28a63') + '<span class="mic-label">Talk it through</span>';
 }
 renderTypeBtn();
 async function setupHomeVoice(){
@@ -965,7 +999,7 @@ async function setupHomeVoice(){
   if (!hasMic && !isPhone){ mic.style.display = 'none'; return; } // computer, no mic → typing only
   mic.style.display = '';
   mic.onclick = startHomeVoice;
-  mic.innerHTML = micSvg(19, 'currentColor', '#c28a63') + '<span class="mic-label">Talk it through</span>';
+  mic.innerHTML = micSvg(19, 'currentColor', '#c28a63') + '<span class="mic-label">Say it out loud</span>';
   // TC-70: stable, consistent CTAs — "Type it out" is always the primary (terracotta,
   // lower-friction no-mic path) and comes first; "Talk it through" is the sage secondary
   // that comes second. Order no longer swaps by device, so the hero reads the same every
@@ -1251,6 +1285,132 @@ function startPlanFromText(text){
 // return; it hands control back here to deliver the plan (decline path) or to resume
 // the held "remember" request once the user is signed in.
 window.startPlanFromText = startPlanFromText;
+
+// ===================== The advisor conversation (TC-82 Phase 1, typed) =====================
+// A real typed conversation with HER: /api/converse holds her persona + the running
+// dialogue and decides each turn whether to reply or that she's heard enough. When she's
+// ready, it distills the conversation into the SAME `answers` object the plan engine
+// already consumes, and we hand off to generate() unchanged.
+let __cv = { messages: [], busy: false };
+// Her opening line — warm, invites the moment, plain punctuation (placeholder copy; will
+// live in the character bible / can be served in her voice later).
+const CV_OPENER = "Tell me who's on your mind, and what's happening for them. We'll figure out how to show up together.";
+
+function openConverse(){
+  for (const k in answers) delete answers[k];
+  for (const k in picks) delete picks[k];
+  genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; __fromVoice = false;
+  __cv = { messages: [], busy: false };
+  try { window.tcTrack && tcTrack('intake_start', { label: 'converse' }); } catch(e){}
+  scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
+  renderConverse();
+}
+window.openConverse = openConverse;
+
+function renderConverse(){
+  stopRecordingIfAny();
+  stage.innerHTML = `
+    <div class="tc-chat">
+      <div class="tc-chat-log" id="cvLog"></div>
+      <div class="tc-chat-inputrow">
+        <textarea id="cvInput" class="tc-chat-input" rows="1" placeholder="Type your reply…" autocomplete="off"></textarea>
+        <button type="button" class="tc-send" id="cvSend" aria-label="Send">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
+        </button>
+      </div>
+      <div class="tc-chat-foot" id="cvFoot"></div>
+      <div class="tc-chat-hint" id="cvHint">She'll ask what she needs, then build your plan. You can say "that's enough, make my plan" any time.</div>
+    </div>`;
+  cvAppend('her', CV_OPENER);
+  const input = document.getElementById('cvInput');
+  const send = document.getElementById('cvSend');
+  const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; };
+  input.addEventListener('input', grow);
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); cvSend(); } });
+  send.onclick = cvSend;
+  setTimeout(() => { try { input.focus(); } catch(e){} }, 120);
+}
+
+function cvAppend(role, text){
+  const log = document.getElementById('cvLog'); if (!log) return;
+  const b = document.createElement('div');
+  b.className = 'tc-bubble ' + (role === 'me' ? 'me' : 'her');
+  b.textContent = String(text || '');
+  log.appendChild(b);
+  log.scrollTop = log.scrollHeight;
+}
+function cvTyping(on){
+  const log = document.getElementById('cvLog'); if (!log) return;
+  let t = document.getElementById('cvTyping');
+  if (on){ if (!t){ t = document.createElement('div'); t.id = 'cvTyping'; t.className = 'tc-typing'; t.innerHTML = '<i></i><i></i><i></i>'; log.appendChild(t); log.scrollTop = log.scrollHeight; } }
+  else if (t){ t.remove(); }
+}
+// Reveal the gentle "make my plan now" escape once she's had something to work with.
+function cvShowEscape(){
+  const foot = document.getElementById('cvFoot'); if (!foot || foot.querySelector('.tc-makeplan')) return;
+  const btn = document.createElement('button');
+  btn.type = 'button'; btn.className = 'tc-makeplan'; btn.textContent = "That's enough — make my plan →";
+  btn.onclick = cvMakePlan;
+  foot.appendChild(btn);
+  // Once the escape link is visible, drop the redundant "you can say…" half of the hint —
+  // the link now speaks for itself; keep only the expectation-setting line. (UX finding 2.)
+  const h = document.getElementById('cvHint'); if (h) h.textContent = "She'll ask what she needs, then build your plan.";
+}
+function cvSetBusy(on){
+  __cv.busy = on;
+  const s = document.getElementById('cvSend'); if (s) s.disabled = on;
+}
+
+async function cvSend(){
+  if (__cv.busy) return;
+  const input = document.getElementById('cvInput');
+  const text = (input && input.value || '').trim();
+  if (!text) return;
+  cvAppend('me', text);
+  __cv.messages.push({ role: 'user', content: text });
+  if (input){ input.value = ''; input.style.height = 'auto'; }
+  cvShowEscape();
+  await cvTurn(false);
+}
+async function cvMakePlan(){
+  if (__cv.busy) return;
+  // If they haven't said anything yet, don't force an empty plan — nudge instead.
+  if (!__cv.messages.some(m => m.role === 'user')){ const i = document.getElementById('cvInput'); if (i) i.focus(); return; }
+  await cvTurn(true);
+}
+
+async function cvTurn(force){
+  cvSetBusy(true); cvTyping(true);
+  const ctx = flowPerson ? { name: flowPerson.name || '', location: flowPerson.location || '', facts: Array.isArray(flowPerson.noticed) ? flowPerson.noticed : [] } : undefined;
+  let d;
+  try {
+    const r = await fetch('/api/converse', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });
+    d = await r.json();
+  } catch(e){
+    cvTyping(false); cvSetBusy(false);
+    cvAppend('her', "I lost you for a second there. Could you try that again?");
+    return;
+  }
+  cvTyping(false);
+  if (d && d.action === 'ready' && d.answers){
+    // Distilled → hand to the existing plan engine (renders over this chat).
+    for (const k in answers) delete answers[k];
+    Object.assign(answers, d.answers);
+    try { window.tcTrack && tcTrack('converse_ready', { turns: __cv.messages.length }); } catch(e){}
+    generate();
+    return;
+  }
+  if (d && d.action === 'reply' && d.say){
+    __cv.messages.push({ role: 'assistant', content: d.say });
+    cvAppend('her', d.say);
+    cvSetBusy(false);
+    const i = document.getElementById('cvInput'); if (i){ try { i.focus(); } catch(e){} }
+    return;
+  }
+  // Unexpected shape — recover gently.
+  cvSetBusy(false);
+  cvAppend('her', "Sorry, I drifted for a second. What's going on?");
+}
 // Resume a remember request after a magic-link return: open the flow surface (the
 // scrim isn't open on a cold return), then run the normal preview→confirm→save flow
 // on the words we held. Lands on "[Name] is on your list."
