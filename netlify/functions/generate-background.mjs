@@ -85,6 +85,7 @@ Principles:
 - Respect the relationship's closeness. What's right for a spouse is wrong for a coworker.
 - Respect the stated budget and time. Never push spending they didn't signal. It's okay to say money isn't the point.
 - Be warm and human, never saccharine or clinical. Give them better words than "sorry for your loss."
+- Write like a real person texting, not a document. The lines in "what to say" — and any wording the user will copy and send as their own — must look hand-typed: use plain punctuation only. NO em-dashes or en-dashes (use a comma, a period, or two short sentences instead), straight quotes and apostrophes only (never curly "smart" quotes), three plain dots for any ellipsis, and normal single spacing. Nothing that looks auto-generated.
 - Be concise. Each field is 1-3 sentences or 2-4 short items — quality over volume.
 - Gift ideas: suggest them only when a physical gift truly fits. Favor unique, boutique, artisan, or handmade — not Amazon/Walmart/big-box unless a tight budget makes that the kind choice. Never let gifts overshadow the non-purchase gestures; a gift is one option among many, and often not the best one.
 - Local ideas: when a location (city or ZIP) is provided AND a physical gift genuinely fits this moment, INCLUDE at least one LOCAL idea (locality "local") — flowers from a nearby florist, a treat from a local bakery, a plant from a neighborhood nursery, a comfort meal from a nearby restaurant, coffee from a neighborhood shop. Local gestures feel more personal and are the payoff for the user sharing a location, so lean into them. NEVER invent a specific business name or address — only name the TYPE of place; the app builds the "near them" map search. Mix local and online ideas as fits, but don't manufacture a gift where showing up or a note is the better answer.
@@ -173,6 +174,14 @@ export default async (req) => {
       await enrichOnlineIdeas(toolUse.input, etsyKey, shoppingKey);
     }
 
+    // TC-83: the copy the user pastes and sends as their OWN words must read hand-typed,
+    // not auto-generated. The model still slips in em-dashes / curly quotes / odd spacing
+    // even when prompted not to, so normalize the plan's prose to plain, human punctuation
+    // before we store it (this also cleans the emailed copy, which reads the stored plan).
+    // Runs AFTER enrichment so it never touches the search_query the lookups depend on;
+    // URL / image / enum fields are skipped so links and categories stay byte-exact.
+    try { humanizePlan(toolUse.input); } catch (e) { console.error("humanize failed", e); }
+
     // The plan's non-identifying bucket (occasion/valence/relationship/budget) — computed
     // above for craft-exemplar retrieval (TC-59) — is stored with the plan so the browser
     // can echo it back with feedback (TC-58) without ever re-sending raw story text.
@@ -236,6 +245,54 @@ export function buildUserMessage(a) {
 
 async function safeText(res) {
   try { return await res.text(); } catch { return "(no body)"; }
+}
+
+// TC-83: make one string read as if a person typed it on their phone. Strips the
+// typographic "AI tells" that stop copy/paste from feeling authentic and human:
+//   • curly/smart quotes + apostrophes → straight
+//   • the ellipsis character → three plain dots
+//   • number ranges joined by an en/em dash ("$30–45", "2 – 3") → a hyphen
+//   • tight word compounds joined by an en-dash ("state–of–the–art") → a hyphen
+//   • any other em/en dash (prose asides, usually spaced) → a comma, the most natural
+//     hand-typed substitute; doubled commas from the swap are then collapsed
+//   • non-breaking / thin / other unicode spaces → a normal space; runs of spaces → one
+//   • a stray space left before punctuation → removed
+function humanizeText(s) {
+  if (typeof s !== "string" || !s) return s;
+  let t = s;
+  t = t.replace(/[‘’‚‛]/g, "'");        // ' ' ‚ ‛ → '
+  t = t.replace(/[“”„‟]/g, '"');        // " " „ ‟ → "
+  t = t.replace(/…/g, "...");                            // … → ...
+  t = t.replace(/(\d)\s*[–—]\s*(\d)/g, "$1-$2");   // 30–45 → 30-45
+  t = t.replace(/([A-Za-z])–([A-Za-z])/g, "$1-$2");     // word–word → word-word
+  t = t.replace(/\s*[–—]+\s*/g, ", ");              // prose — aside → , aside
+  t = t.replace(/[       ]/g, " "); // odd spaces → space
+  t = t.replace(/,\s*,/g, ",");                               // ", ," → ","  (from the dash swap)
+  t = t.replace(/[ \t]{2,}/g, " ");                          // collapse runs of spaces
+  t = t.replace(/\s+([,.;:!?])/g, "$1");                     // no space before punctuation
+  return t.trim();
+}
+
+// Keys whose string values must stay byte-exact — search terms the lookups use, display
+// enums, and anything URL/image-shaped — so humanizing never mangles a link or a category.
+const NO_HUMANIZE_KEYS = new Set([
+  "search_query", "category", "locality", "url", "image", "mapsUri", "website",
+  "photoName", "source", "merchant", "price", "address",
+]);
+
+// Walk the plan and humanize every prose string in place (arrays + nested objects),
+// skipping the machine/URL fields above. Mutates and returns the same object.
+function humanizePlan(node) {
+  if (Array.isArray(node)) { for (let i = 0; i < node.length; i++) node[i] = humanizePlan(node[i]); return node; }
+  if (node && typeof node === "object") {
+    for (const k of Object.keys(node)) {
+      if (NO_HUMANIZE_KEYS.has(k)) continue;
+      node[k] = humanizePlan(node[k]);
+    }
+    return node;
+  }
+  if (typeof node === "string") return humanizeText(node);
+  return node;
 }
 
 function env(name) {
