@@ -5,7 +5,10 @@
 // hand it to OpenAI's text-to-speech and return the audio. This replaces the robotic
 // built-in browser voice, which never met the brand's warmth bar.
 //
-// Voice: OpenAI tts-1-hd, "nova", 0.9x speed — the gentle/slower delivery David picked.
+// Voice: OpenAI "nova" on the newer gpt-4o-mini-tts model, steered warm/gentle/unhurried.
+// (We avoid the classic model's `speed` control: it time-stretches the audio, which adds an
+// echoey/robotic artifact. gpt-4o-mini-tts paces itself naturally from the instruction — the
+// warmer, more human delivery David preferred.)
 //
 // Security: the OpenAI key lives ONLY here, server-side (OPENAI_API_KEY, shared with the
 // transcribe function). It is never sent to the browser. Text is the app's own wording
@@ -15,9 +18,9 @@ import { getStore } from "@netlify/blobs";
 import { normalizeAudience } from "./public-config.mjs";
 import { requireUser } from "./_supabase.mjs";
 
-const MODEL = "tts-1-hd";
+const MODEL = "gpt-4o-mini-tts";
 const VOICE = "nova";
-const SPEED = 0.9;
+const INSTRUCTIONS = "Speak in a warm, gentle, caring and unhurried tone — soft and reassuring, a little slower than normal, like a kind friend who genuinely cares. Natural and human, never robotic.";
 const MAX_CHARS = 400; // a readback is ~100 chars; hard cap so cost/latency stay bounded
 
 // Light abuse guard: an open endpoint calling a paid service can't be milked. Generous for
@@ -63,7 +66,7 @@ export default async (req) => {
     const res = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: MODEL, voice: VOICE, input: text, response_format: "mp3", speed: SPEED }),
+      body: JSON.stringify({ model: MODEL, voice: VOICE, input: text, instructions: INSTRUCTIONS, response_format: "mp3" }),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");

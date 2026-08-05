@@ -1466,7 +1466,7 @@ async function beginConfirmRecording(onText){
       const rms = Math.sqrt(sum / buf.length);
       const now = performance.now();
       if (rms > 0.05){ __crec.spoke = true; __crec.silenceStart = 0; }
-      else if (__crec.spoke){ if (!__crec.silenceStart) __crec.silenceStart = now; else if (now - __crec.silenceStart > 700){ stopConfirmRecording(); return; } }
+      else if (__crec.spoke){ if (!__crec.silenceStart) __crec.silenceStart = now; else if (now - __crec.silenceStart > 550){ stopConfirmRecording(); return; } }
       __crec.raf = requestAnimationFrame(loop);
     };
     loop(); __crec.audioCtx = ctx;
