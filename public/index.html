@@ -1127,7 +1127,7 @@ function renderHomeReflect(text){
   // so the app never hears its own "make a plan, or remember this". Tap always works alongside.
   if (voiceReplyOn()){
     __confirmActive = true;
-    const ask = canRemember ? 'So, would you love to make a plan for them — or shall I gently remember this about them for you?' : 'Would you like to make your plan from this?';
+    const ask = canRemember ? 'So — would you like to make a plan for them, or should I remember this about them?' : 'Would you like to make your plan from this?';
     reflectSpeakListen(`Here's what I heard: ${t}. ${ask}`, canRemember, doPlan, doRemember, 0);
   }
 }
