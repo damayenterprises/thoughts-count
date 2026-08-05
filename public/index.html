@@ -926,9 +926,24 @@ async function setupHomeVoice(){
 window.addEventListener('tc-voice-gate-ready', setupHomeVoice);
 setupHomeVoice();
 
+// Cold-start warming (TC-67): the moment the user taps into a voice flow, spin up the two voice
+// functions so they're hot by the time we actually call them (a few seconds later, after the user
+// finishes speaking) — instead of paying a cold start on the first turn. A GET returns 405 but
+// still loads the function container (the expensive part). Fire-and-forget; throttled; free.
+let __voiceWarmedAt = 0;
+function warmVoiceFns(){
+  try {
+    const now = (window.performance && performance.now) ? performance.now() : 0;
+    if (__voiceWarmedAt && now - __voiceWarmedAt < 20000) return; // don't spam within 20s
+    __voiceWarmedAt = now;
+    fetch('/api/transcribe', { method: 'GET', cache: 'no-store' }).catch(() => {});
+    fetch('/api/speak', { method: 'GET', cache: 'no-store' }).catch(() => {});
+  } catch(e){}
+}
+
 function startHomeVoice(){
   if (!voiceAllowedClient()) return;
-  unlockSpeech(); // prime iOS speech within this tap so later spoken replies aren't blocked
+  unlockSpeech(); warmVoiceFns(); // prime iOS speech + wake the voice functions within this tap
   __voiceHandsFree = true; // spoken from the home mic → confirm cards can listen for "yes"
   __voicePerson = null; __voiceRememberOnSaved = null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
@@ -940,7 +955,7 @@ function startHomeVoice(){
 let __voiceRememberOnSaved = null;
 function tcVoiceRemember(onSaved){
   if (!voiceAllowedClient()) return;
-  unlockSpeech();
+  unlockSpeech(); warmVoiceFns();
   __voiceHandsFree = true;
   __voicePerson = null; __voiceRememberOnSaved = onSaved || null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
@@ -953,7 +968,7 @@ window.tcVoiceRemember = tcVoiceRemember;
 let __voicePerson = null;
 function tcVoiceNote(personId, personName, onSaved){
   if (!voiceAllowedClient()) return;
-  unlockSpeech();
+  unlockSpeech(); warmVoiceFns();
   __voiceHandsFree = true;
   __voicePerson = { id: personId, name: personName || 'them', onSaved: onSaved || null };
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
@@ -1112,7 +1127,7 @@ function renderHomeReflect(text){
   // so the app never hears its own "make a plan, or remember this". Tap always works alongside.
   if (voiceReplyOn()){
     __confirmActive = true;
-    const ask = canRemember ? 'Would you like to make a plan, or remember this about them?' : 'Would you like to make your plan from this?';
+    const ask = canRemember ? 'Would you like to make a plan? Or, remember this about them?' : 'Would you like to make your plan from this?';
     reflectSpeakListen(`Here's what I heard: ${t}. ${ask}`, canRemember, doPlan, doRemember, 0);
   }
 }
