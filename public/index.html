@@ -1565,7 +1565,7 @@ function setListenCue(state){
   const dot = state === 'thinking' ? '' : '<span class="re-listen-dot" aria-hidden="true"></span>';
   let txt = '';
   if (state === 'listening') txt = 'Listening — say “yes,” or tap above';
-  else if (state === 'choice') txt = 'Listening — say “make a plan” or “remember this,” or tap';
+  else if (state === 'choice') txt = 'Listening — say “plan” or “remember,” or tap';
   else if (state === 'speaking') txt = 'Reading it back to you…';
   else if (state === 'thinking') txt = 'One sec…';
   else if (state === 'retry') txt = 'Didn’t catch that — say “yes,” or just tap';
