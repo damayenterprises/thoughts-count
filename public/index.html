@@ -1560,45 +1560,79 @@ function unlockSpeech(){
   } catch(e){}
 }
 
-let __ttsCtrl = null; // AbortController for the in-flight /api/speak request
-let __ttsUrl = null;  // object URL of the current clip, revoked on cleanup
+let __ttsCtrl = null; // AbortController for the in-flight /api/speak requests
+let __ttsUrls = [];   // object URLs of the current utterance's chunks, revoked on cleanup
+function revokeTtsUrls(){ __ttsUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); __ttsUrls = []; }
 function cancelSpeech(){
   if (__ttsCtrl){ try { __ttsCtrl.abort(); } catch(e){} __ttsCtrl = null; }
   if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
   try { const a = __ttsAudio; if (a){ a.onended = null; a.onerror = null; a.pause(); } } catch(e){}
-  if (__ttsUrl){ try { URL.revokeObjectURL(__ttsUrl); } catch(e){} __ttsUrl = null; }
+  revokeTtsUrls();
 }
-// Fetch a warm spoken version of `text` and play it, then call onDone exactly once (on ended,
-// on error, or a generous fallback). onDone GATES the mic on the confirm cards, so it MUST fire
-// even if playback fails — otherwise the flow would stall. The mic opens only after this, so the
-// app never hears its own voice.
+
+// Split a line into short speakable chunks so the FIRST one generates fast and starts playing
+// while the rest generate in parallel — progressive playback without the fragility of true HTTP
+// audio streaming on iOS Safari. Breaks on sentence enders, then any over-long run at a space.
+function splitForSpeech(text){
+  const segs = (String(text).match(/[^.!?]+[.!?]*/g) || [String(text)]).map(s => s.trim()).filter(Boolean);
+  const out = [];
+  for (let seg of segs){
+    while (seg.length > 140){
+      let cut = seg.lastIndexOf(' ', 140);
+      if (cut < 60) cut = 140; // no good space → hard cut
+      out.push(seg.slice(0, cut).trim());
+      seg = seg.slice(cut).trim();
+    }
+    if (seg) out.push(seg);
+  }
+  const merged = [];
+  for (const c of out){ if (merged.length && c.length < 12){ merged[merged.length - 1] += ' ' + c; } else merged.push(c); }
+  while (merged.length > 6){ merged[merged.length - 2] += ' ' + merged.pop(); } // bound the number of calls
+  return merged.length ? merged : [String(text)];
+}
+function fetchClip(text, signal){
+  const headers = { 'content-type': 'application/json' };
+  try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
+  return fetch('/api/speak', { method: 'POST', headers, body: JSON.stringify({ text }), signal })
+    .then(r => { if (!r.ok) throw new Error('speak ' + r.status); return r.blob(); })
+    .then(b => URL.createObjectURL(b));
+}
+// Speak `text` in a warm voice, THEN call onDone exactly once (on end, on error, or a generous
+// fallback). onDone GATES the mic on the confirm/reflect cards, so it MUST fire even if playback
+// fails — otherwise the flow would stall. All chunks play in order before onDone; the mic opens
+// only after the whole utterance ends, so the app never hears its own voice.
 async function speakPrompt(text, onDone){
   let done = false;
   const finish = () => {
     if (done) return; done = true;
     if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
-    if (__ttsUrl){ try { URL.revokeObjectURL(__ttsUrl); } catch(e){} __ttsUrl = null; }
+    revokeTtsUrls();
     onDone();
   };
   try {
     if (!ttsAvailable() || !text){ finish(); return; }
     const ctrl = new AbortController(); __ttsCtrl = ctrl;
-    const headers = { 'content-type': 'application/json' };
-    try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
-    const r = await fetch('/api/speak', { method: 'POST', headers, body: JSON.stringify({ text }), signal: ctrl.signal });
-    if (__ttsCtrl === ctrl) __ttsCtrl = null;
-    if (done) return; // cancelled during fetch
-    if (!r.ok){ finish(); return; }
-    const blob = await r.blob();
-    if (done) return;
-    const url = URL.createObjectURL(blob); __ttsUrl = url;
+    const chunks = splitForSpeech(text);
+    // Fire every chunk request at once so later chunks are ready by the time earlier ones finish
+    // playing. A failed/aborted chunk resolves to null → playback ends gracefully there.
+    const clips = chunks.map(c => fetchClip(c, ctrl.signal).catch(() => null));
     const a = getTtsAudio();
-    a.onended = finish; a.onerror = finish;
-    a.src = url;
-    // Backstop so onDone always fires even if 'ended' is dropped (well past the clip's length).
-    __ttsFallback = setTimeout(finish, Math.min(30000, 6000 + text.length * 120));
-    const p = a.play();
-    if (p && p.catch) p.catch(() => finish());
+    // Overall backstop so onDone always fires even if an 'ended' is dropped.
+    __ttsFallback = setTimeout(finish, Math.min(60000, 10000 + text.length * 140));
+    let i = 0;
+    const playNext = async () => {
+      if (done) return;
+      if (i >= clips.length){ finish(); return; }
+      const url = await clips[i]; i++;
+      if (done) return;
+      if (!url){ finish(); return; } // a chunk failed → end here (onDone fires, tap still works)
+      __ttsUrls.push(url);
+      a.onended = playNext; a.onerror = () => finish();
+      a.src = url;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => finish());
+    };
+    playNext();
   } catch(e){
     if (e && e.name === 'AbortError') return; // cancelSpeech already cleaned up
     finish();
