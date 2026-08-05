@@ -20,7 +20,7 @@ import { requireUser } from "./_supabase.mjs";
 
 const MODEL = "gpt-4o-mini-tts";
 const VOICE = "nova";
-const INSTRUCTIONS = "Speak in a warm, gentle, caring and unhurried tone — soft and reassuring, a little slower than normal, like a kind friend who genuinely cares. Natural and human, never robotic.";
+const INSTRUCTIONS = "Speak in a warm, gentle, caring and unhurried tone — soft and reassuring, a little slower than normal, like a kind friend who genuinely cares. Natural and human, never robotic or flat. When you ask a question or offer a choice, make it sound like a warm, caring invitation — gently engaged, personal and encouraging, with soft rising warmth, never a flat or transactional menu prompt.";
 const MAX_CHARS = 400; // a readback is ~100 chars; hard cap so cost/latency stay bounded
 
 // Light abuse guard: an open endpoint calling a paid service can't be milked. Generous for
