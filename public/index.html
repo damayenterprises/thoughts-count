@@ -1300,7 +1300,7 @@ const CV_OPENER = "Tell me who's on your mind, and what's happening for them. We
 // a warm, plain-punctuation door in. Anonymous → the unchanged Phase 1 opener.
 function cvOpener(){
   if (flowPerson && flowPerson.name){
-    return "Good to be back with you on " + firstName(flowPerson.name) + ". What's happening for them?";
+    return firstName(flowPerson.name) + "'s on your mind. Tell me what's going on.";
   }
   return CV_OPENER;
 }
