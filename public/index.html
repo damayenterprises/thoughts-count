@@ -1295,17 +1295,63 @@ let __cv = { messages: [], busy: false };
 // Her opening line — warm, invites the moment, plain punctuation (placeholder copy; will
 // live in the character bible / can be served in her voice later).
 const CV_OPENER = "Tell me who's on your mind, and what's happening for them. We'll figure out how to show up together.";
+// Phase 3a: when launched about a saved person, greet by name so the "she remembers" moment
+// lands from the very first line. The server MEMORY block does the real knowing; this is just
+// a warm, plain-punctuation door in. Anonymous → the unchanged Phase 1 opener.
+function cvOpener(){
+  if (flowPerson && flowPerson.name){
+    return firstName(flowPerson.name) + "'s on your mind. Tell me what's going on.";
+  }
+  return CV_OPENER;
+}
 
-function openConverse(){
+// TC-66 Phase 3a: a compact, token-bounded digest of what she's suggested for this person
+// before, built client-side from the already-loaded saved_plans[].plan. Most-recent ~3
+// plans, one short line each, whole digest kept well under ~150 words. Reused as the
+// no-repeat signal both in her conversation (MEMORY block) and in the plan itself.
+function priorPlansDigest(person){
+  try {
+    const sp = Array.isArray(person && person.saved_plans) ? person.saved_plans : [];
+    if (!sp.length) return '';
+    const recent = sp.slice()
+      .sort((a,b) => String(b.created_at||'').localeCompare(String(a.created_at||'')))
+      .slice(0, 3);
+    const clip = (s, n) => { s = String(s||'').trim().replace(/\s+/g,' '); return s.length > n ? s.slice(0, n-1).trimEnd() + '.' : s; };
+    const lines = [];
+    for (const rec of recent){
+      const plan = rec && rec.plan; if (!plan) continue;
+      const occ = clip(rec.occasion || rec.plan_title || (plan && plan.title) || 'a moment', 40);
+      const gists = [];
+      const acts = Array.isArray(plan.thoughtful_actions) ? plan.thoughtful_actions : [];
+      if (acts[0] && acts[0].action) gists.push(clip(acts[0].action, 60));
+      const gifts = Array.isArray(plan.gift_ideas) ? plan.gift_ideas : [];
+      if (gifts[0] && gifts[0].title) gists.push(clip(gifts[0].title, 40));
+      if (!gists.length){ const wts = Array.isArray(plan.what_to_say) ? plan.what_to_say : []; if (wts[0]) gists.push(clip(wts[0], 60)); }
+      const gist = gists.slice(0,2).join('; ');
+      lines.push('- ' + occ + (gist ? ': suggested ' + gist : ''));
+    }
+    return lines.join('\n');
+  } catch(e){ return ''; }
+}
+
+function openConverse(person){
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
-  genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; __fromVoice = false;
+  genAttempts = 0; __fromVoice = false;
+  // Phase 3a: when launched from a saved person, scope the conversation to them so she opens
+  // knowing them. Phase 1's cvTurn already sends `context` from flowPerson — wiring it here is
+  // most of the work. No person → anonymous, byte-identical to Phase 1.
+  flowPerson = person || null;
+  window.__tcFlowPersonId = person ? person.id : null;
   __cv = { messages: [], busy: false };
-  try { window.tcTrack && tcTrack('intake_start', { label: 'converse' }); } catch(e){}
+  try { window.tcTrack && tcTrack('intake_start', { label: person ? 'converse_person' : 'converse' }); } catch(e){}
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   renderConverse();
 }
 window.openConverse = openConverse;
+// Launch the memory-aware conversation about a saved person (Phase 3a entry point).
+function openConverseForPerson(person){ openConverse(person || null); }
+window.openConverseForPerson = openConverseForPerson;
 
 function renderConverse(){
   stopRecordingIfAny();
@@ -1321,7 +1367,7 @@ function renderConverse(){
       <div class="tc-chat-foot" id="cvFoot"></div>
       <div class="tc-chat-hint" id="cvHint">She'll ask what she needs, then build your plan. You can say "that's enough, make my plan" any time.</div>
     </div>`;
-  cvAppend('her', CV_OPENER);
+  cvAppend('her', cvOpener());
   const input = document.getElementById('cvInput');
   const send = document.getElementById('cvSend');
   const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; };
@@ -1381,7 +1427,16 @@ async function cvMakePlan(){
 
 async function cvTurn(force){
   cvSetBusy(true); cvTyping(true);
-  const ctx = flowPerson ? { name: flowPerson.name || '', location: flowPerson.location || '', facts: Array.isArray(flowPerson.noticed) ? flowPerson.noticed : [] } : undefined;
+  // Phase 3a: assemble the person's RLS-scoped memory the client already holds — name,
+  // relationship, location, remembered facts (noticed), and a token-bounded prior-plans
+  // digest — so she opens memory-aware and the plan avoids repeating past suggestions.
+  const ctx = flowPerson ? {
+    name: flowPerson.name || '',
+    relationship: flowPerson.relationship || '',
+    location: flowPerson.location || '',
+    facts: Array.isArray(flowPerson.noticed) ? flowPerson.noticed : [],
+    priorPlans: priorPlansDigest(flowPerson),
+  } : undefined;
   let d;
   try {
     const r = await fetch('/api/converse', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });

@@ -4,8 +4,8 @@
 // Anthropic call, so no key/network needed). Run WITHOUT --env-file so no key is set:
 //   node test/spec-tc82-converse.test.mjs
 import assert from "node:assert";
-import { humanizeText } from "../netlify/functions/generate-background.mjs";
-import converse from "../netlify/functions/converse.mjs";
+import { humanizeText, buildUserMessage } from "../netlify/functions/generate-background.mjs";
+import converse, { systemPrompt } from "../netlify/functions/converse.mjs";
 
 // Guarantee the deterministic (pre-Anthropic) paths: no key in env.
 delete process.env.ANTHROPIC_API_KEY;
@@ -61,6 +61,57 @@ await t("FORCE ending on HER turn BYPASSES the guard (the fixed bug)", async () 
 await t("junk (non-user/assistant) roles filtered -> 400 no_messages", async () => {
   const { status, body } = await call(post({ messages: [{ role: "system", content: "x" }, { role: "tool", content: "y" }] }));
   assert.equal(status, 400); assert.equal(body.error, "no_messages");
+});
+
+console.log("\n# TC-66 Phase 3a — systemPrompt MEMORY block (READ) + no-regression");
+// The anonymous / home path MUST be byte-identical to Phase 1 (no context, empty context,
+// or garbage context all collapse to the same base prompt).
+const BASE = systemPrompt();
+await t("no context -> base prompt has NO memory block", () => {
+  assert.ok(!/WHAT YOU ALREADY REMEMBER/.test(BASE));
+});
+await t("undefined/empty/garbage context -> byte-identical to base", () => {
+  assert.equal(systemPrompt(undefined), BASE);
+  assert.equal(systemPrompt(null), BASE);
+  assert.equal(systemPrompt({}), BASE);
+  assert.equal(systemPrompt({ name: "", facts: [], priorPlans: "" }), BASE);
+  assert.equal(systemPrompt({ facts: ["  ", ""], priorPlans: "   " }), BASE);
+  assert.equal(systemPrompt("not an object"), BASE);
+});
+await t("real facts -> MEMORY block appears and weaves in (not a database recite)", () => {
+  const sp = systemPrompt({ name: "Maya", relationship: "sister", facts: ["allergic to shellfish", "loves hiking"] });
+  assert.ok(sp.startsWith(BASE.split("\n")[0]), "still starts with her identity");
+  assert.ok(/WHAT YOU ALREADY REMEMBER about Maya \(sister\):/.test(sp));
+  assert.ok(/- allergic to shellfish/.test(sp));
+  assert.ok(/- loves hiking/.test(sp));
+  assert.ok(/weave it in like a friend who remembers/.test(sp));
+  assert.ok(sp.length > BASE.length, "memory block adds to the prompt");
+});
+await t("prior plans -> no-repeat instruction present", () => {
+  const sp = systemPrompt({ name: "Sam", priorPlans: "- Birthday: suggested a handwritten note" });
+  assert.ok(/do NOT repeat these; build on them/.test(sp));
+  assert.ok(/- Birthday: suggested a handwritten note/.test(sp));
+});
+await t("name only (no facts/plans) still opens knowing them", () => {
+  const sp = systemPrompt({ name: "Lee" });
+  assert.ok(/WHAT YOU ALREADY REMEMBER about Lee:/.test(sp));
+});
+await t("facts capped so the prompt stays lean", () => {
+  const many = Array.from({ length: 20 }, (_, i) => `fact ${i}`);
+  const sp = systemPrompt({ name: "Cap", facts: many });
+  assert.ok(/- fact 7/.test(sp));
+  assert.ok(!/- fact 8/.test(sp), "capped at 8 facts");
+});
+
+console.log("\n# TC-66 Phase 3a — priorPlans reaches the plan (generate-background)");
+await t("buildUserMessage includes the no-repeat block when priorPlans present", () => {
+  const msg = buildUserMessage({ moment: "her birthday", about: "my sister", priorPlans: "- Birthday: suggested a spa day" });
+  assert.ok(/ALREADY SUGGESTED FOR THIS PERSON BEFORE/.test(msg));
+  assert.ok(/- Birthday: suggested a spa day/.test(msg));
+});
+await t("buildUserMessage UNCHANGED (no no-repeat block) when priorPlans absent", () => {
+  const msg = buildUserMessage({ moment: "her birthday", about: "my sister" });
+  assert.ok(!/ALREADY SUGGESTED FOR THIS PERSON BEFORE/.test(msg));
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

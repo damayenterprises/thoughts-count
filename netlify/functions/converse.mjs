@@ -56,10 +56,47 @@ const TOOLS = [
   },
 ];
 
-function systemPrompt() {
+// TC-66/TC-82 Phase 3a: when the conversation is launched from a saved person, the client
+// passes that person's already-RLS-scoped memory as `context`. If it carries real memory
+// (facts, prior plans, and/or a name), build a MEMORY block so she opens already knowing
+// them — weaving it in like a friend who remembers, never reciting it like a database.
+// No context (anonymous / home path) → returns "" so the system prompt is byte-identical
+// to Phase 1. Fail-open: any malformed piece is simply skipped, never errors.
+const FACTS_CAP = 8; // facts are already short; a gentle cap keeps the prompt lean
+
+function memoryBlock(ctx) {
+  if (!ctx || typeof ctx !== "object") return "";
+  const name = String(ctx.name || "").trim();
+  const relationship = String(ctx.relationship || "").trim();
+  const facts = Array.isArray(ctx.facts)
+    ? ctx.facts.map((f) => String(f || "").trim()).filter(Boolean).slice(0, FACTS_CAP)
+    : [];
+  const priorPlans = String(ctx.priorPlans || "").trim();
+
+  // Only build the block when there's genuine memory to open with.
+  if (!name && !facts.length && !priorPlans) return "";
+
+  const who = name ? `${name}${relationship ? ` (${relationship})` : ""}` : "this person";
+  const lines = [`\nWHAT YOU ALREADY REMEMBER about ${who}:`];
+  if (facts.length) for (const f of facts) lines.push(`- ${f}`);
+  else lines.push("- (nothing noted yet beyond who they are)");
+  if (priorPlans) {
+    lines.push(
+      `What you've helped them do for ${name || "this person"} before (do NOT repeat these; build on them, go somewhere new):`,
+      priorPlans,
+    );
+  }
+  lines.push(
+    "Use this naturally: open by showing you remember (do not re-ask what you already know here), and let it make your guidance specific. Never recite the list back like a database; weave it in like a friend who remembers. If something material is missing, still ask.",
+  );
+  return lines.join("\n") + "\n";
+}
+
+export function systemPrompt(ctx) {
+  const memory = memoryBlock(ctx);
   return `${herIdentity()}
 
-Who you are (let this shape everything you say; never announce or explain it): ${HER_CHARACTER}
+Who you are (let this shape everything you say; never announce or explain it): ${HER_CHARACTER}${memory ? "\n" + memory : ""}
 
 You are having a real, one-to-one conversation with someone who wants to show up well for a person in their life. This is a conversation, not a form, and not an intake questionnaire. Talk the way a wise, warm friend talks.
 
@@ -105,8 +142,11 @@ export default async (req) => {
   if (!messages.some((m) => m.role === "user")) return j({ error: "no_user_turn" }, 400);
 
   // Optional context when the conversation is launched from a saved person (their known
-  // name / location / remembered facts). We never force these into the model's mouth; we
-  // only backfill them into the distilled answers so nothing already known is lost.
+  // name / relationship / location / remembered facts / prior-plans digest). We never force
+  // these into the model's mouth. In Phase 3a (READ) they now ALSO shape the conversation via
+  // the MEMORY block in systemPrompt(ctx) so she opens knowing them; and they still backfill
+  // the distilled answers so nothing already known is lost. All RLS-scoped, sent by the
+  // client that already holds the user's own data — no server auth added here (that's 3b).
   const ctx = body?.context && typeof body.context === "object" ? body.context : {};
   const force = body?.force === true; // client escape hatch: "make my plan now"
 
@@ -136,7 +176,7 @@ export default async (req) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_TOKENS,
-        system: systemPrompt(),
+        system: systemPrompt(ctx),
         tools: TOOLS,
         // Force a tool every turn. On an explicit "make my plan now", force the distill.
         tool_choice: force ? { type: "tool", name: "ready" } : { type: "any" },
@@ -173,6 +213,9 @@ export default async (req) => {
       constraints:  String(a.constraints || "").trim(),
       location:     String(a.location || "").trim() || String(ctx.location || "").trim(),
       facts:        Array.isArray(ctx.facts) ? ctx.facts.map((f) => String(f || "").trim()).filter(Boolean) : [],
+      // TC-66 Phase 3a: carry the prior-plans digest through so the plan engine avoids
+      // repeating suggestions already made for this person (see generate-background).
+      priorPlans:   String(ctx.priorPlans || "").trim(),
     };
     return j({ action: "ready", answers });
   }

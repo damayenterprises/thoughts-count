@@ -70,6 +70,7 @@ const listSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M4 6h16M
 const plusSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M12 5v14M5 12h14"/>`, sz, stroke);
 const xSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M6 6l12 12M18 6L6 18"/>`, sz, stroke);
 const checkSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M5 13l4 4L19 7"/>`, sz, stroke);
+const chatSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.8-.9L3 21l1.9-5.7A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3a8.38 8.38 0 0 1 8.5 8.5z"/>`, sz, stroke);
 
 // Launch the plan flow for a saved person, handing the intake their remembered memory so the
 // plan reads what we've noticed (not a notes blob) and step 3 pre-fills from it (TC-49). Facts
@@ -79,6 +80,18 @@ async function showUpFor(p) {
   try { p.noticed = noticedList(await loadPersonFacts(sb, p.id)); }
   catch (e) { console.error("noticed load failed", e); p.noticed = noticedList(p.facts || []); }
   if (window.openFlowForPerson) window.openFlowForPerson(p);
+}
+
+// TC-66 Phase 3a: open the memory-aware conversation about a saved person. Same fresh-facts
+// read as showUpFor so a note just added is included; saved_plans came with the bulk load and
+// carry the prior-plans digest the client assembles. Reads are RLS-scoped to the user's own
+// session — no server auth here (that belongs to 3b / write-back).
+async function talkItThrough(p) {
+  if (!p) return;
+  try { p.noticed = noticedList(await loadPersonFacts(sb, p.id)); }
+  catch (e) { console.error("noticed load failed", e); p.noticed = noticedList(p.facts || []); }
+  if (window.openConverseForPerson) window.openConverseForPerson(p);
+  else if (window.openConverse) window.openConverse(p);
 }
 
 const KINDS = [
@@ -521,6 +534,7 @@ function personCard(p) {
       <div class="tc-noticed-mount" data-pid="${p.id}"></div>
       ${savedHtml}
       <button class="cta tc-showup" data-pid="${p.id}">${heartSvg(16, "currentColor")}<span>Help me show up for ${esc(firstName(p.name))}</span></button>
+      <button class="cta ghost tc-talk" data-pid="${p.id}" style="width:100%;justify-content:center;margin-top:8px;">${chatSvg(16, "currentColor")}<span>Talk it through</span></button>
       <div class="tc-persondel-mount" data-pid="${p.id}"></div>
     </div>`;
 }
@@ -616,6 +630,10 @@ function renderHome(people, opts = {}) {
     });
     listEl().querySelectorAll(".tc-showup").forEach((btn) => {
       btn.onclick = () => { const p = people.find((x) => x.id === btn.dataset.pid); closeModal(); showUpFor(p); };
+    });
+    // TC-66 Phase 3a: "Talk it through" opens the memory-aware conversation about this person.
+    listEl().querySelectorAll(".tc-talk").forEach((btn) => {
+      btn.onclick = () => { const p = people.find((x) => x.id === btn.dataset.pid); closeModal(); talkItThrough(p); };
     });
     listEl().querySelectorAll(".tc-sp-row").forEach((btn) => {
       btn.onclick = () => {
