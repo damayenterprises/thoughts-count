@@ -159,7 +159,14 @@ export function takeSentences(soFar, { final = false } = {}) {
   return { sentences, tail };
 }
 
-// --- TC-88: emit the FIRST clause early so she starts speaking sooner (time-to-first-word) ---
+// --- TC-88: (RETIRED from the emit path) early-first-clause helper ---
+//
+// NOTE: This is no longer used in the streaming emit path. Emitting a tiny sub-clause first made her
+// first spoken chunk sound choppy / like she was reading a script, in a different voice/pace than the
+// opener. flushSay now emits only FULL SENTENCES (takeSentences). The helper is kept defined+exported
+// (harmless, still unit-tested for its pure behavior) but is not called during streaming.
+//
+// --- Original: emit the FIRST clause early so she starts speaking sooner (time-to-first-word) ---
 //
 // Waiting for the whole first sentence to complete before speaking makes her start late: the rest
 // of the reply streams while she's still silent. For the VERY FIRST spoken chunk of a reply ONLY,
@@ -405,37 +412,23 @@ function streamTurn(body) {
       let partial = "";        // accumulating tool input JSON text
       let sayEmitted = "";     // the portion of `say` already sent as sentences (voice = reply only)
       let emittedAnySay = false;
-      let firstEmitted = false; // per-reply: has the FIRST spoken chunk gone out yet? (early-clause gate)
       let readyDone = false;
 
+      // TC-88: emit each {t:"say"} at FULL SENTENCE boundaries only. The earlier early-clause path
+      // (takeFirstEarlyChunk) chopped the first chunk into a tiny sub-clause, which made her sound
+      // choppy / like she was reciting a script. Removing it: every emitted chunk is a complete
+      // sentence, so the client speaks each one as ONE flowing clip (matching the opener's voice
+      // and pace). The stall guard, ready handoff, per-sentence humanize, and exactly-once
+      // (via the tail-derived marker) are unchanged.
       const flushSay = (final) => {
         if (toolName !== "reply") return;
         const full = extractSayPartial(partial);
         // Only look at the not-yet-emitted remainder to find newly-complete sentences.
-        let remainder = full.slice(sayEmitted.length);
-
-        // TC-88: the VERY FIRST spoken chunk of a reply emits early — at the first comma / ~35 chars
-        // at a word boundary / first sentence — so she starts talking sooner. Only when NOT the final
-        // flush (final defers to the normal sentence path, which flushes any trailing text cleanly).
-        if (!firstEmitted && !final) {
-          const early = takeFirstEarlyChunk(remainder);
-          if (early) {
-            const text = humanizeText(String(early.chunk).trim());
-            if (text) { send({ t: "say", text }); emittedAnySay = true; }
-            firstEmitted = true;
-            // Advance the consumed marker exactly past the early chunk; the tail streams on normally.
-            sayEmitted = full.slice(0, full.length - early.tail.length);
-            remainder = early.tail;
-          } else {
-            // Not enough text for an early break yet — hold and wait for more (no sentence emit yet).
-            return;
-          }
-        }
-
+        const remainder = full.slice(sayEmitted.length);
         const { sentences, tail } = takeSentences(remainder, { final });
         for (const raw of sentences) {
           const text = humanizeText(String(raw).trim());
-          if (text) { send({ t: "say", text }); emittedAnySay = true; firstEmitted = true; }
+          if (text) { send({ t: "say", text }); emittedAnySay = true; }
         }
         // Advance the consumed marker past everything we emitted (full minus the leftover tail).
         sayEmitted = full.slice(0, full.length - tail.length);
@@ -445,7 +438,7 @@ function streamTurn(body) {
         const type = evt?.type;
         if (type === "content_block_start") {
           const b = evt.content_block;
-          if (b?.type === "tool_use") { toolName = b.name || ""; partial = ""; sayEmitted = ""; firstEmitted = false; }
+          if (b?.type === "tool_use") { toolName = b.name || ""; partial = ""; sayEmitted = ""; }
         } else if (type === "content_block_delta") {
           const d = evt.delta;
           if (d?.type === "input_json_delta" && typeof d.partial_json === "string") {

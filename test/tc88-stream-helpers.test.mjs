@@ -123,35 +123,33 @@ t("EARLIEST break wins: a comma before the char threshold beats the word-boundar
   assert.strictEqual(r.chunk, "Okay,"); // comma at index 4 beats the ~35-char word cut
 });
 
-t("full round-trip: early chunk + remainder streams once, no dup / no drop (mirrors server flushSay)", () => {
-  // Simulate the server: first emit uses takeFirstEarlyChunk; the rest uses takeSentences on the
-  // remainder; a consumed marker (sayEmitted) advances so each char is emitted EXACTLY once.
-  const source = "Oh no, I'm so sorry. That must have been so hard. Tell me what you need";
-  // Feed it in growing chunks the way input_json_delta arrives.
-  const deltas = ["Oh no, I'm ", "so sorry. That must ", "have been so hard. Tell ", "me what you need"];
-  let full = "", sayEmitted = "", firstEmitted = false;
+console.log("\n# flushSay emit model — FULL SENTENCES only (no clause-chopping; matches converse.mjs)");
+
+// Mirror of the server's flushSay after TC-88's early-clause removal: emit ONLY complete sentences
+// via takeSentences, advancing a consumed marker (sayEmitted) so each char is emitted EXACTLY once.
+// No takeFirstEarlyChunk in the path → the first spoken chunk is a whole sentence, like the opener.
+function flushSayModel(deltas) {
+  let full = "", sayEmitted = "";
   const emitted = [];
   const flush = (final) => {
-    let remainder = full.slice(sayEmitted.length);
-    if (!firstEmitted && !final) {
-      const early = takeFirstEarlyChunk(remainder);
-      if (early) {
-        emitted.push(early.chunk);
-        firstEmitted = true;
-        sayEmitted = full.slice(0, full.length - early.tail.length);
-        remainder = early.tail;
-      } else return;
-    }
+    const remainder = full.slice(sayEmitted.length);
     const { sentences, tail } = takeSentences(remainder, { final });
-    for (const sen of sentences) { emitted.push(sen); firstEmitted = true; }
+    for (const sen of sentences) emitted.push(sen);
     sayEmitted = full.slice(0, full.length - tail.length);
   };
   for (const d of deltas) { full += d; flush(false); }
   flush(true);
-  // First piece is the EARLY clause; then whole sentences; the final flush covers the trailing text.
+  return emitted;
+}
+
+t("full round-trip: each emit is a WHOLE sentence, no dup / no drop", () => {
+  const source = "Oh no, I'm so sorry. That must have been so hard. Tell me what you need";
+  // Feed it in growing chunks the way input_json_delta arrives.
+  const deltas = ["Oh no, I'm ", "so sorry. That must ", "have been so hard. Tell ", "me what you need"];
+  const emitted = flushSayModel(deltas);
+  // The leading "Oh no, I'm so sorry." is ONE sentence now — not chopped at the comma.
   assert.deepStrictEqual(emitted, [
-    "Oh no,",
-    "I'm so sorry.",
+    "Oh no, I'm so sorry.",
     "That must have been so hard.",
     "Tell me what you need",
   ]);
@@ -159,28 +157,24 @@ t("full round-trip: early chunk + remainder streams once, no dup / no drop (mirr
   assert.strictEqual(emitted.join(" ").replace(/\s+/g, " ").trim(), source.replace(/\s+/g, " ").trim());
 });
 
-t("early gate applies ONLY to the first emit — later sentences are NOT clause-chopped", () => {
-  // After the first chunk, a long comma-laden sentence must emit whole, not split at its commas.
+t("no sentence is clause-chopped at its inner commas", () => {
+  // A long comma-laden sentence must emit whole, not split at its commas.
   const source = "Hi. I think we should talk, gently, about what comes next now.";
   const deltas = ["Hi. I think we should ", "talk, gently, about ", "what comes next now."];
-  let full = "", sayEmitted = "", firstEmitted = false;
-  const emitted = [];
-  const flush = (final) => {
-    let remainder = full.slice(sayEmitted.length);
-    if (!firstEmitted && !final) {
-      const early = takeFirstEarlyChunk(remainder);
-      if (early) { emitted.push(early.chunk); firstEmitted = true; sayEmitted = full.slice(0, full.length - early.tail.length); remainder = early.tail; }
-      else return;
-    }
-    const { sentences, tail } = takeSentences(remainder, { final });
-    for (const sen of sentences) { emitted.push(sen); firstEmitted = true; }
-    sayEmitted = full.slice(0, full.length - tail.length);
-  };
-  for (const d of deltas) { full += d; flush(false); }
-  flush(true);
+  const emitted = flushSayModel(deltas);
   assert.deepStrictEqual(emitted, [
-    "Hi.", // first sentence is the early chunk (sentence boundary before any comma/threshold)
+    "Hi.",
     "I think we should talk, gently, about what comes next now.", // NOT split at its inner commas
+  ]);
+});
+
+t("first spoken chunk is a full sentence, not a sub-clause (the founder-feedback fix)", () => {
+  // Even when the reply opens with a comma clause, the first emit waits for the full sentence.
+  const deltas = ["Oh, that sounds ", "really heavy to carry. ", "What happened"];
+  const emitted = flushSayModel(deltas);
+  assert.deepStrictEqual(emitted, [
+    "Oh, that sounds really heavy to carry.", // whole sentence, NOT "Oh," early
+    "What happened",
   ]);
 });
 

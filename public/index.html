@@ -704,8 +704,44 @@
   .tc-makeplan:hover { text-decoration:underline; }
   .tc-chat-hint { text-align:center; font-size:12px; color:var(--ink-soft,#8a8577); margin-top:10px; }
   /* TC-82 Phase 2 (2a): the spoken-mode status + "Stop voice" control under the chat. */
-  .tc-cv-voicerow { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:8px; }
-  .tc-cv-vcue { font-size:12.5px; color:var(--ink-soft,#8a8577); }
+  .tc-cv-voicerow { display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; margin-top:10px; }
+  .tc-cv-vcue { font-size:12.5px; color:var(--ink-soft,#8a8577); } /* retained for aria-live announcements */
+
+  /* TC-88 — a PROMINENT, calm voice-state pulse (replaces the tiny low-contrast text cue). Warm
+     sanctuary: clay for her speaking, sage for your turn, a soft neutral for thinking. Icons via
+     CSS, no emoji. Calm, not flashy. Reduced-motion → a steady static state, no animation. */
+  .tc-cv-pulse { display:inline-flex; align-items:center; gap:11px; padding:7px 15px 7px 12px; border-radius:999px;
+    background:var(--mist,#eef1e9); border:1px solid transparent; transition:background .3s ease, border-color .3s ease; }
+  .tc-cv-pulse[hidden] { display:none; }
+  .tc-cv-pulse .tc-cv-orb { position:relative; width:16px; height:16px; border-radius:50%; flex:0 0 auto; }
+  .tc-cv-pulse .tc-cv-orb::before { content:""; position:absolute; inset:0; border-radius:50%; }
+  .tc-cv-pulse .tc-cv-orb::after { content:""; position:absolute; inset:0; border-radius:50%; opacity:.55; }
+  .tc-cv-plabel { font-size:13px; font-weight:700; letter-spacing:.01em; }
+
+  /* Speaking — warm clay orb with a soft outward ring pulse. */
+  .tc-cv-pulse[data-state="speaking"] { background:#f6e8de; }
+  .tc-cv-pulse[data-state="speaking"] .tc-cv-orb::before { background:var(--clay,#c28a63); animation:tcCvBreathe 1.5s ease-in-out infinite; }
+  .tc-cv-pulse[data-state="speaking"] .tc-cv-orb::after { box-shadow:0 0 0 2px var(--clay,#c28a63); animation:tcCvRing 1.6s ease-out infinite; }
+  .tc-cv-pulse[data-state="speaking"] .tc-cv-plabel { color:var(--clay-deep,#a97350); }
+
+  /* Listening — sage mic-ring pulse (your turn). */
+  .tc-cv-pulse[data-state="listening"] { background:#e8eede; }
+  .tc-cv-pulse[data-state="listening"] .tc-cv-orb::before { background:var(--sage,#7d8a68); animation:tcCvBreathe 1.7s ease-in-out infinite; }
+  .tc-cv-pulse[data-state="listening"] .tc-cv-orb::after { box-shadow:0 0 0 2px var(--sage,#7d8a68); animation:tcCvRing 1.8s ease-out infinite; }
+  .tc-cv-pulse[data-state="listening"] .tc-cv-plabel { color:var(--sage-deep,#5f6c4c); }
+
+  /* Thinking — a subtle calm neutral breathe, no expanding ring. */
+  .tc-cv-pulse[data-state="thinking"] { background:var(--mist,#eef1e9); }
+  .tc-cv-pulse[data-state="thinking"] .tc-cv-orb::before { background:var(--ink-soft,#8a8577); animation:tcCvBreathe 2.1s ease-in-out infinite; }
+  .tc-cv-pulse[data-state="thinking"] .tc-cv-plabel { color:var(--ink-soft,#5f6b60); }
+
+  @keyframes tcCvBreathe { 0%,100% { transform:scale(.72); opacity:.85; } 50% { transform:scale(1); opacity:1; } }
+  @keyframes tcCvRing { 0% { transform:scale(.7); opacity:.5; } 70% { opacity:0; } 100% { transform:scale(2.1); opacity:0; } }
+  @media (prefers-reduced-motion: reduce) {
+    .tc-cv-pulse .tc-cv-orb::before, .tc-cv-pulse .tc-cv-orb::after { animation:none !important; }
+    .tc-cv-pulse .tc-cv-orb::before { transform:scale(.9); opacity:1; }
+    .tc-cv-pulse .tc-cv-orb::after { opacity:0; } /* no expanding ring; steady static state */
+  }
 </style>
 
 <!-- ================= CONVERSATION MODAL ================= -->
@@ -1502,20 +1538,37 @@ function cvRenderVoiceCue(){
   const foot = document.getElementById('cvFoot'); if (!foot || foot.querySelector('#cvVoiceRow')) return;
   const row = document.createElement('div');
   row.id = 'cvVoiceRow'; row.className = 'tc-cv-voicerow';
-  row.innerHTML = '<span class="tc-cv-vcue" id="cvVoiceCue" aria-live="polite"></span>' +
+  // TC-88: a prominent, calm pulse for the voice state (clay speaking / sage your-turn / neutral
+  // thinking) + a visually-hidden aria-live span so screen readers still hear the state change.
+  row.innerHTML =
+    '<span class="tc-cv-pulse" id="cvVoicePulse" hidden>' +
+      '<span class="tc-cv-orb" aria-hidden="true"></span>' +
+      '<span class="tc-cv-plabel" id="cvVoicePulseLabel"></span>' +
+    '</span>' +
+    '<span class="tc-cv-vcue" id="cvVoiceCue" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;"></span>' +
     '<button type="button" class="link-btn" id="cvStopVoice">Stop voice</button>';
   foot.appendChild(row);
   const stop = document.getElementById('cvStopVoice');
   if (stop) stop.onclick = () => { cvStopVoice(); const i = document.getElementById('cvInput'); if (i){ try { i.focus(); } catch(e){} } };
 }
-// The one-line spoken-mode status ('speaking' / 'listening' / 'thinking'). Purely cosmetic;
-// the real guard is the callback ordering in cvSpeakThenListen, not this text.
+// The spoken-mode status ('speaking' / 'listening' / 'thinking' / '' = hidden). Purely cosmetic;
+// the real guard is the callback ordering in cvSpeakThenListen, not this. TC-88: drives the calm
+// PULSE (clay speaking / sage your-turn / neutral thinking) and keeps a visually-hidden aria-live
+// mirror so the state is still announced to screen readers. Labels use a comma, never an em-dash
+// (portfolio copy rule).
 function cvVoiceCue(state){
-  const el = document.getElementById('cvVoiceCue'); if (!el) return;
-  if (state === 'speaking') el.textContent = 'She’s speaking…';
-  else if (state === 'listening') el.textContent = 'Listening—speak, or type below';
-  else if (state === 'thinking') el.textContent = 'One sec…';
-  else el.textContent = '';
+  const pulse = document.getElementById('cvVoicePulse');
+  const label = document.getElementById('cvVoicePulseLabel');
+  const sr = document.getElementById('cvVoiceCue');
+  const LABELS = { speaking: 'Speaking', listening: 'Listening, your turn', thinking: 'One sec' };
+  const SR = { speaking: 'She’s speaking.', listening: 'Listening, your turn to speak or type below.', thinking: 'One sec.' };
+  const known = state === 'speaking' || state === 'listening' || state === 'thinking';
+  if (pulse){
+    if (known){ pulse.setAttribute('data-state', state); pulse.hidden = false; }
+    else { pulse.hidden = true; pulse.removeAttribute('data-state'); }
+  }
+  if (label) label.textContent = known ? LABELS[state] : '';
+  if (sr) sr.textContent = known ? SR[state] : '';
 }
 
 function cvAppend(role, text){
@@ -1627,14 +1680,25 @@ function cvNewSpeak(gen){
 // ready — the ~1s inter-sentence dead gap is gone. The pump only PLAYS; it never fetches.
 function cvEnqueueSay(sp, text){
   if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+  // `reveal` is the untruncated sentence text shown in her bubble (text must ALWAYS end up fully
+  // shown); `t` is the (rarely) speak-capped version actually sent to TTS.
+  const reveal = String(text == null ? '' : text).trim();
   const t = speakSafeText(text, 400);
-  if (!t) return;
-  if (!ttsAvailable()){ sp.queue.push({ text: t, clips: [] }); cvPumpSpeak(sp); return; }
-  const chunks = splitForSpeech(t);
-  // Kick every chunk's TTS off immediately, in parallel. A failed/aborted fetch resolves to null so
-  // playback degrades gracefully (skips that clip) instead of hanging the queue forever.
+  if (!t){ if (reveal) cvRevealSentence(reveal); return; }
+  if (!ttsAvailable()){
+    // Degraded / no-voice path: we're not actually speaking, so reveal the text immediately as it
+    // streams (never lose text), and queue an empty item so the drain/mic logic still runs.
+    cvRevealSentence(reveal);
+    sp.queue.push({ text: t, reveal, revealed: true, clips: [] });
+    cvPumpSpeak(sp);
+    return;
+  }
+  // TC-88: speak the whole sentence as ONE flowing clip (like the opener) — only a very long
+  // sentence is split. Fire each clip's TTS off immediately, in parallel. A failed/aborted fetch
+  // resolves to null so playback degrades gracefully (skips that clip) without hanging the queue.
+  const chunks = splitSentenceForSpeech(t);
   const clips = chunks.map(c => fetchClip(c, sp.ctrl.signal).catch(() => null));
-  sp.queue.push({ text: t, clips });
+  sp.queue.push({ text: t, reveal, revealed: false, clips });
   cvPumpSpeak(sp);
 }
 // The pump: if idle and a sentence is queued, PLAY its pre-fetched clips in order (awaiting each
@@ -1663,14 +1727,33 @@ function cvPumpSpeak(sp){
 // sentence has played (or been aborted). No fetching happens here — that was done at enqueue.
 async function cvPlaySentence(sp, item){
   const a = getTtsAudio();
-  for (let i = 0; i < item.clips.length; i++){
-    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return; // stopped/superseded mid-sentence
-    let url = null;
-    try { url = await item.clips[i]; } catch(e){ url = null; }
-    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
-    if (!url) continue; // this chunk failed → skip it, keep the sentence flowing
-    sp.urls.push(url);
-    await playClipOn(a, url, /* waitBuffer */ false);
+  // TC-88: reveal this sentence's TEXT in step with her VOICE — at the moment its audio starts
+  // playing, not ahead of it. So her words appear as she speaks them (conversational), not printed
+  // like a script the user reads before hearing her. Fail-safe: if no clip plays (all failed) the
+  // reveal still runs in the finally below, so text is NEVER lost.
+  // Reveal ONLY while this turn is still the live one — a stopped/superseded turn's bubble is being
+  // discarded, so late reveals must not pollute a fresh turn's bubble. Within the live turn, the
+  // fail-safe guarantees text always shows even if every clip fails (the finally below).
+  let revealed = false;
+  const reveal = () => {
+    if (revealed || item.revealed) return;
+    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return; // turn torn down → skip (bubble gone)
+    revealed = true; item.revealed = true; cvRevealSentence(item.reveal);
+  };
+  try {
+    for (let i = 0; i < item.clips.length; i++){
+      if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return; // stopped/superseded → stop
+      let url = null;
+      try { url = await item.clips[i]; } catch(e){ url = null; }
+      if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+      if (!url) continue; // this chunk failed → skip it, keep the sentence flowing
+      sp.urls.push(url);
+      reveal(); // first real clip about to play → reveal the sentence's text now (in step with voice)
+      await playClipOn(a, url, /* waitBuffer */ false);
+    }
+  } finally {
+    // Fail-safe: no clips / all clips failed but the turn is still live → text ALWAYS ends up shown.
+    reveal();
   }
 }
 // Fires once, after the LAST sentence's playback fully ends and the reply is done. A short pause
@@ -1736,8 +1819,10 @@ async function cvStreamReply(ctx, force){
           gotAny = true;
           if (gen !== __cvStreamGen || !__cvVoiceActive) break;
           recordSay(evt.text);        // keep history in lockstep (one assistant message per reply)
-          cvAppendStream(evt.text);   // grow her bubble sentence-by-sentence
-          cvEnqueueSay(sp, evt.text); // and speak it, in order
+          // TC-88: do NOT reveal the text here (that printed her words ahead of her voice, like a
+          // script). cvEnqueueSay reveals each sentence in step with its audio (or immediately in the
+          // degraded/no-TTS path). Text always ends up fully shown.
+          cvEnqueueSay(sp, evt.text); // speak it in order + reveal its text in sync with the audio
         } else if (evt.t === 'reply_done'){
           sp.replyDone = true;
           cvPumpSpeak(sp); // if the queue already drained, this opens the mic
@@ -1849,6 +1934,10 @@ function cvAppendStream(text){
   __cvStreamBubble.textContent = cur ? (cur + ' ' + String(text || '')) : String(text || '');
   log.scrollTop = log.scrollHeight;
 }
+// TC-88: reveal ONE sentence's text into her growing bubble. Called at the moment the sentence's
+// audio starts playing (so text tracks her voice), or immediately in the degraded/typed path. Idempotent
+// callers guard against a double reveal; this is a thin, named wrapper over cvAppendStream.
+function cvRevealSentence(text){ cvAppendStream(text); }
 
 // Build the RLS-scoped context object (name/relationship/location/facts/priorPlans) — factored so
 // the stream, fallback, and typed paths all assemble it identically.
@@ -2492,6 +2581,28 @@ function splitForSpeech(text){
   while (merged.length > 6){ merged[merged.length - 2] += ' ' + merged.pop(); } // bound the number of calls
   return merged.length ? merged : [String(text)];
 }
+// TC-88 — split ONE streamed reply sentence into speakable clips. The founder heard her replies as
+// choppy fragments because each sentence was further chunk-split (like splitForSpeech's 140-char
+// cuts) and each sub-chunk was a separate TTS clip spoken in isolation — so a normal sentence came
+// out fragment-by-fragment, in a different, more deliberate voice/pace than the opener. Fix: speak a
+// normal sentence as ONE flowing clip (matching speakOpenerClip). Only a very long sentence
+// (>~300 chars) is split, on a word boundary, so /api/speak's cap and latency stay sane. Pure.
+const CV_SENTENCE_CLIP_MAX = 300;
+function splitSentenceForSpeech(text){
+  let s = String(text == null ? '' : text).trim();
+  if (!s) return [];
+  if (s.length <= CV_SENTENCE_CLIP_MAX) return [s]; // normal sentence → ONE clip (flowing, like the opener)
+  const out = [];
+  while (s.length > CV_SENTENCE_CLIP_MAX){
+    let cut = s.lastIndexOf(' ', CV_SENTENCE_CLIP_MAX);
+    if (cut < CV_SENTENCE_CLIP_MAX * 0.5) cut = CV_SENTENCE_CLIP_MAX; // no good space → hard cut
+    out.push(s.slice(0, cut).trim());
+    s = s.slice(cut).trim();
+  }
+  if (s) out.push(s);
+  return out;
+}
+if (typeof window !== 'undefined') window.__tcSplitSentenceForSpeech = splitSentenceForSpeech; // test hook
 function fetchClip(text, signal){
   const headers = { 'content-type': 'application/json' };
   try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
