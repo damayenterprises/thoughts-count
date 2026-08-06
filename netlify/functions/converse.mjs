@@ -117,6 +117,98 @@ Deciding when you have enough (you are an advisor judging, NOT a form validating
 Every turn, call EXACTLY ONE tool: reply (to say something, optionally asking), or ready (when you can give real guidance). Never both. Never plain text. You are ${HER_NAME}.`;
 }
 
+// --- TC-88: sentence-boundary extraction from a growing `say` string (voice streaming) ---
+//
+// As the `reply` tool's `say` value streams in via input_json_delta, we hold the growing string
+// and emit each COMPLETE sentence the moment it forms — so she speaks sentence 1 while the rest
+// is still being written. Mirrors the client's splitForSpeech sentence sense (enders . ! ?) but
+// operates incrementally: given the text so far, return the sentences that are safely complete
+// and the leftover tail still being written. Never splits mid-word (a boundary is punctuation
+// followed by whitespace, or end-of-final-flush). Pure + deterministic → unit-testable.
+export function takeSentences(soFar, { final = false } = {}) {
+  const s = String(soFar == null ? "" : soFar);
+  const sentences = [];
+  let idx = 0;               // start of the current pending sentence
+  let lastBoundary = 0;      // consumed up to here
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (c === "." || c === "!" || c === "?") {
+      // Consume any run of trailing enders/quotes (e.g. "?!", '."').
+      let j = i + 1;
+      while (j < s.length && (s[j] === "." || s[j] === "!" || s[j] === "?" || s[j] === '"' || s[j] === "'" || s[j] === "”" || s[j] === "’")) j++;
+      // A safe boundary needs whitespace after it (so we don't cut "3.5" or "Dr." mid-word) —
+      // UNLESS this is the final flush, where the string simply ends.
+      const atEnd = j >= s.length;
+      const followedBySpace = j < s.length && /\s/.test(s[j]);
+      if (followedBySpace || (final && atEnd)) {
+        const sentence = s.slice(idx, j).trim();
+        if (sentence) sentences.push(sentence);
+        idx = j;
+        lastBoundary = j;
+        i = j - 1;
+      }
+    }
+  }
+  let tail = s.slice(lastBoundary);
+  if (final) {
+    // Flush whatever remains as one last sentence (covers a reply with no terminal punctuation).
+    const rest = tail.trim();
+    if (rest) sentences.push(rest);
+    tail = "";
+  }
+  return { sentences, tail };
+}
+
+// Tolerant extraction of the `say` string value out of accumulating tool partial_json. The model
+// streams the tool input as JSON text ({"say":"..."}); we may see it half-written. Rather than
+// wait for valid JSON, parse the value of the FIRST "say" key, honoring JSON escapes, and stop at
+// the closing unescaped quote (or return what we have so far if still open). Returns "" if the
+// key/opening quote hasn't arrived yet. Pure + deterministic.
+export function extractSayPartial(partial) {
+  const s = String(partial == null ? "" : partial);
+  const key = s.indexOf('"say"');
+  if (key < 0) return "";
+  // Find the ':' then the opening quote of the value.
+  let i = s.indexOf(":", key + 5);
+  if (i < 0) return "";
+  i++;
+  while (i < s.length && /\s/.test(s[i])) i++;
+  if (s[i] !== '"') return "";
+  i++; // past the opening quote
+  let out = "";
+  while (i < s.length) {
+    const c = s[i];
+    if (c === "\\") {
+      const n = s[i + 1];
+      if (n === undefined) break; // escape not finished streaming yet → stop, keep what we have
+      switch (n) {
+        case "n": out += "\n"; break;
+        case "t": out += "\t"; break;
+        case "r": out += "\r"; break;
+        case "b": out += "\b"; break;
+        case "f": out += "\f"; break;
+        case '"': out += '"'; break;
+        case "\\": out += "\\"; break;
+        case "/": out += "/"; break;
+        case "u": {
+          const hex = s.slice(i + 2, i + 6);
+          if (hex.length < 4 || /[^0-9a-fA-F]/.test(hex)) { i = s.length; break; } // incomplete \u → stop
+          out += String.fromCharCode(parseInt(hex, 16));
+          i += 6;
+          continue;
+        }
+        default: out += n; break;
+      }
+      i += 2;
+      continue;
+    }
+    if (c === '"') break; // closing quote of the value
+    out += c;
+    i++;
+  }
+  return out;
+}
+
 const clampText = (s) => String(s == null ? "" : s).slice(0, MAX_CHARS);
 
 // Accept only clean {role:"user"|"assistant", content:string} turns, capped.
@@ -131,11 +223,236 @@ function sanitizeMessages(raw) {
 const j = (obj, status = 200) =>
   new Response(JSON.stringify(obj), { status, headers: { "content-type": "application/json", "cache-control": "no-store" } });
 
+// Shared setup for BOTH the non-stream (typed) and stream (voice) paths, so they stay in lockstep:
+// same system prompt, same sanitized messages, same tools + tool_choice, same key resolution. The
+// only difference downstream is whether we ask Anthropic to stream. Returns either a ready-to-send
+// error Response (for a guard failure) or the assembled request pieces.
+function buildTurn(body) {
+  const messages = sanitizeMessages(body?.messages);
+  if (!messages.length) return { error: j({ error: "no_messages" }, 400) };
+  // There must be at least one user turn to have anything to work with.
+  if (!messages.some((m) => m.role === "user")) return { error: j({ error: "no_user_turn" }, 400) };
+
+  const ctx = body?.context && typeof body.context === "object" ? body.context : {};
+  const force = body?.force === true; // client escape hatch: "make my plan now"
+
+  if (force) {
+    if (messages[messages.length - 1].role !== "user") {
+      messages.push({ role: "user", content: "That's enough for now. Please make my plan with what you have." });
+    }
+  } else if (messages[messages.length - 1].role !== "user") {
+    return { error: j({ error: "expected_user_turn" }, 400) };
+  }
+
+  const apiKey =
+    (typeof Netlify !== "undefined" && Netlify.env?.get("ANTHROPIC_API_KEY")) ||
+    process.env.ANTHROPIC_API_KEY;
+
+  const payload = {
+    model: MODEL,
+    max_tokens: MAX_TOKENS,
+    system: systemPrompt(ctx),
+    tools: TOOLS,
+    // Force a tool every turn. On an explicit "make my plan now", force the distill.
+    tool_choice: force ? { type: "tool", name: "ready" } : { type: "any" },
+    messages,
+  };
+
+  return { ctx, force, apiKey, payload };
+}
+
+// Distill the `ready` tool input into the answers object the plan engine consumes, with known
+// context backfilled (never overwriting what she learned). Shared by both paths so the ready
+// handoff is byte-identical whether typed or spoken.
+function readyAnswers(input, ctx) {
+  const a = input || {};
+  return {
+    moment:       String(a.moment || "").trim(),
+    relationship: String(a.relationship || "").trim(),
+    name:         String(a.name || "").trim() || String(ctx.name || "").trim(),
+    about:        String(a.about || "").trim(),
+    voice:        String(a.voice || "").trim(),
+    constraints:  String(a.constraints || "").trim(),
+    location:     String(a.location || "").trim() || String(ctx.location || "").trim(),
+    facts:        Array.isArray(ctx.facts) ? ctx.facts.map((f) => String(f || "").trim()).filter(Boolean) : [],
+    priorPlans:   String(ctx.priorPlans || "").trim(),
+  };
+}
+
+// --- TC-88: streaming reply mode (VOICE path only) ---
+//
+// Calls Anthropic with stream:true + the SAME tools/tool_choice, parses the SSE, and returns a
+// newline-delimited-JSON (NDJSON) stream of events the client speaks sentence-by-sentence:
+//   {t:"say",  text:"<one complete sentence>"}   — emitted as each sentence of `reply.say` forms
+//   {t:"reply_done"}                             — end of a reply (all sentences sent)
+//   {t:"ready", answers:{...}}                   — she called `ready` instead (no speech)
+//   {t:"error"}                                  — failure (client degrades / falls back)
+// The `reply` behavior is IDENTICAL to the non-stream tool path (same tool, same humanizeText),
+// only chunked by sentence. A stall guard bounds the stream so the response never hangs.
+const STREAM_IDLE_MS = 20000;  // no SSE bytes for this long → end cleanly (server stall guard)
+
+function ndjson(obj) { return JSON.stringify(obj) + "\n"; }
+
+function streamTurn(body) {
+  const built = buildTurn(body);
+  if (built.error) return built.error; // a guard failure → normal JSON error, no stream
+  const { ctx, apiKey, payload } = built;
+
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false;
+      const send = (obj) => { if (!closed) { try { controller.enqueue(encoder.encode(ndjson(obj))); } catch { /* already closed */ } } };
+      const end = () => { if (!closed) { closed = true; try { controller.close(); } catch { /* noop */ } } };
+
+      if (!apiKey) {
+        // Mirror the non-stream not_configured line, but as a spoken reply so the loop is graceful.
+        send({ t: "say", text: humanizeText("I'm not quite set up yet. Try again in a moment.") });
+        send({ t: "reply_done" });
+        return end();
+      }
+
+      const ac = new AbortController();
+      const idle = { timer: null };
+      const armIdle = () => {
+        if (idle.timer) clearTimeout(idle.timer);
+        idle.timer = setTimeout(() => { try { ac.abort(); } catch { /* noop */ } }, STREAM_IDLE_MS);
+      };
+
+      let res;
+      try {
+        armIdle();
+        res = await fetch("https://api.anthropic.com/v1/messages", {
+          method: "POST",
+          headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
+          body: JSON.stringify({ ...payload, stream: true }),
+          signal: ac.signal,
+        });
+      } catch (e) {
+        console.error("converse stream fetch failed", e);
+        send({ t: "error" });
+        if (idle.timer) clearTimeout(idle.timer);
+        return end();
+      }
+
+      if (!res.ok || !res.body) {
+        console.error("converse stream Anthropic error", res.status, await res.text().catch(() => ""));
+        send({ t: "error" });
+        if (idle.timer) clearTimeout(idle.timer);
+        return end();
+      }
+
+      // SSE parse state. Anthropic sends one active tool_use content block for this turn; we track
+      // which tool (reply/ready) by content_block_start, then accumulate its input_json_delta.
+      let toolName = "";       // "reply" | "ready" | ""
+      let partial = "";        // accumulating tool input JSON text
+      let sayEmitted = "";     // the portion of `say` already sent as sentences (voice = reply only)
+      let emittedAnySay = false;
+      let readyDone = false;
+
+      const flushSay = (final) => {
+        if (toolName !== "reply") return;
+        const full = extractSayPartial(partial);
+        // Only look at the not-yet-emitted remainder to find newly-complete sentences.
+        const remainder = full.slice(sayEmitted.length);
+        const { sentences, tail } = takeSentences(remainder, { final });
+        for (const raw of sentences) {
+          const text = humanizeText(String(raw).trim());
+          if (text) { send({ t: "say", text }); emittedAnySay = true; }
+        }
+        // Advance the consumed marker past everything we emitted (full minus the leftover tail).
+        sayEmitted = full.slice(0, full.length - tail.length);
+      };
+
+      const handleEvent = (evt) => {
+        const type = evt?.type;
+        if (type === "content_block_start") {
+          const b = evt.content_block;
+          if (b?.type === "tool_use") { toolName = b.name || ""; partial = ""; sayEmitted = ""; }
+        } else if (type === "content_block_delta") {
+          const d = evt.delta;
+          if (d?.type === "input_json_delta" && typeof d.partial_json === "string") {
+            partial += d.partial_json;
+            if (toolName === "reply") flushSay(false);
+          }
+        } else if (type === "content_block_stop") {
+          if (toolName === "reply") flushSay(true);
+        }
+        // message_stop / message_delta with stop handled at stream end below.
+      };
+
+      // Read the SSE byte stream, split into lines, parse `data:` JSON events.
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+      try {
+        for (;;) {
+          const { value, done } = await reader.read();
+          if (done) break;
+          armIdle();
+          buf += decoder.decode(value, { stream: true });
+          let nl;
+          while ((nl = buf.indexOf("\n")) >= 0) {
+            const line = buf.slice(0, nl).replace(/\r$/, "");
+            buf = buf.slice(nl + 1);
+            if (!line.startsWith("data:")) continue;
+            const jsonStr = line.slice(5).trim();
+            if (!jsonStr || jsonStr === "[DONE]") continue;
+            let evt;
+            try { evt = JSON.parse(jsonStr); } catch { continue; }
+            handleEvent(evt);
+          }
+        }
+      } catch (e) {
+        // Aborted (idle stall / client abort) or a mid-stream read error. Degrade: flush whatever
+        // sentences we already have so she can speak what arrived, then close.
+        if (!(e && e.name === "AbortError")) console.error("converse stream read error", e);
+      } finally {
+        if (idle.timer) clearTimeout(idle.timer);
+      }
+
+      // Final resolution once the model stream has ended (or been cut off).
+      if (toolName === "reply") {
+        flushSay(true);
+        if (!emittedAnySay) {
+          // Nothing usable streamed → speak a gentle fallback so the turn isn't silent.
+          send({ t: "say", text: humanizeText("Tell me a little more?") });
+        }
+        send({ t: "reply_done" });
+      } else if (toolName === "ready") {
+        // A ready has no speech; distill and hand off exactly like the non-stream path.
+        let input = {};
+        try { input = JSON.parse(partial); } catch { /* partial/invalid ready JSON → use context backfill */ }
+        send({ t: "ready", answers: readyAnswers(input, ctx) });
+        readyDone = true;
+      }
+      if (!readyDone && toolName !== "reply") {
+        // No tool ever started (shouldn't happen with tool_choice forced) → error so the client degrades.
+        send({ t: "error" });
+      }
+      end();
+    },
+  });
+
+  return new Response(stream, {
+    status: 200,
+    headers: {
+      "content-type": "application/x-ndjson; charset=utf-8",
+      "cache-control": "no-store",
+      "x-accel-buffering": "no", // discourage proxy buffering so sentences arrive as they stream
+    },
+  });
+}
+
 export default async (req) => {
   if (req.method !== "POST") return j({ error: "method_not_allowed" }, 405);
 
   let body;
   try { body = await req.json(); } catch { return j({ error: "bad_json" }, 400); }
+
+  // TC-88: the VOICE path sends stream:true; only then do we stream. Typed never sends it, so the
+  // typed path stays byte-identical to today (falls through to the original non-stream handler).
+  if (body?.stream === true) return streamTurn(body);
 
   const messages = sanitizeMessages(body?.messages);
   if (!messages.length) return j({ error: "no_messages" }, 400);

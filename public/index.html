@@ -1324,6 +1324,15 @@ let __cv = { messages: [], busy: false, voice: false };
 // instant the user types, taps "Stop voice", makes the plan, or the conversation closes — so a
 // late TTS-ended or transcribe callback can't reopen the mic behind the user's back.
 let __cvVoiceActive = false;
+// TC-88: the streaming voice turn. When she replies by voice we stream her reply and speak it
+// sentence-by-sentence as it generates (she starts sentence 1 while the rest is still written).
+// __cvStreamCtrl aborts the in-flight fetch on any exit; __cvSpeak holds the strictly-sequential
+// speak-queue so she never talks over herself, and the mic opens ONLY after ALL of it has drained.
+let __cvStreamCtrl = null; // AbortController for the in-flight /api/converse stream
+let __cvSpeak = null;      // { queue:[], playing, replyDone, onAllDone, gen } — the speak-queue
+// Each streaming turn gets a fresh generation id; late callbacks from an aborted/superseded turn
+// compare against this and no-op, so stopping is clean even mid-flight.
+let __cvStreamGen = 0;
 // Her opening line — warm, invites the moment, plain punctuation (placeholder copy; will
 // live in the character bible / can be served in her voice later).
 const CV_OPENER = "Tell me who's on your mind, and what's happening for them. I'll help you show up for them.";
@@ -1531,6 +1540,236 @@ function speakSafeText(text, cap){
 }
 if (typeof window !== 'undefined') window.__tcSpeakSafeText = speakSafeText; // test hook (no behavior change)
 
+// TC-88 — THE STREAMING VOICE TURN. She speaks sentence-by-sentence as she generates. Two pieces:
+//   1) a strictly-sequential speak-queue (one sentence's audio at a time — never overlaps), and
+//   2) a stream reader that enqueues each {t:"say"} the instant it arrives, so sentence 1 plays
+//      while sentence 2 is still being written.
+// THE FEEDBACK-LOOP GUARD moves from "one utterance ended" to "ALL queued speech has drained":
+// the mic opens only after reply_done AND the queue is empty AND the last sentence's playback ended.
+
+// Pure, testable predicate: given the speak-queue state, may we open the mic? Only when the stream
+// said the reply is fully done, nothing is queued, and nothing is currently playing.
+function cvMayOpenMic(sp){
+  return !!(sp && sp.replyDone && !sp.playing && sp.queue.length === 0);
+}
+if (typeof window !== 'undefined') window.__tcMayOpenMic = cvMayOpenMic; // test hook
+
+// Reset/allocate the speak-queue for a new streaming turn. gen ties every async callback to THIS
+// turn; if the turn is aborted or superseded, stale callbacks compare gen and no-op.
+function cvNewSpeak(gen){
+  return { gen, queue: [], playing: false, replyDone: false, drained: false };
+}
+
+// Enqueue one sentence and kick the pump. The pump plays sentences strictly in order.
+function cvEnqueueSay(sp, text){
+  if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+  const t = speakSafeText(text, 400);
+  if (!t) return;
+  sp.queue.push(t);
+  cvPumpSpeak(sp);
+}
+// The pump: if idle and a sentence is queued, speak it; when it ends, recurse to the next. When the
+// queue empties AND the reply is done, that's "all speech drained" → open the mic (the guard).
+function cvPumpSpeak(sp){
+  if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+  if (sp.playing) return;                     // one audio at a time — no overlap
+  if (sp.queue.length === 0){                 // nothing to play right now
+    if (cvMayOpenMic(sp)) cvSpeakDrained(sp);  // reply fully spoken → open the mic
+    return;
+  }
+  const next = sp.queue.shift();
+  sp.playing = true;
+  cvVoiceCue('speaking');
+  // speakPrompt reuses the shared __ttsAudio/__ttsCtrl/backstop and calls onDone EXACTLY once
+  // (end / error / abort backstop). Running one sentence at a time keeps playback strictly serial.
+  speakPrompt(next, () => {
+    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive){ return; } // aborted/superseded → stop
+    sp.playing = false;
+    cvPumpSpeak(sp); // next sentence, or (if drained + done) open the mic
+  });
+}
+// Fires once, after the LAST sentence's playback fully ends and the reply is done. A short pause
+// keeps any audio tail out of the recording, then the mic opens — the feedback-loop guard, now
+// keyed on the whole queue draining rather than a single utterance.
+function cvSpeakDrained(sp){
+  if (sp.drained) return; sp.drained = true;
+  setTimeout(() => {
+    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+    cvVoiceListen();
+  }, 300);
+}
+
+// Read the NDJSON event stream and drive the speak-queue. Called from cvTurn's voice branch.
+// Guardrails: an AbortController (stored globally so cvStopVoice can kill it), a client read-timeout
+// so a dead stream can't hang, and graceful degradation — if the stream errors before she says
+// anything, fall back to the existing non-streaming reply (cvSpeakThenListen).
+const CV_STREAM_TIMEOUT_MS = 25000; // no bytes for this long → give up on the stream and degrade
+async function cvStreamReply(ctx, force){
+  const gen = ++__cvStreamGen;
+  const sp = cvNewSpeak(gen);
+  __cvSpeak = sp;
+  const ctrl = new AbortController();
+  __cvStreamCtrl = ctrl;
+  let timer = null;
+  const armTimeout = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { try { ctrl.abort(); } catch(e){} }, CV_STREAM_TIMEOUT_MS); };
+  let gotAny = false;   // did we emit any sentence? (governs degrade-to-nonstream)
+  let sawEvent = false; // did any well-formed event arrive?
+  let readyAnswers = null;
+  // Accumulate her sentences into ONE assistant history message (not one per sentence), so the
+  // conversation history stays identical in shape to the non-stream path.
+  let herMsg = null;
+  const recordSay = (text) => {
+    if (!herMsg){ herMsg = { role: 'assistant', content: text }; __cv.messages.push(herMsg); }
+    else { herMsg.content = herMsg.content + ' ' + text; }
+  };
+
+  try {
+    armTimeout();
+    const r = await fetch('/api/converse', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx, stream: true }),
+      signal: ctrl.signal,
+    });
+    if (!r.ok || !r.body) throw new Error('stream ' + (r && r.status));
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;){
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (gen !== __cvStreamGen || !__cvVoiceActive) break; // superseded / stopped → stop reading
+      armTimeout();
+      buf += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0){
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        let evt; try { evt = JSON.parse(line); } catch(e){ continue; }
+        sawEvent = true;
+        if (evt.t === 'say' && evt.text){
+          gotAny = true;
+          if (gen !== __cvStreamGen || !__cvVoiceActive) break;
+          recordSay(evt.text);        // keep history in lockstep (one assistant message per reply)
+          cvAppendStream(evt.text);   // grow her bubble sentence-by-sentence
+          cvEnqueueSay(sp, evt.text); // and speak it, in order
+        } else if (evt.t === 'reply_done'){
+          sp.replyDone = true;
+          cvPumpSpeak(sp); // if the queue already drained, this opens the mic
+        } else if (evt.t === 'ready'){
+          readyAnswers = evt.answers || {};
+        } else if (evt.t === 'error'){
+          throw new Error('stream_error');
+        }
+      }
+    }
+  } catch(e){
+    if (timer){ clearTimeout(timer); timer = null; }
+    // Aborted by cvStopVoice / supersede → nothing more to do (state already torn down).
+    if (gen !== __cvStreamGen || !__cvVoiceActive) return;
+    __cvStreamCtrl = null;
+    cvSetBusy(false);
+    // Degrade: if she never spoke a sentence, fall back to the non-streaming reply so the turn is
+    // retryable and the conversation never breaks. If she'd already started speaking, let what
+    // arrived play out, then reopen the mic (don't restart her mid-thought).
+    if (!gotAny){ cvFallbackReply(force); return; }
+    sp.replyDone = true; cvPumpSpeak(sp);
+    return;
+  }
+  if (timer){ clearTimeout(timer); timer = null; }
+  __cvStreamCtrl = null;
+  cvSetBusy(false);
+  if (gen !== __cvStreamGen || !__cvVoiceActive) return;
+
+  // Ready handoff (she called `ready`, not reply): stop the voice loop, speak a short handoff, then
+  // generate() — byte-identical to the non-stream ready branch in cvTurn.
+  if (readyAnswers){
+    cvHandleReady(readyAnswers);
+    return;
+  }
+  // The stream closed. Make sure the "reply is done" flag is set so a fully-drained queue opens the
+  // mic (covers a stream that ended without an explicit reply_done). If she never said anything at
+  // all (no say, no ready), degrade to the non-streaming reply.
+  if (!gotAny){
+    if (sawEvent){ cvFallbackReply(force); }
+    else { cvFallbackReply(force); }
+    return;
+  }
+  sp.replyDone = true; cvPumpSpeak(sp);
+}
+
+// Non-streaming fallback: one normal /api/converse call, then speak via cvSpeakThenListen (the
+// pre-TC-88 path). Used when the stream errors before she spoke. Keeps the conversation alive.
+async function cvFallbackReply(force){
+  if (!__cvVoiceActive) return;
+  const ctx = cvBuildCtx();
+  let d;
+  try {
+    const r = await fetch('/api/converse', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });
+    d = await r.json();
+  } catch(e){
+    if (!__cvVoiceActive) return;
+    const line = "I lost you for a second there. Could you try that again?";
+    cvAppend('her', line);
+    cvSpeakThenListen(line, false);
+    return;
+  }
+  if (!__cvVoiceActive) return;
+  if (d && d.action === 'ready' && d.answers){ cvHandleReady(d.answers); return; }
+  if (d && d.action === 'reply' && d.say){
+    __cv.messages.push({ role: 'assistant', content: d.say });
+    cvAppend('her', d.say);
+    cvSpeakThenListen(d.say, false);
+    return;
+  }
+  const oops = "Sorry, I drifted for a second. What's going on?";
+  cvAppend('her', oops);
+  cvSpeakThenListen(oops, false);
+}
+
+// The ready handoff, shared by the stream + fallback paths. Identical behavior to cvTurn's ready
+// branch: distill → generate() (unchanged) → remember-from-conversation, with a short spoken line.
+function cvHandleReady(ans){
+  for (const k in answers) delete answers[k];
+  Object.assign(answers, ans);
+  try { window.tcTrack && tcTrack('converse_ready', { turns: __cv.messages.length }); } catch(e){}
+  __cvVoiceActive = false; // stop the listen loop; let the handoff line play out
+  __cvStreamGen++;         // invalidate any pending speak-queue callback
+  cvVoiceCue('thinking');
+  try { cancelSpeech(); } catch(e){} // clear any queued sentence audio before the handoff line
+  speakPrompt("Let me put this together.", () => {});
+  generate();
+  rememberFromConversation();
+}
+
+// Append a streamed sentence to her growing bubble: reuse the last 'her' streaming bubble if this
+// turn already started one, else create it — so a multi-sentence reply reads as one message.
+let __cvStreamBubble = null;
+function cvAppendStream(text){
+  const log = document.getElementById('cvLog'); if (!log) return;
+  if (!__cvStreamBubble || __cvStreamBubble.parentNode !== log){
+    __cvStreamBubble = document.createElement('div');
+    __cvStreamBubble.className = 'tc-bubble her';
+    __cvStreamBubble.textContent = '';
+    log.appendChild(__cvStreamBubble);
+  }
+  const cur = __cvStreamBubble.textContent;
+  __cvStreamBubble.textContent = cur ? (cur + ' ' + String(text || '')) : String(text || '');
+  log.scrollTop = log.scrollHeight;
+}
+
+// Build the RLS-scoped context object (name/relationship/location/facts/priorPlans) — factored so
+// the stream, fallback, and typed paths all assemble it identically.
+function cvBuildCtx(){
+  return flowPerson ? {
+    name: flowPerson.name || '',
+    relationship: flowPerson.relationship || '',
+    location: flowPerson.location || '',
+    facts: Array.isArray(flowPerson.noticed) ? flowPerson.noticed : [],
+    priorPlans: priorPlansDigest(flowPerson),
+  } : undefined;
+}
+
 // TC-82 Phase 2 (2a) — THE FEEDBACK-LOOP GUARD, in one place. Speak `text`, and open the mic
 // ONLY from speakPrompt's onDone (which fires after the whole utterance's playback has ended,
 // or on a speak failure so the flow never stalls). We never call the listen step on a timer or
@@ -1592,8 +1831,14 @@ function cvStopVoice(){
   __cvVoiceActive = false;
   __confirmActive = false;
   __voiceHandsFree = false;
-  try { cancelSpeech(); } catch(e){}
-  try { abortConfirmRecording(); } catch(e){}
+  // TC-88: abort the in-flight reply STREAM, invalidate its callbacks, and clear the speak-queue —
+  // so no orphaned stream keeps reading and no queued/late sentence plays after stop. Idempotent.
+  __cvStreamGen++;                                          // any pending speak-queue callback no-ops
+  if (__cvStreamCtrl){ try { __cvStreamCtrl.abort(); } catch(e){} __cvStreamCtrl = null; }
+  if (__cvSpeak){ __cvSpeak.queue = []; __cvSpeak.playing = false; __cvSpeak = null; }
+  __cvStreamBubble = null;
+  try { cancelSpeech(); } catch(e){}                        // stop current TTS mid-sentence
+  try { abortConfirmRecording(); } catch(e){}               // stop any live recording
   cvVoiceCue('');
   const row = document.getElementById('cvVoiceRow'); if (row) row.remove();
 }
@@ -1603,13 +1848,16 @@ async function cvTurn(force){
   // Phase 3a: assemble the person's RLS-scoped memory the client already holds — name,
   // relationship, location, remembered facts (noticed), and a token-bounded prior-plans
   // digest — so she opens memory-aware and the plan avoids repeating past suggestions.
-  const ctx = flowPerson ? {
-    name: flowPerson.name || '',
-    relationship: flowPerson.relationship || '',
-    location: flowPerson.location || '',
-    facts: Array.isArray(flowPerson.noticed) ? flowPerson.noticed : [],
-    priorPlans: priorPlansDigest(flowPerson),
-  } : undefined;
+  const ctx = cvBuildCtx();
+  // TC-88: VOICE mode streams her reply and speaks it sentence-by-sentence as it generates (the
+  // typed path below is untouched / byte-identical). cvStreamReply owns busy/typing + the ready
+  // handoff from here; a stream failure degrades to the non-streaming reply so nothing breaks.
+  if (__cv.voice && __cvVoiceActive){
+    __cvStreamBubble = null; // start a fresh growing bubble for this turn
+    cvTyping(false);
+    cvStreamReply(ctx, force);
+    return;
+  }
   let d;
   try {
     const r = await fetch('/api/converse', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });
