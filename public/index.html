@@ -2360,6 +2360,10 @@ let __confirmRetryTimer = null; // holds the brief "didn't catch that" beat befo
 // (+ a short pause), so the app can't hear its own "say yes to save" and false-save. If voice
 // output is off/unavailable it degrades to the existing text + listen behavior with no change.
 let __ttsFallback = null;
+// TC-88 (iOS): per-clip watchdog timer for playClipOn — resolves the play promise if iOS drops the
+// 'ended' event, so the streaming speak-queue can't hang. Cleared on stop/abort (cvStopVoice →
+// cancelSpeech) so it can't fire after the loop is torn down.
+let __cvClipWatchdog = null;
 // TC-67: the readback is a WARM, human voice generated server-side (OpenAI tts-1-hd "nova",
 // 0.9x — the gentle/slower delivery David picked), NOT the robotic built-in browser voice.
 // The server (/api/speak) holds the key; the browser just plays the returned audio. So voice
@@ -2406,6 +2410,7 @@ function revokeTtsUrls(){ __ttsUrls.forEach(u => { try { URL.revokeObjectURL(u);
 function cancelSpeech(){
   if (__ttsCtrl){ try { __ttsCtrl.abort(); } catch(e){} __ttsCtrl = null; }
   if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
+  if (__cvClipWatchdog){ clearTimeout(__cvClipWatchdog); __cvClipWatchdog = null; } // TC-88: kill the per-clip watchdog so it can't fire after abort
   try { const a = __ttsAudio; if (a){ a.onended = null; a.onerror = null; a.pause(); } } catch(e){}
   revokeTtsUrls();
 }
@@ -2442,17 +2447,41 @@ function fetchClip(text, signal){
 // calling play() on a not-yet-buffered first clip is what made the opener sound slow/slurred on
 // iOS (the "drunk" artifact). onended/onerror resolve exactly once; a play() rejection also
 // resolves so the caller never hangs. Strictly one clip at a time — the caller awaits before the next.
+//
+// TC-88 (Validator MEDIUM, iOS): iOS Safari sometimes DROPS the 'ended' event. Without a backstop
+// the promise never resolves → cvPlaySentence hangs → sp.playing stuck true → cvPumpSpeak never
+// advances → the mic never reopens and the hands-free loop silently dies. The pre-TC-88 speakPrompt
+// path armed __ttsFallback as exactly this backstop; the refactor dropped it. We restore it here as
+// a per-clip WATCHDOG. It's a genuine backstop: it fires ONLY if neither 'ended' nor 'error' arrives
+// within a cap sized generously to the clip (audio.duration + margin once known, else 10s + a per-
+// char estimate like speakPrompt) — so a legitimately long clip never trips it. On firing it clears
+// the audio handlers (so a late 'ended' can't double-resolve) and RESOLVES so the queue keeps
+// draining. single-resolve: `settled` guards ended/error/rejection/watchdog against each other. The
+// live timer is exposed as __cvClipWatchdog so cvStopVoice/cancelSpeech can clear it on abort.
 function playClipOn(a, url, waitBuffer){
   return new Promise((resolve) => {
     let settled = false;
-    const done = () => { if (settled) return; settled = true; a.onended = null; a.onerror = null; a.oncanplay = null; resolve(); };
+    const clearWatchdog = () => { if (__cvClipWatchdog){ clearTimeout(__cvClipWatchdog); __cvClipWatchdog = null; } };
+    const done = () => { if (settled) return; settled = true; a.onended = null; a.onerror = null; a.oncanplay = null; clearWatchdog(); resolve(); };
     a.onended = done;
     a.onerror = done;
+    // Backstop cap: generous by default (dropped-'ended' is rare and short clips dominate); once the
+    // browser knows the real duration we size to it + margin so even a long clip is covered.
+    const baseCap = () => {
+      let d = 0; try { d = a.duration; } catch(e){}
+      if (d && isFinite(d) && d > 0) return Math.min(60000, Math.round(d * 1000) + 8000);
+      return 22000; // no known duration → generous fixed floor (a 140-char chunk is only a few seconds; mirrors speakPrompt's 10s+ backstop)
+    };
+    const armWatchdog = () => {
+      clearWatchdog();
+      __cvClipWatchdog = setTimeout(done, baseCap()); // fires only if ended/error were dropped
+    };
     const start = () => {
       if (settled) return;
       a.oncanplay = null;
       const p = a.play();
       if (p && p.catch) p.catch(() => done());
+      armWatchdog(); // arm once playback is actually kicked off (duration usually known by now)
     };
     a.src = url;
     if (waitBuffer){
