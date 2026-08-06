@@ -6,7 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
-import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, showToast } from "/_capture.js";
+import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
@@ -113,17 +113,21 @@ async function rememberFromConversation(personId, rawText) {
   // silent (no toast) — the conversation was chit-chat with nothing worth remembering.
   const a = ((result && result.captures) || []).filter((c) => c.level === "A");
   if (a.length) {
-    // Her voice, not the server's evidence string: "Saved to {name}" can misread as "a message
-    // was sent." The conversation path speaks it as remembering (UX finding). The shared server
-    // evidence string + the person-card capture flow stay as-is; this override is scoped to the
-    // conversation source only. Undo stays wired below.
+    // TC-66 (UX): the conversation path no longer uses the global bottom toast (too far from the
+    // dialogue / easy to miss). Instead we surface a slim, sage-tinted inline confirmation band
+    // pinned at the TOP of her plan — right where the user's eyes land. Coordination note: this
+    // write fires non-blocking AFTER generate() kicks off, and the extract usually resolves BEFORE
+    // the ~30s plan renders — so there's no plan DOM to inject into yet. We stash a pending
+    // confirmation; renderPlan() (index.html) injects the band once the plan exists. The rare
+    // case (plan already showing when we resolve) injects immediately. Undo stays wired to the
+    // same captureResolve(...,'undo') the toast used. Her voice, not the server evidence string.
     const fn = a[0].personName ? firstName(a[0].personName) : "them";
-    const who = `I'll remember that about ${fn}.`;
-    showToast(who, {
-      onUndo: async () => {
-        for (const c of a) { try { await captureResolve(sb, { captureId: c.captureId, action: "undo" }); } catch (e) { console.error("conversation memory undo failed", e); } }
-      },
-    });
+    // Undo = the exact same path the toast used: resolve each saved capture with action "undo".
+    const undo = async () => {
+      for (const c of a) { try { await captureResolve(sb, { captureId: c.captureId, action: "undo" }); } catch (e) { console.error("conversation memory undo failed", e); } }
+    };
+    const inject = window.tcInjectRememberBand;
+    if (typeof inject === "function") inject({ firstName: fn, undo });
   }
   return result;
 }

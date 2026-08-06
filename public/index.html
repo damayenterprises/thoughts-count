@@ -274,6 +274,15 @@
   .plan-headline { font-size: clamp(21px, 3vw, 26px); font-weight: 500; line-height: 1.35; margin: 8px 0 22px; }
   .plan-body { padding: 0 32px 30px; }
   .block { background: var(--cloud); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; margin-bottom: 15px; box-shadow: var(--shadow); }
+  /* TC-66: slim sage-tinted "I'll remember that" band pinned at the top of the plan (conversation
+     memory-save confirmation). Calm sage register — not the clay/alert one. Fades/slides in. */
+  .tc-remember-band { display: flex; align-items: center; gap: 11px; background: #eef2e6; border: 1px solid #d3ddc2; border-radius: 16px; padding: 12px 16px; margin: 0 0 15px; color: #46503a; font-size: 14.5px; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; }
+  .tc-remember-band.in { opacity: 1; transform: translateY(0); }
+  .tc-remember-band .rb-ic { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px; background: #dbe5cb; display: inline-flex; align-items: center; justify-content: center; color: var(--sage-deep); }
+  .tc-remember-band .rb-ic svg { width: 15px; height: 15px; }
+  .tc-remember-band .rb-text { flex: 1 1 auto; line-height: 1.35; }
+  .tc-remember-band .rb-undo { flex: 0 0 auto; background: transparent; border: none; color: var(--sage-deep); font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 4px 6px; border-radius: 8px; line-height: 1; }
+  .tc-remember-band .rb-undo:hover { text-decoration: underline; }
   .block h4 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 0 0 13px; display: flex; align-items: center; gap: 11px; }
   .block h4 .ic { width: 30px; height: 30px; border-radius: 10px; background: var(--mist); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
   .block h4 .ic svg { width: 17px; height: 17px; }
@@ -715,6 +724,7 @@ if (scrim) scrim.addEventListener('focusin', (e) => {
 function openFlow(preset){
   idx = 0;
   flowPerson = null; window.__tcFlowPersonId = null;
+  window.__tcPendingRemember = null; // TC-66: new flow context — drop any leftover stash
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
   genAttempts = 0;
@@ -725,6 +735,7 @@ function openFlow(preset){
 // Launch the plan flow already knowing who this is for (from a saved person).
 function openFlowForPerson(person){
   idx = 0;
+  window.__tcPendingRemember = null; // TC-66: new flow context — drop any leftover stash
   flowPerson = person || null;
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
@@ -756,9 +767,10 @@ function openFlowForPerson(person){
 }
 window.openFlowForPerson = openFlowForPerson;
 // Re-open a previously saved plan for viewing.
-function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; window.__tcBucket = null; renderPlan(plan); __planSaved = true; /* TC-81: a re-opened SAVED plan is already kept → no nudge on close (the device-recovery link overrides this back to false for its own path). */ }
+function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; window.__tcBucket = null; window.__tcPendingRemember = null; /* TC-66: a re-opened saved plan must NEVER inject a remember-band */ window.__tcFlowPersonId = null; renderPlan(plan); __planSaved = true; /* TC-81: a re-opened SAVED plan is already kept → no nudge on close (the device-recovery link overrides this back to false for its own path). */ }
 window.renderSavedPlan = renderSavedPlan;
 function closeFlow(){
+  window.__tcPendingRemember = null; // TC-66: closing the modal drops any un-flushed stash
   stopGenProgress(); stopRecordingIfAny(); if (typeof cancelHomeRecording === 'function') cancelHomeRecording();
   if (typeof stopConfirmListen === 'function') stopConfirmListen(); // TC-63: release the confirm mic
 
@@ -1276,7 +1288,7 @@ function renderHomeError(msg){
 function startPlanFromText(text){
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
-  genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; __fromVoice = true;
+  genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; window.__tcPendingRemember = null; /* TC-66: fresh anonymous plan — no stash carry-over */ __fromVoice = true;
   answers.moment = String(text || '').trim();
   try { window.tcTrack && tcTrack('intake_start', { label: 'voice_home' }); } catch(e){}
   generate();
@@ -1338,6 +1350,7 @@ function openConverse(person){
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
   genAttempts = 0; __fromVoice = false;
+  window.__tcPendingRemember = null; // TC-66: new conversation context — drop any leftover stash
   // Phase 3a: when launched from a saved person, scope the conversation to them so she opens
   // knowing them. Phase 1's cvTurn already sends `context` from flowPerson — wiring it here is
   // most of the work. No person → anonymous, byte-identical to Phase 1.
@@ -2085,6 +2098,7 @@ async function generate(){
 }
 
 function renderError(msg){
+  window.__tcPendingRemember = null; // TC-66: this conversation's plan won't render — drop its stash
   stopGenProgress();
   // On a repeat failure, don't trap the user in a retry loop — acknowledge it and
   // offer a calm way out (close, or reach a real person).
@@ -2235,6 +2249,87 @@ const MORE_PLACES = [
   { label: 'Food52', url: 'https://food52.com/shop' },
 ];
 
+// TC-66: build + inject the sage "I'll remember that about {Name}." band at the TOP of the plan
+// body (conversation memory-save confirmation). It's the first child of .plan-body so it aligns
+// with the plan blocks and reads as part of her plan. NOT position:sticky (the whole panel scrolls
+// inside the scrim). Fades in ~200ms, auto-dismisses after ~9.5s, Undo dismisses immediately and
+// calls the same captureResolve(...,'undo') the toast used. `undo` is provided by the companion
+// layer (which holds the Supabase client + capture ids). Returns true if a band was placed.
+function tcRenderRememberBand({ firstName, undo }){
+  const body = stage && stage.querySelector('.plan-body');
+  if (!body) return false;
+  // Never stack two bands (defensive — a fresh render replaces .plan-body anyway).
+  const old = body.querySelector('.tc-remember-band'); if (old) old.remove();
+  const fn = escapeHtml(String(firstName || 'them'));
+  const band = document.createElement('div');
+  band.className = 'tc-remember-band';
+  band.setAttribute('role', 'status');
+  band.setAttribute('aria-live', 'polite');
+  band.innerHTML =
+    '<span class="rb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg></span>' +
+    '<span class="rb-text">I\'ll remember that about ' + fn + '.</span>' +
+    '<button type="button" class="rb-undo">Undo</button>';
+  body.insertBefore(band, body.firstChild);
+  requestAnimationFrame(() => band.classList.add('in'));
+  let done = false;
+  const dismiss = () => { if (done) return; done = true; clearTimeout(t); band.classList.remove('in'); setTimeout(() => { try { band.remove(); } catch(e){} }, 220); };
+  const undoBtn = band.querySelector('.rb-undo');
+  if (undoBtn) undoBtn.addEventListener('click', async () => {
+    done = true; clearTimeout(t);
+    try { if (typeof undo === 'function') await undo(); } catch(e){ /* fail-open: undo error must not break the plan */ }
+    // Swap the copy to a quiet acknowledgement, then fade the whole band out.
+    const txt = band.querySelector('.rb-text'); if (txt) txt.textContent = 'Okay, forgotten.';
+    if (undoBtn) undoBtn.remove();
+    setTimeout(() => { band.classList.remove('in'); setTimeout(() => { try { band.remove(); } catch(e){} }, 220); }, 1400);
+  });
+  // Dwell ~9.5s — longer than the global toast's 6.5s since this confirmation is delayed.
+  const t = setTimeout(dismiss, 9500);
+  return true;
+}
+// Bridge the companion layer calls when a conversation memory-save resolves. If the plan is already
+// on screen (extraction slower than generation — rare), inject now; otherwise stash and let
+// renderPlan flush it once the plan DOM exists (the usual case: extract resolves before the ~30s
+// plan renders).
+// TC-66 leak fix (Validator HIGH): a pending band must never outlive its own conversation.
+// The stash is stamped at set-time with the CONVERSATION'S person id (window.__tcFlowPersonId,
+// which mirrors flowPerson.id) and a timestamp. At flush-time we inject ONLY if the plan now
+// rendering still belongs to that same conversation (same person id) and the stash is fresh.
+// Otherwise we DROP it rather than risk injecting "I'll remember that about X." + X's Undo onto
+// a different person's saved plan or a fresh anonymous plan.
+window.TC_REMEMBER_TTL_MS = 60000;
+// Pure decision helper (unit-tested): given the person the stash was made for, the person the
+// current render belongs to, and the stash's age, return true only when it's safe to inject.
+// Rules: the render must belong to a KNOWN person (currentPersonId truthy — anonymous renders
+// have null and never inject), that person must be the SAME one the stash was made for, and the
+// stash must be within its TTL. Any mismatch / missing id / staleness → drop (return false).
+function tcRememberShouldInject(pendingPersonId, currentPersonId, ageMs, ttlMs){
+  if (pendingPersonId == null || currentPersonId == null) return false; // anon or lost correlation
+  if (pendingPersonId !== currentPersonId) return false;                // different conversation/plan
+  if (typeof ageMs === 'number' && typeof ttlMs === 'number' && ageMs > ttlMs) return false; // stale
+  return true;
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { tcRememberShouldInject }; }
+window.tcInjectRememberBand = function(payload){
+  if (!payload) return;
+  const placed = tcRenderRememberBand(payload);
+  // Only the conversation path stashes for later flush, and only when there's no plan DOM yet.
+  // Stamp it with the conversation's person id + a timestamp so a later unrelated render can't
+  // claim it. (The immediate-inject path above already fired for the conversation on screen.)
+  if (!placed) window.__tcPendingRemember = { payload, personId: window.__tcFlowPersonId, ts: Date.now() };
+};
+// Clear any stashed band so it can't attach to a later, unrelated render. Called on every
+// transition where the stash's own conversation is leaving / won't render its plan.
+function tcClearPendingRemember(){ window.__tcPendingRemember = null; }
+window.tcClearPendingRemember = tcClearPendingRemember;
+// Flush any pending remember-band confirmation right after the plan DOM is built — but only if it
+// belongs to the plan now rendering (same conversation person) and isn't stale. Else drop it.
+function tcFlushPendingRemember(){
+  const pend = window.__tcPendingRemember;
+  window.__tcPendingRemember = null; // consume unconditionally — never carry a stash past a render
+  if (!pend) return;
+  const inject = tcRememberShouldInject(pend.personId, window.__tcFlowPersonId, Date.now() - (pend.ts || 0), window.TC_REMEMBER_TTL_MS);
+  if (inject) tcRenderRememberBand(pend.payload);
+}
 function renderPlan(p){
   currentPlan = p;
   // TC-81: silently persist for device-local recovery (overwrites each render). A freshly
@@ -2358,6 +2453,10 @@ function renderPlan(p){
     </div>
     <div class="disclaimer">A thoughtful starting point, made for your situation — trust your own heart on the details.</div>
     <div style="height:16px"></div>`;
+
+  // TC-66: if a conversation memory-save resolved while the plan was generating (the usual case),
+  // its confirmation was stashed — inject the sage band at the top of the freshly built plan now.
+  tcFlushPendingRemember();
 
   // Wire up "Set reminder" buttons — each downloads a calendar event the user can
   // add to their own calendar with one click. No account, no server needed.
@@ -2503,7 +2602,7 @@ function downloadReminder(f, plan){
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-function restart(){ for(const k in answers) delete answers[k]; for(const k in picks) delete picks[k]; flowPerson=null; window.__tcFlowPersonId=null; idx=0; renderStep(); }
+function restart(){ for(const k in answers) delete answers[k]; for(const k in picks) delete picks[k]; flowPerson=null; window.__tcFlowPersonId=null; window.__tcPendingRemember=null; /* TC-66: reset drops any stash */ idx=0; renderStep(); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ================= TC-81: plan recovery ==================================

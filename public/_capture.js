@@ -80,7 +80,7 @@ function ensureStyles() {
   .tc-toast .tc-toast-undo{background:none;border:none;color:#e7c9a9;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;padding:0;}
   .tc-qc{margin:12px 0;}
   .tc-qc-row{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;}
-  .tc-qc-row input{flex:1 1 190px;min-width:0;}
+  .tc-qc-row input{flex:1 1 140px;min-width:0;}
   .tc-qc-row .tc-qc-save{flex:0 0 auto;}
   .tc-qc-hint{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;color:#5f6c4c;
     background:#eef2e6;border:1px solid #dde5cf;border-radius:10px;padding:8px 10px;font-size:.84rem;margin-bottom:8px;}
@@ -169,7 +169,7 @@ export function flashCard(el) {
 // host can refresh the To-Review badge and any visible cards.
 export function mountQuickCapture(container, sb, { contactKind = "personal", onChange = null, placeholder } = {}) {
   ensureStyles();
-  const ph = placeholder || "Note something worth remembering…";
+  const ph = placeholder || "Jot a quick note";
   container.innerHTML = `
     <div class="tc-qc">
       <div class="tc-qc-row">
