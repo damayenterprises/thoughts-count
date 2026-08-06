@@ -223,6 +223,9 @@ export function buildUserMessage(a) {
   // The saved person's remembered memory (TC-49) — durable things the user noticed over time
   // (e.g. "allergic to shellfish", "loves hiking"). These must genuinely shape the plan.
   const facts = Array.isArray(a?.facts) ? a.facts.map((f) => String(f || "").trim()).filter(Boolean) : [];
+  // TC-66 Phase 3a: a compact digest of what was suggested for this person before, so the
+  // plan builds on prior plans instead of repeating them. Optional; absent → no change.
+  const priorPlans = (a?.priorPlans || "").trim();
   if (!moment && !about && !facts.length) return null;
   const lines = [
     "Here is what I'm navigating. Please build me a complete action plan.",
@@ -236,6 +239,12 @@ export function buildUserMessage(a) {
     lines.push(
       "WHAT I'VE NOTICED / THEY'VE SHARED (remembered over time — use these to make it truly personal):",
       ...facts.map((f) => `- ${f}`),
+    );
+  }
+  if (priorPlans) {
+    lines.push(
+      "ALREADY SUGGESTED FOR THIS PERSON BEFORE (do NOT repeat these; build on them and go somewhere new):",
+      priorPlans,
     );
   }
   lines.push(
