@@ -5,7 +5,7 @@
 // hand it to OpenAI's text-to-speech and return the audio. This replaces the robotic
 // built-in browser voice, which never met the brand's warmth bar.
 //
-// Voice: OpenAI "coral" on the newer gpt-4o-mini-tts model, steered warm/personal/natural.
+// Voice: OpenAI "nova" on the newer gpt-4o-mini-tts model, steered warm/gentle/unhurried.
 // (We avoid the classic model's `speed` control: it time-stretches the audio, which adds an
 // echoey/robotic artifact. gpt-4o-mini-tts paces itself naturally from the instruction — the
 // warmer, more human delivery David preferred.)
@@ -19,8 +19,8 @@ import { normalizeAudience } from "./public-config.mjs";
 import { requireUser } from "./_supabase.mjs";
 
 const MODEL = "gpt-4o-mini-tts";
-const VOICE = "coral"; // warmer, more personal than "nova" (device test round 1: nova read flat)
-const INSTRUCTIONS = "Speak like a warm, caring friend who is genuinely glad to be talking with them. Natural, lively and human, with the easy pacing of real conversation — not a slow narrator, not flat or robotic. Let real warmth and gentle expressiveness color your voice, with soft ups and downs that feel personal and present. When you ask a question or offer a choice, make it sound like a caring, encouraging invitation, never a transactional menu prompt.";
+const VOICE = "nova";
+const INSTRUCTIONS = "Speak in a warm, gentle, caring and unhurried tone — soft and reassuring, a little slower than normal, like a kind friend who genuinely cares. Natural and human, never robotic or flat. When you ask a question or offer a choice, make it sound like a warm, caring invitation — gently engaged, personal and encouraging, with soft rising warmth, never a flat or transactional menu prompt.";
 const MAX_CHARS = 400; // a readback is ~100 chars; hard cap so cost/latency stay bounded
 
 // Light abuse guard: an open endpoint calling a paid service can't be milked. Generous for
