@@ -2531,6 +2531,14 @@ async function beginConfirmRecording(onText){
     if (__crec.timer){ clearTimeout(__crec.timer); __crec.timer = null; }
     // Capture the speculative BEFORE we tear anything down; abort clears it (and bumps gen).
     const specPromise = __crec.specPromise, myGen = gen;
+    // TC-88 (Validator LOW): only TRUST the speculative when the turn ended on SETTLED SILENCE
+    // (the normal VAD path — silenceStart is non-zero at stop, and the speculative covers all
+    // speech up to that pause; the trailing silence transcribes to nothing). On the 30s backstop
+    // (or any non-silence stop) the user was still speaking, so silenceStart is 0 (cleared on the
+    // last loud frame) and the speculative — fired at an EARLIER soft-pause — is truncated: it
+    // would drop the tail. Capture the signal now, before any await, and only in that settled-
+    // silence case do we use the speculative; otherwise fall through to the full-blob transcribe.
+    const endedOnSilence = !!__crec.silenceStart;
     try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
     if (__crec.aborted || myGen !== __crec.gen) return; // user tapped or navigated away → ignore this recording
     const blob = new Blob(__crec.chunks, { type: mr.mimeType || 'audio/webm' });
@@ -2542,10 +2550,12 @@ async function beginConfirmRecording(onText){
     // Any failure/empty/never-fired → fall back to a single transcribe of the final blob. onText
     // fires EXACTLY once, whichever branch wins.
     let text = '';
-    if (specPromise){ try { text = await specPromise; } catch(e){ text = ''; } }
+    // Only lean on the speculative on the settled-silence path. On the backstop / non-silence stop
+    // it's truncated, so skip it and transcribe the FINAL full blob below.
+    if (endedOnSilence && specPromise){ try { text = await specPromise; } catch(e){ text = ''; } }
     // A resume-and-abort could have landed while we awaited — re-check we're still the live turn.
     if (__crec.aborted || myGen !== __crec.gen) return;
-    if (!text){ text = await crecTranscribeBlob(blob); } // fallback: fresh single transcribe
+    if (!text){ text = await crecTranscribeBlob(blob); } // fallback / backstop: fresh full-blob transcribe
     if (__crec.aborted || myGen !== __crec.gen) return;
     onText(text || '');
   };
