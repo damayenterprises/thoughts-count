@@ -117,6 +117,15 @@ Deciding when you have enough (you are an advisor judging, NOT a form validating
 Every turn, call EXACTLY ONE tool: reply (to say something, optionally asking), or ready (when you can give real guidance). Never both. Never plain text. You are ${HER_NAME}.`;
 }
 
+// TC-88 latency: wrap the system string into Anthropic's content-array form with a prompt-cache
+// breakpoint, so the persona/rules prefix is reused across turns (faster time-to-first-token on
+// turns 2+, exactly where the user feels the lag). systemPrompt() still returns a STRING (tests
+// assert on it); ONLY the Anthropic-call sites wrap it here. Same text — just cached. Both the
+// non-stream (typed) and stream (voice) payloads use this so they stay byte-identical.
+export function systemForCache(ctx) {
+  return [{ type: "text", text: systemPrompt(ctx), cache_control: { type: "ephemeral" } }];
+}
+
 // --- TC-88: sentence-boundary extraction from a growing `say` string (voice streaming) ---
 //
 // As the `reply` tool's `say` value streams in via input_json_delta, we hold the growing string
@@ -315,7 +324,7 @@ function buildTurn(body) {
   const payload = {
     model: MODEL,
     max_tokens: MAX_TOKENS,
-    system: systemPrompt(ctx),
+    system: systemForCache(ctx),
     tools: TOOLS,
     // Force a tool every turn. On an explicit "make my plan now", force the distill.
     tool_choice: force ? { type: "tool", name: "ready" } : { type: "any" },
@@ -564,7 +573,7 @@ export default async (req) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_TOKENS,
-        system: systemPrompt(ctx),
+        system: systemForCache(ctx),
         tools: TOOLS,
         // Force a tool every turn. On an explicit "make my plan now", force the distill.
         tool_choice: force ? { type: "tool", name: "ready" } : { type: "any" },
