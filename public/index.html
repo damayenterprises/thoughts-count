@@ -1453,6 +1453,14 @@ async function cvTurn(force){
     Object.assign(answers, d.answers);
     try { window.tcTrack && tcTrack('converse_ready', { turns: __cv.messages.length }); } catch(e){}
     generate();
+    // TC-66 Phase 3b: the conversation wrapped up — persist what the user shared back to the
+    // KNOWN saved person it was about, so memory compounds. Fired AFTER the plan kicks off and
+    // fully non-blocking + fail-open: it never delays or breaks the plan/conversation. Guards:
+    // only a known saved person (flowPerson) AND a signed-in user ever writes; anonymous / home
+    // conversation (no flowPerson) writes nothing. We send the user's OWN turns (role==='user')
+    // as the source of truth about the person, not her replies. The bridge routes them through
+    // the existing authenticated, ownership-checked capture pipeline (no new write surface).
+    rememberFromConversation();
     return;
   }
   if (d && d.action === 'reply' && d.say){
@@ -1465,6 +1473,31 @@ async function cvTurn(force){
   // Unexpected shape — recover gently.
   cvSetBusy(false);
   cvAppend('her', "Sorry, I drifted for a second. What's going on?");
+}
+
+// TC-66 Phase 3b: write-back trigger. Called from cvTurn's ready branch AFTER the plan kicks
+// off. Entirely non-blocking (fire-and-forget) and fail-open (any error is swallowed, never
+// surfaced to the conversation or the plan). Guards, in order:
+//   • no flowPerson (anonymous / home conversation) → write NOTHING
+//   • not signed in / companion not loaded → the bridge no-ops (double guard)
+// It sends the user's OWN turns (role==='user') joined into one note as rawText — her replies
+// are guidance, not facts about the person. The companion bridge locks the write to
+// flowPerson.id via the authenticated capture pipeline (ownership-checked server-side).
+function rememberFromConversation(){
+  try {
+    if (!flowPerson || !flowPerson.id) return;                 // only a KNOWN saved person
+    const bridge = window.TCCompanion && window.TCCompanion.rememberFromConversation;
+    if (!bridge) return;                                        // companion not loaded → no write path
+    if (window.TCCompanion.isSignedIn && !window.TCCompanion.isSignedIn()) return; // signed-out → nothing
+    const rawText = (Array.isArray(__cv.messages) ? __cv.messages : [])
+      .filter(m => m && m.role === 'user')
+      .map(m => String(m.content || '').trim())
+      .filter(Boolean)
+      .join('\n');
+    if (!rawText) return;                                       // nothing the user actually said
+    // Fire-and-forget: don't await, and swallow any rejection so the plan is never affected.
+    Promise.resolve(bridge(flowPerson.id, rawText)).catch(() => {});
+  } catch(e){ /* fail-open: a memory-write error must never break the conversation or plan */ }
 }
 // Resume a remember request after a magic-link return: open the flow surface (the
 // scrim isn't open on a cold return), then run the normal preview→confirm→save flow

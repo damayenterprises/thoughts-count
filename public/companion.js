@@ -6,7 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
-import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve } from "/_capture.js";
+import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, showToast } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
@@ -92,6 +92,35 @@ async function talkItThrough(p) {
   catch (e) { console.error("noticed load failed", e); p.noticed = noticedList(p.facts || []); }
   if (window.openConverseForPerson) window.openConverseForPerson(p);
   else if (window.openConverse) window.openConverse(p);
+}
+
+// TC-66 Phase 3b: persist what the user shared in a memory-aware conversation back to the
+// KNOWN saved person it was about, so continuity compounds. The conversation code calls this
+// AFTER the plan kicks off; it must never block or break that (fire-and-forget, fail-open).
+//   personId — flowPerson.id (a known saved person; conversation guards anonymous/home out)
+//   rawText  — the user's OWN turns, joined (role==='user'); her replies are guidance, not facts
+// Writes go ONLY through the authenticated /api/capture/extract (requireUser + service role +
+// server-side ownership check on lockedPersonId): a foreign/bogus id 404s, and a foreign write
+// is impossible. On the Level-A auto-save we surface a subtle, undoable toast so it's
+// visible-not-silent without cluttering the plan the user is now looking at.
+async function rememberFromConversation(personId, rawText) {
+  // Guard: only a signed-in user with a live client + a real person + real text ever writes.
+  if (!sb || !user || !personId) return null;
+  const text = String(rawText || "").trim();
+  if (!text) return null;
+  const result = await captureExtract(sb, { rawText: text, lockedPersonId: personId, source: "conversation" });
+  // A locked capture is always Level A when it finds durable facts; if it found nothing, stay
+  // silent (no toast) — the conversation was chit-chat with nothing worth remembering.
+  const a = ((result && result.captures) || []).filter((c) => c.level === "A");
+  if (a.length) {
+    const who = a[0].evidence || "Saved to what you remember";
+    showToast(who, {
+      onUndo: async () => {
+        for (const c of a) { try { await captureResolve(sb, { captureId: c.captureId, action: "undo" }); } catch (e) { console.error("conversation memory undo failed", e); } }
+      },
+    });
+  }
+  return result;
 }
 
 const KINDS = [
@@ -213,6 +242,11 @@ async function boot() {
     captureConfirm: ({ captureId, personId = null, newPersonName = null }) => captureResolve(sb, { captureId, action: "confirm", personId, newPersonName }),
     factsToText: (facts) => noticedList(facts),
     openPerson: (personId) => openHome(),
+    // TC-66 Phase 3b: write-back from a memory-aware conversation. Rides the EXISTING
+    // authenticated capture pipeline (requireUser + service role + ownership check), locked
+    // to the known saved person the conversation is about — so it's always Level-A auto-save
+    // with insertFact's dedup/supersession, no new write surface. Signed-out → no-op (guard).
+    rememberFromConversation,
   };
   // Voice UI (e.g. the dictation mic) may have rendered before the gate resolved —
   // let the page re-check now that we know the audience + sign-in state.
