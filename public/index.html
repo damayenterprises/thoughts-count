@@ -724,6 +724,7 @@ if (scrim) scrim.addEventListener('focusin', (e) => {
 function openFlow(preset){
   idx = 0;
   flowPerson = null; window.__tcFlowPersonId = null;
+  window.__tcPendingRemember = null; // TC-66: new flow context — drop any leftover stash
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
   genAttempts = 0;
@@ -734,6 +735,7 @@ function openFlow(preset){
 // Launch the plan flow already knowing who this is for (from a saved person).
 function openFlowForPerson(person){
   idx = 0;
+  window.__tcPendingRemember = null; // TC-66: new flow context — drop any leftover stash
   flowPerson = person || null;
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
@@ -765,9 +767,10 @@ function openFlowForPerson(person){
 }
 window.openFlowForPerson = openFlowForPerson;
 // Re-open a previously saved plan for viewing.
-function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; window.__tcBucket = null; renderPlan(plan); __planSaved = true; /* TC-81: a re-opened SAVED plan is already kept → no nudge on close (the device-recovery link overrides this back to false for its own path). */ }
+function renderSavedPlan(plan){ scrim.classList.add('open'); document.body.style.overflow='hidden'; window.__tcBucket = null; window.__tcPendingRemember = null; /* TC-66: a re-opened saved plan must NEVER inject a remember-band */ window.__tcFlowPersonId = null; renderPlan(plan); __planSaved = true; /* TC-81: a re-opened SAVED plan is already kept → no nudge on close (the device-recovery link overrides this back to false for its own path). */ }
 window.renderSavedPlan = renderSavedPlan;
 function closeFlow(){
+  window.__tcPendingRemember = null; // TC-66: closing the modal drops any un-flushed stash
   stopGenProgress(); stopRecordingIfAny(); if (typeof cancelHomeRecording === 'function') cancelHomeRecording();
   if (typeof stopConfirmListen === 'function') stopConfirmListen(); // TC-63: release the confirm mic
 
@@ -1285,7 +1288,7 @@ function renderHomeError(msg){
 function startPlanFromText(text){
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
-  genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; __fromVoice = true;
+  genAttempts = 0; flowPerson = null; window.__tcFlowPersonId = null; window.__tcPendingRemember = null; /* TC-66: fresh anonymous plan — no stash carry-over */ __fromVoice = true;
   answers.moment = String(text || '').trim();
   try { window.tcTrack && tcTrack('intake_start', { label: 'voice_home' }); } catch(e){}
   generate();
@@ -1347,6 +1350,7 @@ function openConverse(person){
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
   genAttempts = 0; __fromVoice = false;
+  window.__tcPendingRemember = null; // TC-66: new conversation context — drop any leftover stash
   // Phase 3a: when launched from a saved person, scope the conversation to them so she opens
   // knowing them. Phase 1's cvTurn already sends `context` from flowPerson — wiring it here is
   // most of the work. No person → anonymous, byte-identical to Phase 1.
@@ -2094,6 +2098,7 @@ async function generate(){
 }
 
 function renderError(msg){
+  window.__tcPendingRemember = null; // TC-66: this conversation's plan won't render — drop its stash
   stopGenProgress();
   // On a repeat failure, don't trap the user in a retry loop — acknowledge it and
   // offer a calm way out (close, or reach a real person).
@@ -2285,17 +2290,45 @@ function tcRenderRememberBand({ firstName, undo }){
 // on screen (extraction slower than generation — rare), inject now; otherwise stash and let
 // renderPlan flush it once the plan DOM exists (the usual case: extract resolves before the ~30s
 // plan renders).
+// TC-66 leak fix (Validator HIGH): a pending band must never outlive its own conversation.
+// The stash is stamped at set-time with the CONVERSATION'S person id (window.__tcFlowPersonId,
+// which mirrors flowPerson.id) and a timestamp. At flush-time we inject ONLY if the plan now
+// rendering still belongs to that same conversation (same person id) and the stash is fresh.
+// Otherwise we DROP it rather than risk injecting "I'll remember that about X." + X's Undo onto
+// a different person's saved plan or a fresh anonymous plan.
+window.TC_REMEMBER_TTL_MS = 60000;
+// Pure decision helper (unit-tested): given the person the stash was made for, the person the
+// current render belongs to, and the stash's age, return true only when it's safe to inject.
+// Rules: the render must belong to a KNOWN person (currentPersonId truthy — anonymous renders
+// have null and never inject), that person must be the SAME one the stash was made for, and the
+// stash must be within its TTL. Any mismatch / missing id / staleness → drop (return false).
+function tcRememberShouldInject(pendingPersonId, currentPersonId, ageMs, ttlMs){
+  if (pendingPersonId == null || currentPersonId == null) return false; // anon or lost correlation
+  if (pendingPersonId !== currentPersonId) return false;                // different conversation/plan
+  if (typeof ageMs === 'number' && typeof ttlMs === 'number' && ageMs > ttlMs) return false; // stale
+  return true;
+}
+if (typeof module !== 'undefined' && module.exports) { module.exports = { tcRememberShouldInject }; }
 window.tcInjectRememberBand = function(payload){
   if (!payload) return;
   const placed = tcRenderRememberBand(payload);
-  if (!placed) window.__tcPendingRemember = payload;
+  // Only the conversation path stashes for later flush, and only when there's no plan DOM yet.
+  // Stamp it with the conversation's person id + a timestamp so a later unrelated render can't
+  // claim it. (The immediate-inject path above already fired for the conversation on screen.)
+  if (!placed) window.__tcPendingRemember = { payload, personId: window.__tcFlowPersonId, ts: Date.now() };
 };
-// Flush any pending remember-band confirmation right after the plan DOM is built.
+// Clear any stashed band so it can't attach to a later, unrelated render. Called on every
+// transition where the stash's own conversation is leaving / won't render its plan.
+function tcClearPendingRemember(){ window.__tcPendingRemember = null; }
+window.tcClearPendingRemember = tcClearPendingRemember;
+// Flush any pending remember-band confirmation right after the plan DOM is built — but only if it
+// belongs to the plan now rendering (same conversation person) and isn't stale. Else drop it.
 function tcFlushPendingRemember(){
   const pend = window.__tcPendingRemember;
+  window.__tcPendingRemember = null; // consume unconditionally — never carry a stash past a render
   if (!pend) return;
-  window.__tcPendingRemember = null;
-  tcRenderRememberBand(pend);
+  const inject = tcRememberShouldInject(pend.personId, window.__tcFlowPersonId, Date.now() - (pend.ts || 0), window.TC_REMEMBER_TTL_MS);
+  if (inject) tcRenderRememberBand(pend.payload);
 }
 function renderPlan(p){
   currentPlan = p;
@@ -2569,7 +2602,7 @@ function downloadReminder(f, plan){
   setTimeout(() => URL.revokeObjectURL(url), 1500);
 }
 
-function restart(){ for(const k in answers) delete answers[k]; for(const k in picks) delete picks[k]; flowPerson=null; window.__tcFlowPersonId=null; idx=0; renderStep(); }
+function restart(){ for(const k in answers) delete answers[k]; for(const k in picks) delete picks[k]; flowPerson=null; window.__tcFlowPersonId=null; window.__tcPendingRemember=null; /* TC-66: reset drops any stash */ idx=0; renderStep(); }
 function escapeHtml(s){ return String(s==null?'':s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 
 /* ================= TC-81: plan recovery ==================================
