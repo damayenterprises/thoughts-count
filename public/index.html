@@ -1556,20 +1556,34 @@ if (typeof window !== 'undefined') window.__tcMayOpenMic = cvMayOpenMic; // test
 
 // Reset/allocate the speak-queue for a new streaming turn. gen ties every async callback to THIS
 // turn; if the turn is aborted or superseded, stale callbacks compare gen and no-op.
+// TC-88: `ctrl` is ONE AbortController for every pre-fetch this turn kicks off (each sentence's
+// /api/speak fires the instant it's enqueued, in parallel), so cvStopVoice can cancel them all at
+// once — no orphaned TTS fetches. `urls` tracks the object URLs to revoke on teardown.
 function cvNewSpeak(gen){
-  return { gen, queue: [], playing: false, replyDone: false, drained: false };
+  return { gen, queue: [], playing: false, replyDone: false, drained: false, ctrl: new AbortController(), urls: [] };
 }
 
-// Enqueue one sentence and kick the pump. The pump plays sentences strictly in order.
+// Enqueue one sentence — and PRE-GENERATE its audio right now (gapless playback). The moment a
+// sentence streams in we split it into speakable chunks and fire ALL their /api/speak requests in
+// parallel (via sp.ctrl so cvStopVoice cancels them), storing the in-flight clip promises WITH the
+// queued item. By the time the previous sentence finishes playing, this one's audio is already
+// ready — the ~1s inter-sentence dead gap is gone. The pump only PLAYS; it never fetches.
 function cvEnqueueSay(sp, text){
   if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
   const t = speakSafeText(text, 400);
   if (!t) return;
-  sp.queue.push(t);
+  if (!ttsAvailable()){ sp.queue.push({ text: t, clips: [] }); cvPumpSpeak(sp); return; }
+  const chunks = splitForSpeech(t);
+  // Kick every chunk's TTS off immediately, in parallel. A failed/aborted fetch resolves to null so
+  // playback degrades gracefully (skips that clip) instead of hanging the queue forever.
+  const clips = chunks.map(c => fetchClip(c, sp.ctrl.signal).catch(() => null));
+  sp.queue.push({ text: t, clips });
   cvPumpSpeak(sp);
 }
-// The pump: if idle and a sentence is queued, speak it; when it ends, recurse to the next. When the
-// queue empties AND the reply is done, that's "all speech drained" → open the mic (the guard).
+// The pump: if idle and a sentence is queued, PLAY its pre-fetched clips in order (awaiting each
+// stored promise, which is usually already resolved), one audio at a time — strictly serial, in
+// order, no overlap. Meanwhile later sentences' audio keeps generating in parallel. When the queue
+// empties AND the reply is done, that's "all speech drained" → open the mic (the feedback guard).
 function cvPumpSpeak(sp){
   if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
   if (sp.playing) return;                     // one audio at a time — no overlap
@@ -1580,13 +1594,27 @@ function cvPumpSpeak(sp){
   const next = sp.queue.shift();
   sp.playing = true;
   cvVoiceCue('speaking');
-  // speakPrompt reuses the shared __ttsAudio/__ttsCtrl/backstop and calls onDone EXACTLY once
-  // (end / error / abort backstop). Running one sentence at a time keeps playback strictly serial.
-  speakPrompt(next, () => {
+  cvPlaySentence(sp, next).then(() => {
     if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive){ return; } // aborted/superseded → stop
     sp.playing = false;
     cvPumpSpeak(sp); // next sentence, or (if drained + done) open the mic
   });
+}
+// Play ONE queued sentence's pre-fetched clips, strictly in order on the shared <audio> element.
+// Awaits each stored clip promise (already resolved in the gapless case); a null clip (failed/
+// aborted fetch) is skipped so a single bad chunk never blocks the rest. Resolves when the whole
+// sentence has played (or been aborted). No fetching happens here — that was done at enqueue.
+async function cvPlaySentence(sp, item){
+  const a = getTtsAudio();
+  for (let i = 0; i < item.clips.length; i++){
+    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return; // stopped/superseded mid-sentence
+    let url = null;
+    try { url = await item.clips[i]; } catch(e){ url = null; }
+    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+    if (!url) continue; // this chunk failed → skip it, keep the sentence flowing
+    sp.urls.push(url);
+    await playClipOn(a, url, /* waitBuffer */ false);
+  }
 }
 // Fires once, after the LAST sentence's playback fully ends and the reply is done. A short pause
 // keeps any audio tail out of the recording, then the mic opens — the feedback-loop guard, now
@@ -1736,6 +1764,13 @@ function cvHandleReady(ans){
   __cvVoiceActive = false; // stop the listen loop; let the handoff line play out
   __cvStreamGen++;         // invalidate any pending speak-queue callback
   cvVoiceCue('thinking');
+  // TC-88: cancel any pre-generated sentence TTS still in flight + revoke its URLs before the
+  // handoff line, so nothing orphaned keeps generating or plays over "Let me put this together."
+  if (__cvSpeak){
+    try { if (__cvSpeak.ctrl) __cvSpeak.ctrl.abort(); } catch(e){}
+    try { (__cvSpeak.urls || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); } catch(e){}
+    __cvSpeak.queue = []; __cvSpeak.playing = false; __cvSpeak = null;
+  }
   try { cancelSpeech(); } catch(e){} // clear any queued sentence audio before the handoff line
   speakPrompt("Let me put this together.", () => {});
   generate();
@@ -1780,12 +1815,50 @@ function cvSpeakThenListen(text, isOpener){
   if (!__cvVoiceActive) return;
   cvVoiceCue('speaking');
   const toSpeak = speakSafeText(text, 400);
-  // speakPrompt handles chunking, the __ttsCtrl AbortController, iOS-primed <audio>, and always
-  // calls onDone exactly once (end / error / backstop). Its onDone IS the "playback ended" signal.
-  speakPrompt(toSpeak, () => {
+  const afterSpeak = () => {
     if (!__cvVoiceActive) return; // interrupted during playback → do not open the mic
     setTimeout(() => { if (__cvVoiceActive) cvVoiceListen(); }, 300);
-  });
+  };
+  // TC-88 PROBLEM 2 — the FIRST utterance (her opener) sounded slow/slurred/"drunk", then fine
+  // after. Root cause: on a cold, just-unlocked <audio>, chunk-splitting the opener made a tiny
+  // first fragment that speakPrompt play()'d before it was buffered → a starved, distorted open.
+  // Fix: speak the opener as ONE clip (no chunk-split, so no glitchy first fragment) and wait for
+  // it to buffer (canplay) before playing. Cold /api/speak is warmed by warmVoiceFns on the tap
+  // that entered voice mode, so this adds no meaningful latency. Subsequent turns keep the normal
+  // chunked speakPrompt path (already fine post-warmup).
+  if (isOpener && ttsAvailable() && toSpeak){
+    speakOpenerClip(toSpeak, afterSpeak);
+    return;
+  }
+  // speakPrompt handles chunking, the __ttsCtrl AbortController, iOS-primed <audio>, and always
+  // calls onDone exactly once (end / error / backstop). Its onDone IS the "playback ended" signal.
+  speakPrompt(toSpeak, afterSpeak);
+}
+// Speak `text` as a SINGLE, buffer-waited clip (the opener fix). Uses the same shared __ttsCtrl /
+// __ttsFallback / __ttsUrls machinery as speakPrompt so cancelSpeech()/cvStopVoice cancel it and
+// onDone fires exactly once (end / error / play-reject / backstop) — the mic never stalls.
+async function speakOpenerClip(text, onDone){
+  let done = false;
+  const finish = () => {
+    if (done) return; done = true;
+    if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
+    revokeTtsUrls();
+    onDone();
+  };
+  try {
+    const ctrl = new AbortController(); __ttsCtrl = ctrl;
+    __ttsFallback = setTimeout(finish, Math.min(60000, 10000 + text.length * 140));
+    let url = null;
+    try { url = await fetchClip(text, ctrl.signal); } catch(e){ finish(); return; }
+    if (done) return;              // aborted/superseded while fetching
+    __ttsUrls.push(url);
+    const a = getTtsAudio();
+    await playClipOn(a, url, /* waitBuffer */ true); // hold for buffer → no cold-start slur
+    finish();
+  } catch(e){
+    if (e && e.name === 'AbortError') return; // cancelSpeech already cleaned up
+    finish();
+  }
 }
 // Open the mic (reusing beginConfirmRecording's getUserMedia + VAD silence-detection + transcribe),
 // route the transcript into the SAME path a typed turn takes (cvAppend 'me' + push + cvTurn), and
@@ -1835,7 +1908,13 @@ function cvStopVoice(){
   // so no orphaned stream keeps reading and no queued/late sentence plays after stop. Idempotent.
   __cvStreamGen++;                                          // any pending speak-queue callback no-ops
   if (__cvStreamCtrl){ try { __cvStreamCtrl.abort(); } catch(e){} __cvStreamCtrl = null; }
-  if (__cvSpeak){ __cvSpeak.queue = []; __cvSpeak.playing = false; __cvSpeak = null; }
+  // TC-88: abort every pre-generated sentence's in-flight /api/speak fetch and revoke its object
+  // URLs, so no orphaned TTS keeps generating and no pre-fetched clip plays after stop.
+  if (__cvSpeak){
+    try { if (__cvSpeak.ctrl) __cvSpeak.ctrl.abort(); } catch(e){}
+    try { (__cvSpeak.urls || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); } catch(e){}
+    __cvSpeak.queue = []; __cvSpeak.playing = false; __cvSpeak = null;
+  }
   __cvStreamBubble = null;
   try { cancelSpeech(); } catch(e){}                        // stop current TTS mid-sentence
   try { abortConfirmRecording(); } catch(e){}               // stop any live recording
@@ -2357,6 +2436,33 @@ function fetchClip(text, signal){
   return fetch('/api/speak', { method: 'POST', headers, body: JSON.stringify({ text }), signal })
     .then(r => { if (!r.ok) throw new Error('speak ' + r.status); return r.blob(); })
     .then(b => URL.createObjectURL(b));
+}
+// Play ONE already-fetched clip URL on the shared <audio> element and resolve when it ends (or
+// errors). When waitBuffer is set we hold for the first frames to be decodable before play() —
+// calling play() on a not-yet-buffered first clip is what made the opener sound slow/slurred on
+// iOS (the "drunk" artifact). onended/onerror resolve exactly once; a play() rejection also
+// resolves so the caller never hangs. Strictly one clip at a time — the caller awaits before the next.
+function playClipOn(a, url, waitBuffer){
+  return new Promise((resolve) => {
+    let settled = false;
+    const done = () => { if (settled) return; settled = true; a.onended = null; a.onerror = null; a.oncanplay = null; resolve(); };
+    a.onended = done;
+    a.onerror = done;
+    const start = () => {
+      if (settled) return;
+      a.oncanplay = null;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => done());
+    };
+    a.src = url;
+    if (waitBuffer){
+      a.oncanplay = start;                       // start once enough is buffered (kills the cold-start slur)
+      try { a.load(); } catch(e){}
+      setTimeout(() => { if (!settled && a.oncanplay) start(); }, 400); // safety if canplay never fires
+    } else {
+      start();
+    }
+  });
 }
 // Speak `text` in a warm voice, THEN call onDone exactly once (on end, on error, or a generous
 // fallback). onDone GATES the mic on the confirm/reflect cards, so it MUST fire even if playback
