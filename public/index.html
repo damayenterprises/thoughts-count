@@ -646,6 +646,9 @@
   .tc-makeplan { background:transparent; border:none; color:var(--sage-deep,#5f6d4a); font-size:13.5px; cursor:pointer; font-family:inherit; }
   .tc-makeplan:hover { text-decoration:underline; }
   .tc-chat-hint { text-align:center; font-size:12px; color:var(--ink-soft,#8a8577); margin-top:10px; }
+  /* TC-82 Phase 2 (2a): the spoken-mode status + "Stop voice" control under the chat. */
+  .tc-cv-voicerow { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:8px; }
+  .tc-cv-vcue { font-size:12.5px; color:var(--ink-soft,#8a8577); }
 </style>
 
 <!-- ================= CONVERSATION MODAL ================= -->
@@ -773,6 +776,7 @@ function closeFlow(){
   window.__tcPendingRemember = null; // TC-66: closing the modal drops any un-flushed stash
   stopGenProgress(); stopRecordingIfAny(); if (typeof cancelHomeRecording === 'function') cancelHomeRecording();
   if (typeof stopConfirmListen === 'function') stopConfirmListen(); // TC-63: release the confirm mic
+  if (typeof cvStopVoice === 'function') cvStopVoice(); // TC-82 Phase 2: end any spoken converse loop (abort TTS + mic)
 
   // TC-81: detect whether a plan was on screen at close time (the plan view is the only
   // stage that carries the "Email me my plan" button). Read it BEFORE we tear the scrim down.
@@ -1010,7 +1014,10 @@ async function setupHomeVoice(){
   const isPhone = (window.matchMedia && matchMedia('(pointer:coarse)').matches) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
   if (!hasMic && !isPhone){ mic.style.display = 'none'; return; } // computer, no mic → typing only
   mic.style.display = '';
-  mic.onclick = startHomeVoice;
+  // TC-82 Phase 2 (2a): the home mic now opens the MULTI-TURN spoken advisor conversation
+  // (was: one-shot record→transcribe→reflect→plan). It reuses the same chat surface as
+  // "Talk it through," just orchestrated hands-free. Priming + warming still happen in the tap.
+  mic.onclick = startHomeVoiceConverse;
   mic.innerHTML = micSvg(19, 'currentColor', '#c28a63') + '<span class="mic-label">Say it out loud</span>';
   // TC-70: stable, consistent CTAs — "Type it out" is always the primary (terracotta,
   // lower-friction no-mic path) and comes first; "Talk it through" is the sage secondary
@@ -1043,6 +1050,15 @@ function startHomeVoice(){
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   renderHomeListening();
   beginHomeRecording();
+}
+// TC-82 Phase 2 (2a): the home "Say it out loud" entry. Prime iOS audio + warm the voice
+// functions WITHIN this tap (so the first spoken turn isn't a cold start / a blocked play),
+// then open the advisor conversation in hands-free voice mode. She'll speak her opener, then
+// the guarded turn-taking loop takes over (mic opens only after her playback ends).
+function startHomeVoiceConverse(){
+  if (!voiceAllowedClient()) return;
+  unlockSpeech(); warmVoiceFns();
+  openConverse(null, { voice: true });
 }
 // General "remember by voice" entry for the "Note something" box in People — runs the
 // full flow (add / update / which-one). onSaved refreshes the People list after saving.
@@ -1303,7 +1319,11 @@ window.startPlanFromText = startPlanFromText;
 // dialogue and decides each turn whether to reply or that she's heard enough. When she's
 // ready, it distills the conversation into the SAME `answers` object the plan engine
 // already consumes, and we hand off to generate() unchanged.
-let __cv = { messages: [], busy: false };
+let __cv = { messages: [], busy: false, voice: false };
+// TC-82 Phase 2 (2a): true while the hands-free spoken loop owns the conversation. Set false the
+// instant the user types, taps "Stop voice", makes the plan, or the conversation closes — so a
+// late TTS-ended or transcribe callback can't reopen the mic behind the user's back.
+let __cvVoiceActive = false;
 // Her opening line — warm, invites the moment, plain punctuation (placeholder copy; will
 // live in the character bible / can be served in her voice later).
 const CV_OPENER = "Tell me who's on your mind, and what's happening for them. I'll help you show up for them.";
@@ -1346,7 +1366,7 @@ function priorPlansDigest(person){
   } catch(e){ return ''; }
 }
 
-function openConverse(person){
+function openConverse(person, opts){
   for (const k in answers) delete answers[k];
   for (const k in picks) delete picks[k];
   genAttempts = 0; __fromVoice = false;
@@ -1356,12 +1376,21 @@ function openConverse(person){
   // most of the work. No person → anonymous, byte-identical to Phase 1.
   flowPerson = person || null;
   window.__tcFlowPersonId = person ? person.id : null;
-  __cv = { messages: [], busy: false };
-  try { window.tcTrack && tcTrack('intake_start', { label: person ? 'converse_person' : 'converse' }); } catch(e){}
+  // TC-82 Phase 2 (2a): voice mode. When true, the SAME chat surface is orchestrated hands-free —
+  // she speaks each turn (/api/speak), and the mic opens ONLY after her playback ends (the
+  // feedback-loop guard), reusing beginConfirmRecording + speakPrompt. Everything else — the
+  // converse endpoint, the bubbles, ready→generate — is byte-identical to the typed flow.
+  const voice = !!(opts && opts.voice) && voiceAllowedClient();
+  __cv = { messages: [], busy: false, voice };
+  __voiceHandsFree = voice; // gates the spoken listen loop the same way the home-voice flows do
+  try { window.tcTrack && tcTrack('intake_start', { label: (voice ? 'converse_voice' : 'converse') + (person ? '_person' : '') }); } catch(e){}
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   renderConverse();
 }
 window.openConverse = openConverse;
+// TC-82 Phase 2: open the advisor conversation in hands-free VOICE mode (home "Say it out loud").
+function openConverseVoice(person){ openConverse(person || null, { voice: true }); }
+window.openConverseVoice = openConverseVoice;
 // Launch the memory-aware conversation about a saved person (Phase 3a entry point).
 function openConverseForPerson(person){ openConverse(person || null); }
 window.openConverseForPerson = openConverseForPerson;
@@ -1378,16 +1407,49 @@ function renderConverse(){
         </button>
       </div>
       <div class="tc-chat-foot" id="cvFoot"></div>
-      <div class="tc-chat-hint" id="cvHint">She'll ask what she needs, then build your plan. You can say "that's enough, make my plan" any time.</div>
+      <div class="tc-chat-hint" id="cvHint">${__cv.voice ? 'She’ll talk with you and listen back. Say "that’s enough, make my plan" any time, or type instead.' : 'She’ll ask what she needs, then build your plan. You can say "that’s enough, make my plan" any time.'}</div>
     </div>`;
-  cvAppend('her', cvOpener());
+  const opener = cvOpener();
+  cvAppend('her', opener);
   const input = document.getElementById('cvInput');
   const send = document.getElementById('cvSend');
   const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; };
   input.addEventListener('input', grow);
+  // TC-82 Phase 2: a typed turn at ANY point (even mid voice mode) drops into the visible chat.
+  // While she's speaking or the mic is open, typing/sending first interrupts the voice loop
+  // cleanly (aborts TTS + any recording), then sends — no overlapping audio, no hung mic.
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter' && !e.shiftKey){ e.preventDefault(); cvSend(); } });
   send.onclick = cvSend;
-  setTimeout(() => { try { input.focus(); } catch(e){} }, 120);
+  if (__cv.voice){
+    // Voice mode: show the spoken cue + a stop-listening control, then speak the opener and,
+    // when her playback fully ends, open the mic (the feedback-loop guard).
+    cvRenderVoiceCue();
+    __cvVoiceActive = true;
+    cvSpeakThenListen(opener, /* isOpener */ true);
+  } else {
+    setTimeout(() => { try { input.focus(); } catch(e){} }, 120);
+  }
+}
+// TC-82 Phase 2: the calm spoken-mode cue + a "Stop voice" control under the chat. Tap ends the
+// hands-free loop (aborts TTS + mic) and drops the user to typing — never leaves a hung mic.
+function cvRenderVoiceCue(){
+  const foot = document.getElementById('cvFoot'); if (!foot || foot.querySelector('#cvVoiceRow')) return;
+  const row = document.createElement('div');
+  row.id = 'cvVoiceRow'; row.className = 'tc-cv-voicerow';
+  row.innerHTML = '<span class="tc-cv-vcue" id="cvVoiceCue" aria-live="polite"></span>' +
+    '<button type="button" class="link-btn" id="cvStopVoice">Stop voice</button>';
+  foot.appendChild(row);
+  const stop = document.getElementById('cvStopVoice');
+  if (stop) stop.onclick = () => { cvStopVoice(); const i = document.getElementById('cvInput'); if (i){ try { i.focus(); } catch(e){} } };
+}
+// The one-line spoken-mode status ('speaking' / 'listening' / 'thinking'). Purely cosmetic;
+// the real guard is the callback ordering in cvSpeakThenListen, not this text.
+function cvVoiceCue(state){
+  const el = document.getElementById('cvVoiceCue'); if (!el) return;
+  if (state === 'speaking') el.textContent = 'She’s speaking…';
+  else if (state === 'listening') el.textContent = 'Listening—speak, or type below';
+  else if (state === 'thinking') el.textContent = 'One sec…';
+  else el.textContent = '';
 }
 
 function cvAppend(role, text){
@@ -1425,6 +1487,10 @@ async function cvSend(){
   const input = document.getElementById('cvInput');
   const text = (input && input.value || '').trim();
   if (!text) return;
+  // TC-82 Phase 2: typing a turn takes over from the spoken loop — abort any in-flight TTS + mic
+  // cleanly so there's no overlapping audio or hung mic, then send this turn as text (stays typed
+  // from here; she won't speak back after a typed turn — a calm, predictable mode switch).
+  if (__cvVoiceActive) cvStopVoice();
   cvAppend('me', text);
   __cv.messages.push({ role: 'user', content: text });
   if (input){ input.value = ''; input.style.height = 'auto'; }
@@ -1435,7 +1501,101 @@ async function cvMakePlan(){
   if (__cv.busy) return;
   // If they haven't said anything yet, don't force an empty plan — nudge instead.
   if (!__cv.messages.some(m => m.role === 'user')){ const i = document.getElementById('cvInput'); if (i) i.focus(); return; }
+  // The visible "make my plan" escape works in voice mode too: stop the spoken loop first so no
+  // late TTS/mic callback fires over the plan, then force the distill exactly as the typed flow.
+  if (__cvVoiceActive) cvStopVoice();
   await cvTurn(true);
+}
+
+// TC-82 Phase 2 (2a): the /api/speak MAX_CHARS is 400 and shared with the TC-67 readback (do NOT
+// raise it here — flagged for approval instead). Her conversational replies are 1-3 short
+// sentences, so this almost never fires; but as an MVP safety net, if a reply exceeds the cap we
+// speak a clean truncation (whole sentences up to ~cap, else a hard cut at the cap) while the
+// FULL text always shows in the bubble. Pure + deterministic so it can be unit-tested.
+function speakSafeText(text, cap){
+  const CAP = cap || 400;
+  const s = String(text == null ? '' : text).trim();
+  if (s.length <= CAP) return s;
+  const sentences = s.match(/[^.!?]+[.!?]+/g) || [];
+  let out = '';
+  for (const sen of sentences){
+    if ((out + sen).trim().length > CAP) break;
+    out += sen;
+  }
+  out = out.trim();
+  if (out) return out;
+  // No sentence boundary within the cap → hard cut at a word boundary under the cap.
+  let cut = s.lastIndexOf(' ', CAP);
+  if (cut < CAP * 0.5) cut = CAP; // no decent space → hard cut
+  return s.slice(0, cut).trim();
+}
+if (typeof window !== 'undefined') window.__tcSpeakSafeText = speakSafeText; // test hook (no behavior change)
+
+// TC-82 Phase 2 (2a) — THE FEEDBACK-LOOP GUARD, in one place. Speak `text`, and open the mic
+// ONLY from speakPrompt's onDone (which fires after the whole utterance's playback has ended,
+// or on a speak failure so the flow never stalls). We never call the listen step on a timer or
+// alongside playback — the mic cannot come up while she's talking. A short pause after playback
+// keeps any audio tail out of the recording. If the user typed / tapped stop / made the plan in
+// the meantime, __cvVoiceActive is false and neither speak-end nor listen does anything.
+function cvSpeakThenListen(text, isOpener){
+  if (!__cvVoiceActive) return;
+  cvVoiceCue('speaking');
+  const toSpeak = speakSafeText(text, 400);
+  // speakPrompt handles chunking, the __ttsCtrl AbortController, iOS-primed <audio>, and always
+  // calls onDone exactly once (end / error / backstop). Its onDone IS the "playback ended" signal.
+  speakPrompt(toSpeak, () => {
+    if (!__cvVoiceActive) return; // interrupted during playback → do not open the mic
+    setTimeout(() => { if (__cvVoiceActive) cvVoiceListen(); }, 300);
+  });
+}
+// Open the mic (reusing beginConfirmRecording's getUserMedia + VAD silence-detection + transcribe),
+// route the transcript into the SAME path a typed turn takes (cvAppend 'me' + push + cvTurn), and
+// let cvTurn's voice branch speak the reply and re-open the mic. On a transcribe/mic failure we do
+// NOT break the conversation: we drop the spoken loop and leave the visible chat + typed input.
+function cvVoiceListen(){
+  if (!__cvVoiceActive) return;
+  __confirmActive = true; // beginConfirmRecording bails out if this isn't set (shared guard)
+  cvVoiceCue('listening');
+  beginConfirmRecording((textRaw) => {
+    __confirmActive = false;
+    if (!__cvVoiceActive) return; // user typed / stopped / tapped make-plan while we listened
+    const text = String(textRaw || '').trim();
+    // Empty = silence / a failed transcribe. Don't hard-fail: re-open the mic once so a brief
+    // pause doesn't end the conversation. beginConfirmRecording's own 8s hard cap bounds this.
+    if ((text.match(/[\p{L}\p{N}]/gu) || []).length < 2){
+      if (__cvVoiceActive) cvVoiceListen();
+      return;
+    }
+    cvVoiceCue('thinking');
+    // Same path as cvSend, minus reading a textarea: show the user's bubble, record the turn,
+    // reveal the tap escape, and send. cvTurn's voice branch will speak her reply next.
+    cvAppend('me', text);
+    __cv.messages.push({ role: 'user', content: text });
+    cvShowEscape();
+    cvTurn(false);
+  }).then((ok) => {
+    // ok === false → the browser couldn't open the mic (permission/hardware). Degrade calmly to
+    // the visible chat + typed input rather than silently hanging in "listening".
+    if (!ok){
+      __confirmActive = false;
+      if (!__cvVoiceActive) return;
+      cvStopVoice();
+      cvAppend('her', "I can’t hear you right now—go ahead and type, and we’ll keep going.");
+      const i = document.getElementById('cvInput'); if (i){ try { i.focus(); } catch(e){} }
+    }
+  });
+}
+// End the hands-free loop cleanly (typed turn, "Stop voice" tap, make-plan, or close). Aborts any
+// in-flight TTS (__ttsCtrl via cancelSpeech) and any live recording (abortConfirmRecording), and
+// flips the active flags so no late callback can reopen the mic. Idempotent + safe to call anytime.
+function cvStopVoice(){
+  __cvVoiceActive = false;
+  __confirmActive = false;
+  __voiceHandsFree = false;
+  try { cancelSpeech(); } catch(e){}
+  try { abortConfirmRecording(); } catch(e){}
+  cvVoiceCue('');
+  const row = document.getElementById('cvVoiceRow'); if (row) row.remove();
 }
 
 async function cvTurn(force){
@@ -1456,7 +1616,11 @@ async function cvTurn(force){
     d = await r.json();
   } catch(e){
     cvTyping(false); cvSetBusy(false);
-    cvAppend('her', "I lost you for a second there. Could you try that again?");
+    const line = "I lost you for a second there. Could you try that again?";
+    cvAppend('her', line);
+    // Voice mode: a converse hiccup shouldn't strand a hands-free user. Speak the recovery line
+    // and re-open the mic so the turn is retryable by voice (falls back to typing on speak fail).
+    if (__cv.voice && __cvVoiceActive) cvSpeakThenListen(line, false);
     return;
   }
   cvTyping(false);
@@ -1465,6 +1629,14 @@ async function cvTurn(force){
     for (const k in answers) delete answers[k];
     Object.assign(answers, d.answers);
     try { window.tcTrack && tcTrack('converse_ready', { turns: __cv.messages.length }); } catch(e){}
+    // Voice mode: speak a brief handoff line, then generate() exactly as the typed flow does.
+    // (We do NOT read the plan aloud — that's TC-67, out of scope.) End the spoken loop first so
+    // the mic never reopens over the plan. If speak fails, onDone still fires → generate() runs.
+    if (__cv.voice && __cvVoiceActive){
+      __cvVoiceActive = false; // stop the listen loop; let this one utterance play out
+      cvVoiceCue('thinking');
+      speakPrompt("Let me put this together.", () => {});
+    }
     generate();
     // TC-66 Phase 3b: the conversation wrapped up — persist what the user shared back to the
     // KNOWN saved person it was about, so memory compounds. Fired AFTER the plan kicks off and
@@ -1478,14 +1650,19 @@ async function cvTurn(force){
   }
   if (d && d.action === 'reply' && d.say){
     __cv.messages.push({ role: 'assistant', content: d.say });
-    cvAppend('her', d.say);
+    cvAppend('her', d.say); // ALWAYS the full text in the bubble (speakSafeText only trims audio)
     cvSetBusy(false);
+    // Voice mode: speak her reply, then re-open the mic when playback ends (the feedback-loop
+    // guard lives entirely in cvSpeakThenListen). Typed mode: just refocus the input, unchanged.
+    if (__cv.voice && __cvVoiceActive){ cvSpeakThenListen(d.say, false); return; }
     const i = document.getElementById('cvInput'); if (i){ try { i.focus(); } catch(e){} }
     return;
   }
   // Unexpected shape — recover gently.
   cvSetBusy(false);
-  cvAppend('her', "Sorry, I drifted for a second. What's going on?");
+  const oops = "Sorry, I drifted for a second. What's going on?";
+  cvAppend('her', oops);
+  if (__cv.voice && __cvVoiceActive) cvSpeakThenListen(oops, false);
 }
 
 // TC-66 Phase 3b: write-back trigger. Called from cvTurn's ready branch AFTER the plan kicks
