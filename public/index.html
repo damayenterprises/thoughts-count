@@ -1934,7 +1934,7 @@ function parseYesNo(text){
 // (~1-2s) was ending the turn. These are the easy-to-tune knobs for how patiently she waits.
 // Bump END_OF_TURN_SILENCE_MS up if she still cuts in; down if she feels laggy to respond.
 const CREC_SPEECH_RMS = 0.05;              // mic level above this counts as "speaking"
-const END_OF_TURN_SILENCE_MS = 2200;       // continuous silence AFTER speech that ends the turn
+const END_OF_TURN_SILENCE_MS = 2000;       // continuous silence AFTER speech that ends the turn
 const CREC_MIN_SPEECH_MS = 400;            // grace: ignore silence until they've spoken this long,
                                            // so a beat right after they start doesn't end the turn
 const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can never hang
