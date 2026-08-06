@@ -2410,18 +2410,70 @@ function parseYesNo(text){
 // (~1-2s) was ending the turn. These are the easy-to-tune knobs for how patiently she waits.
 // Bump END_OF_TURN_SILENCE_MS up if she still cuts in; down if she feels laggy to respond.
 const CREC_SPEECH_RMS = 0.05;              // mic level above this counts as "speaking"
-const END_OF_TURN_SILENCE_MS = 1600;       // continuous silence AFTER speech that ends the turn
+const END_OF_TURN_SILENCE_MS = 2000;       // continuous silence AFTER speech that ends the turn
 const CREC_MIN_SPEECH_MS = 400;            // grace: ignore silence until they've spoken this long,
                                            // so a beat right after they start doesn't end the turn
 const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can never hang
-const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null, raf: null, audioCtx: null, spoke: false, spokeAt: 0, silenceStart: 0, aborted: false };
+// TC-88 speculative transcribe: once a qualifying silence has lasted this SHORT soft-pause (well
+// before the 2s end-of-turn) we fire a background /api/transcribe of the audio-so-far, so the
+// transcript is usually ready the instant the 2s confirms — no dead time after the pause.
+const CREC_SOFT_PAUSE_MS = 700;
+const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null, raf: null, audioCtx: null, spoke: false, spokeAt: 0, silenceStart: 0, aborted: false,
+  gen: 0,            // bumped every begin/abort; a late speculative from an old gen no-ops
+  specFired: false,  // fired a speculative for the CURRENT silence window? (re-armed on resume)
+  specPromise: null, // Promise<string> of the latest speculative transcript ('' on any failure)
+  specCtrl: null     // AbortController for the in-flight speculative fetch (superseded on resume)
+};
+// Pure predicate (extracted for testing): should we fire a speculative transcribe THIS frame?
+// True once the user has clearly spoken (grace passed) and a settled silence has lasted the soft-
+// pause, and we haven't already fired one for this silence window. Re-armed (specFired=false) the
+// instant speech resumes (silenceStart cleared), so at most ~one speculative fires per pause.
+function crecShouldSpeculate(s, now){
+  return !!(s && s.active && s.spoke && !s.specFired && s.silenceStart
+    && (now - s.spokeAt) > CREC_MIN_SPEECH_MS
+    && (now - s.silenceStart) >= CREC_SOFT_PAUSE_MS);
+}
 function stopConfirmMeter(){
   try { if (__crec.raf){ cancelAnimationFrame(__crec.raf); __crec.raf = null; } } catch(e){}
   try { if (__crec.audioCtx){ __crec.audioCtx.close(); __crec.audioCtx = null; } } catch(e){}
 }
 function stopConfirmRecording(){ try { if (__crec.active && __crec.mr && __crec.mr.state === 'recording') __crec.mr.stop(); } catch(e){} }
+// Transcribe one audio Blob via /api/transcribe → the recognized text, or '' on any failure.
+// Shared by the speculative (mid-pause) and the final/fallback path so they behave identically.
+// `signal` lets a superseded speculative be aborted. Never throws: '' means "no usable transcript".
+async function crecTranscribeBlob(blob, signal){
+  try {
+    if (!blob || !blob.size) return '';
+    const b64 = await blobToBase64(blob);
+    const headers = { 'content-type': 'application/json' };
+    try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
+    const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }), signal });
+    const d = await r.json();
+    return (r.ok && d.text) ? d.text : '';
+  } catch(e){ return ''; }
+}
+// TC-88: fire ONE speculative transcribe of the audio accumulated so far (all speech up to this
+// soft-pause; the trailing silence transcribes to nothing so it equals what they've said). Because
+// the recorder runs with a timeslice, chunk 0 carries the container header → the accumulated Blob
+// is a self-contained, transcribable file. Stores the promise (+ its AbortController) so the
+// confirm step can use it. Any failure resolves to '' → the confirm falls back to a fresh
+// transcribe of the final blob. Guarded on `gen` so a stale fire after abort/restart no-ops.
+function crecFireSpeculative(gen){
+  if (gen !== __crec.gen || !__crec.active) return;
+  __crec.specFired = true;
+  try { if (__crec.specCtrl){ __crec.specCtrl.abort(); } } catch(e){} // supersede any prior in-flight
+  let ctrl = null; try { ctrl = new AbortController(); } catch(e){ ctrl = null; }
+  __crec.specCtrl = ctrl;
+  let blob;
+  try { blob = new Blob(__crec.chunks.slice(), { type: (__crec.mr && __crec.mr.mimeType) || 'audio/webm' }); }
+  catch(e){ __crec.specPromise = null; return; } // couldn't assemble → confirm uses the fallback
+  __crec.specPromise = crecTranscribeBlob(blob, ctrl && ctrl.signal);
+}
 function abortConfirmRecording(){
   __crec.aborted = true; __crec.active = false;
+  __crec.gen++; // invalidate any in-flight speculative resolution from this turn
+  try { if (__crec.specCtrl){ __crec.specCtrl.abort(); } } catch(e){}
+  __crec.specCtrl = null; __crec.specPromise = null; __crec.specFired = false;
   stopConfirmMeter();
   try { if (__crec.mr && __crec.mr.state === 'recording'){ __crec.mr.onstop = null; __crec.mr.stop(); } } catch(e){}
   try { __crec.stream && __crec.stream.getTracks().forEach(t => t.stop()); } catch(e){}
@@ -2438,6 +2490,8 @@ async function beginConfirmRecording(onText){
   // don't bring a live recorder up behind it. Release the stream and bow out.
   if (!__confirmActive){ try { stream.getTracks().forEach(t => t.stop()); } catch(e){} return false; }
   __crec.stream = stream; __crec.chunks = []; __crec.active = true; __crec.spoke = false; __crec.spokeAt = 0; __crec.silenceStart = 0; __crec.aborted = false;
+  // TC-88 speculative-transcribe state: fresh generation, no speculative yet.
+  const gen = ++__crec.gen; __crec.specFired = false; __crec.specPromise = null; __crec.specCtrl = null;
   // VAD: watch mic loudness; end shortly after speech stops.
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -2451,10 +2505,21 @@ async function beginConfirmRecording(onText){
       let sum = 0; for (let i = 0; i < buf.length; i++){ const v = (buf[i] - 128) / 128; sum += v * v; }
       const rms = Math.sqrt(sum / buf.length);
       const now = performance.now();
-      if (rms > CREC_SPEECH_RMS){ __crec.spoke = true; if (!__crec.spokeAt) __crec.spokeAt = now; __crec.silenceStart = 0; }
+      if (rms > CREC_SPEECH_RMS){
+        __crec.spoke = true; if (!__crec.spokeAt) __crec.spokeAt = now; __crec.silenceStart = 0;
+        __crec.specFired = false; // speech resumed → re-arm; next soft-pause fires a fresh (longer) speculative
+      }
       // Only start counting end-of-turn silence once they've been speaking a beat (grace), so a
       // brief pause right after they start doesn't end the turn. End only after a settled silence.
-      else if (__crec.spoke && (now - __crec.spokeAt) > CREC_MIN_SPEECH_MS){ if (!__crec.silenceStart) __crec.silenceStart = now; else if (now - __crec.silenceStart > END_OF_TURN_SILENCE_MS){ stopConfirmRecording(); return; } }
+      else if (__crec.spoke && (now - __crec.spokeAt) > CREC_MIN_SPEECH_MS){
+        if (!__crec.silenceStart) __crec.silenceStart = now;
+        else {
+          // TC-88: at the short soft-pause (well before end-of-turn), speculatively transcribe the
+          // audio so far in the background so the transcript is ready when the 2s confirms.
+          if (crecShouldSpeculate(__crec, now)) crecFireSpeculative(gen);
+          if (now - __crec.silenceStart > END_OF_TURN_SILENCE_MS){ stopConfirmRecording(); return; }
+        }
+      }
       __crec.raf = requestAnimationFrame(loop);
     };
     loop(); __crec.audioCtx = ctx;
@@ -2464,21 +2529,31 @@ async function beginConfirmRecording(onText){
   mr.onstop = async () => {
     __crec.active = false; stopConfirmMeter();
     if (__crec.timer){ clearTimeout(__crec.timer); __crec.timer = null; }
+    // Capture the speculative BEFORE we tear anything down; abort clears it (and bumps gen).
+    const specPromise = __crec.specPromise, myGen = gen;
     try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
-    if (__crec.aborted) return; // user tapped or navigated away → ignore this recording
+    if (__crec.aborted || myGen !== __crec.gen) return; // user tapped or navigated away → ignore this recording
     const blob = new Blob(__crec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size || !__crec.spoke){ onText(''); return; } // silence → no-op, tap remains
     setListenCue('thinking'); // heard something → reading it while the cue settles
-    try {
-      const b64 = await blobToBase64(blob);
-      const headers = { 'content-type': 'application/json' };
-      try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
-      const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }) });
-      const d = await r.json();
-      onText((r.ok && d.text) ? d.text : '');
-    } catch(e){ onText(''); }
+    // TC-88: prefer the speculative transcript (fired ~1.3s ago at the soft-pause, covering all
+    // speech up to the pause — the trailing silence transcribes to nothing). It's usually already
+    // resolved → onText fires immediately. Still in-flight → await it (still beats starting fresh).
+    // Any failure/empty/never-fired → fall back to a single transcribe of the final blob. onText
+    // fires EXACTLY once, whichever branch wins.
+    let text = '';
+    if (specPromise){ try { text = await specPromise; } catch(e){ text = ''; } }
+    // A resume-and-abort could have landed while we awaited — re-check we're still the live turn.
+    if (__crec.aborted || myGen !== __crec.gen) return;
+    if (!text){ text = await crecTranscribeBlob(blob); } // fallback: fresh single transcribe
+    if (__crec.aborted || myGen !== __crec.gen) return;
+    onText(text || '');
   };
-  mr.start();
+  // TC-88: record with a timeslice so chunks accumulate incrementally — chunk 0 carries the
+  // container header, so an accumulated-chunks Blob mid-turn is a valid, transcribable file. This
+  // is what makes the speculative mid-pause transcribe possible. If a browser rejects the timeslice
+  // argument, fall back to a plain start() — no speculative, but the turn still records + completes.
+  try { mr.start(250); } catch(e){ try { mr.start(); } catch(e2){ try { abortConfirmRecording(); } catch(e3){} return false; } }
   // Hard cap backstop: the turn can never hang. Long enough for a full spoken share (the old 8s
   // could itself clip a longer thought); VAD normally ends the turn well before this.
   __crec.timer = setTimeout(() => { if (__crec.active) stopConfirmRecording(); }, CREC_MAX_MS);
