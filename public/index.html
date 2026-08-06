@@ -1002,7 +1002,7 @@ function bubbleSvg(size, stroke, accent){
 // The typed method button (always available). The mic method is added by setupHomeVoice.
 function renderTypeBtn(){
   const t = document.getElementById('homeTypeBtn');
-  if (t) t.innerHTML = bubbleSvg(18, 'currentColor', '#c28a63') + '<span class="mic-label">Talk it through</span>';
+  if (t) t.innerHTML = bubbleSvg(18, 'currentColor', '#c28a63') + '<span class="mic-label">Type it out</span>';
 }
 renderTypeBtn();
 async function setupHomeVoice(){
@@ -1561,7 +1561,7 @@ function cvVoiceListen(){
     if (!__cvVoiceActive) return; // user typed / stopped / tapped make-plan while we listened
     const text = String(textRaw || '').trim();
     // Empty = silence / a failed transcribe. Don't hard-fail: re-open the mic once so a brief
-    // pause doesn't end the conversation. beginConfirmRecording's own 8s hard cap bounds this.
+    // pause doesn't end the conversation. beginConfirmRecording's own hard-cap backstop bounds this.
     if ((text.match(/[\p{L}\p{N}]/gu) || []).length < 2){
       if (__cvVoiceActive) cvVoiceListen();
       return;
@@ -1926,9 +1926,19 @@ function parseYesNo(text){
 }
 
 // A dedicated short-answer recorder (kept separate from the note recorder __hrec/__rec so
-// their states never collide). Voice-activity detection off the mic level ends it ~0.7s
-// after the speaker stops, so a "yes" feels instant; a hard cap stops a silent window.
-const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null, raf: null, audioCtx: null, spoke: false, silenceStart: 0, aborted: false };
+// their states never collide). Voice-activity detection off the mic level ends the turn only
+// after a clearly settled silence, so she waits patiently and never cuts the speaker off
+// mid-thought; a hard cap stops a silent window.
+//
+// TC-88 (device test round 1): she was interrupting the speaker — a natural mid-sentence pause
+// (~1-2s) was ending the turn. These are the easy-to-tune knobs for how patiently she waits.
+// Bump END_OF_TURN_SILENCE_MS up if she still cuts in; down if she feels laggy to respond.
+const CREC_SPEECH_RMS = 0.05;              // mic level above this counts as "speaking"
+const END_OF_TURN_SILENCE_MS = 2200;       // continuous silence AFTER speech that ends the turn
+const CREC_MIN_SPEECH_MS = 400;            // grace: ignore silence until they've spoken this long,
+                                           // so a beat right after they start doesn't end the turn
+const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can never hang
+const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null, raf: null, audioCtx: null, spoke: false, spokeAt: 0, silenceStart: 0, aborted: false };
 function stopConfirmMeter(){
   try { if (__crec.raf){ cancelAnimationFrame(__crec.raf); __crec.raf = null; } } catch(e){}
   try { if (__crec.audioCtx){ __crec.audioCtx.close(); __crec.audioCtx = null; } } catch(e){}
@@ -1951,7 +1961,7 @@ async function beginConfirmRecording(onText){
   // A tap (or navigation) may have resolved the card while the mic was opening — if so,
   // don't bring a live recorder up behind it. Release the stream and bow out.
   if (!__confirmActive){ try { stream.getTracks().forEach(t => t.stop()); } catch(e){} return false; }
-  __crec.stream = stream; __crec.chunks = []; __crec.active = true; __crec.spoke = false; __crec.silenceStart = 0; __crec.aborted = false;
+  __crec.stream = stream; __crec.chunks = []; __crec.active = true; __crec.spoke = false; __crec.spokeAt = 0; __crec.silenceStart = 0; __crec.aborted = false;
   // VAD: watch mic loudness; end shortly after speech stops.
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -1965,8 +1975,10 @@ async function beginConfirmRecording(onText){
       let sum = 0; for (let i = 0; i < buf.length; i++){ const v = (buf[i] - 128) / 128; sum += v * v; }
       const rms = Math.sqrt(sum / buf.length);
       const now = performance.now();
-      if (rms > 0.05){ __crec.spoke = true; __crec.silenceStart = 0; }
-      else if (__crec.spoke){ if (!__crec.silenceStart) __crec.silenceStart = now; else if (now - __crec.silenceStart > 550){ stopConfirmRecording(); return; } }
+      if (rms > CREC_SPEECH_RMS){ __crec.spoke = true; if (!__crec.spokeAt) __crec.spokeAt = now; __crec.silenceStart = 0; }
+      // Only start counting end-of-turn silence once they've been speaking a beat (grace), so a
+      // brief pause right after they start doesn't end the turn. End only after a settled silence.
+      else if (__crec.spoke && (now - __crec.spokeAt) > CREC_MIN_SPEECH_MS){ if (!__crec.silenceStart) __crec.silenceStart = now; else if (now - __crec.silenceStart > END_OF_TURN_SILENCE_MS){ stopConfirmRecording(); return; } }
       __crec.raf = requestAnimationFrame(loop);
     };
     loop(); __crec.audioCtx = ctx;
@@ -1991,8 +2003,9 @@ async function beginConfirmRecording(onText){
     } catch(e){ onText(''); }
   };
   mr.start();
-  // Hard cap: if they never answer out loud, stop and let them tap — don't hold the mic.
-  __crec.timer = setTimeout(() => { if (__crec.active) stopConfirmRecording(); }, 8000);
+  // Hard cap backstop: the turn can never hang. Long enough for a full spoken share (the old 8s
+  // could itself clip a longer thought); VAD normally ends the turn well before this.
+  __crec.timer = setTimeout(() => { if (__crec.active) stopConfirmRecording(); }, CREC_MAX_MS);
   return true;
 }
 
