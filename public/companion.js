@@ -113,7 +113,12 @@ async function rememberFromConversation(personId, rawText) {
   // silent (no toast) — the conversation was chit-chat with nothing worth remembering.
   const a = ((result && result.captures) || []).filter((c) => c.level === "A");
   if (a.length) {
-    const who = a[0].evidence || "Saved to what you remember";
+    // Her voice, not the server's evidence string: "Saved to {name}" can misread as "a message
+    // was sent." The conversation path speaks it as remembering (UX finding). The shared server
+    // evidence string + the person-card capture flow stay as-is; this override is scoped to the
+    // conversation source only. Undo stays wired below.
+    const fn = a[0].personName ? firstName(a[0].personName) : "them";
+    const who = `I'll remember that about ${fn}.`;
     showToast(who, {
       onUndo: async () => {
         for (const c of a) { try { await captureResolve(sb, { captureId: c.captureId, action: "undo" }); } catch (e) { console.error("conversation memory undo failed", e); } }
