@@ -23,7 +23,7 @@ export default async (req) => {
   try { body = await req.json(); } catch { return json(400, { error: "Invalid request." }); }
   const rawText = String(body?.rawText || "").trim();
   const lockedPersonId = body?.lockedPersonId || null;
-  const source = ["voice", "scan", "email", "typed", "import"].includes(body?.source) ? body.source : "typed";
+  const source = ["voice", "scan", "email", "typed", "import", "conversation"].includes(body?.source) ? body.source : "typed";
   // Preview mode (voice front door, TC-61): extract + resolve WHO but write NOTHING —
   // return the proposed action so the caller can confirm before we save (voice's
   // confirm-before-save bar). The held pending capture is then written by capture-resolve.

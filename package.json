@@ -9,7 +9,8 @@
     "indexnow": "node scripts/indexnow-ping.mjs",
     "test:tc49": "node --env-file=.env test/spec-tc49-memory.test.mjs",
     "test:tc49-rel": "node test/spec-tc49-relationship.test.mjs",
-    "test:tc50": "node --env-file=.env test/spec-tc50-capture.test.mjs"
+    "test:tc50": "node --env-file=.env test/spec-tc50-capture.test.mjs",
+    "test:tc66": "node --env-file=.env test/spec-tc66-conversation-write.test.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
