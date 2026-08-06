@@ -82,10 +82,14 @@
   a { color: var(--sage-deep); }
 
   .bar { display: flex; align-items: center; justify-content: space-between; padding: 22px 30px; max-width: 1080px; margin: 0 auto; }
-  .brand { font-family: 'Fraunces', serif; font-size: 23px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 11px; }
-  .brand svg { width: auto; height: 26px; flex: 0 0 auto; }
+  .brand { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 14px; }
+  .brand svg { width: auto; height: 44px; flex: 0 0 auto; }
   .bar .promise { font-size: 14px; color: var(--ink-soft); font-style: italic; font-family: 'Fraunces', serif; }
-  .bar-right { display: flex; align-items: center; gap: 16px; }
+  .bar-right { display: flex; align-items: center; gap: 16px; position: relative; }
+  .bar-menu { display: flex; align-items: center; gap: 16px; }
+  .bar-menu-toggle { display: none; background: none; border: none; padding: 8px; margin: -8px; cursor: pointer; color: var(--sage-deep); line-height: 0; border-radius: 10px; transition: background .15s ease; }
+  .bar-menu-toggle:hover { background: var(--mist); }
+  .bar-menu-toggle svg { display: block; width: 26px; height: 26px; }
   .tc-authbtn { background: var(--sage); color: #fff; border: none; padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: var(--shadow-soft); transition: background .18s ease, transform .12s ease; }
   .tc-authbtn:hover { background: var(--sage-deep); transform: translateY(-1px); }
   .tc-authbtn.ghost { background: transparent; color: var(--sage-deep); border: 1.5px solid var(--line); box-shadow: none; }
@@ -383,6 +387,26 @@
     .bar .promise { display: none; }
     .panel-body, .plan-body, .plan-head { padding-left: 22px; padding-right: 22px; }
   }
+  /* Header: collapse the right nav into a hamburger menu on phones, and keep the
+     bigger brand prominent without overflowing a narrow (~360px) screen. */
+  @media (max-width: 600px) {
+    .bar { padding: 18px 16px; }
+    .brand { font-size: 25px; gap: 11px; }
+    .brand svg { height: 38px; }
+    .bar-menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
+    .bar-menu {
+      position: absolute; top: calc(100% + 10px); right: 0; z-index: 60;
+      flex-direction: column; align-items: stretch; gap: 6px;
+      min-width: 180px; padding: 10px; background: var(--cloud);
+      border: 1px solid var(--line); border-radius: 16px; box-shadow: var(--shadow);
+      opacity: 0; transform: translateY(-6px); pointer-events: none; transition: opacity .16s ease, transform .16s ease;
+    }
+    .bar-menu.open { opacity: 1; transform: translateY(0); pointer-events: auto; }
+    .bar-menu .tc-navlink { display: block; padding: 12px 14px; border-radius: 10px; font-size: 16px; }
+    .bar-menu .tc-navlink:hover { background: var(--mist); }
+    .bar-menu #authSlot { display: block; }
+    .bar-menu #authSlot .tc-authbtn { display: block; width: 100%; text-align: center; }
+  }
   /* Voice front door (TC-51): ONE "tell us what's happening" section, two input
      methods (talk / type) as equal siblings — not two separate calls to action. */
   .hero-start { margin: 6px auto 0; }
@@ -517,10 +541,43 @@
     Thoughts Count
   </div>
   <div class="bar-right">
-    <a href="/guides/" class="tc-navlink">Guides</a>
-    <span id="authSlot"></span>
+    <button class="bar-menu-toggle" id="barMenuToggle" aria-label="Menu" aria-expanded="false" aria-controls="barMenu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
+    </button>
+    <div class="bar-menu" id="barMenu">
+      <a href="/guides/" class="tc-navlink">Guides</a>
+      <span id="authSlot"></span>
+    </div>
   </div>
 </div>
+<script>
+  // Header nav: mobile hamburger toggle for the right-side menu (Guides + auth).
+  // Desktop shows the menu inline via CSS, so this only matters at the phone
+  // breakpoint. Self-contained; no globals. Opens/closes on the toggle, closes on
+  // outside-click, Escape, or picking a menu item, and keeps aria-expanded in sync.
+  (function(){
+    var toggle = document.getElementById('barMenuToggle');
+    var menu = document.getElementById('barMenu');
+    if (!toggle || !menu) return;
+    function setOpen(open){
+      menu.classList.toggle('open', open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+    toggle.addEventListener('click', function(e){
+      e.stopPropagation();
+      setOpen(!menu.classList.contains('open'));
+    });
+    document.addEventListener('click', function(e){
+      if (menu.classList.contains('open') && !menu.contains(e.target) && e.target !== toggle) setOpen(false);
+    });
+    document.addEventListener('keydown', function(e){
+      if (e.key === 'Escape' && menu.classList.contains('open')) { setOpen(false); toggle.focus(); }
+    });
+    menu.addEventListener('click', function(e){
+      if (e.target.closest('a, button')) setOpen(false);
+    });
+  })();
+</script>
 
 <main>
   <section class="hero wrap">
