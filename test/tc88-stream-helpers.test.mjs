@@ -4,7 +4,7 @@
 // "queue drained → may open mic" feedback-loop predicate, mirrored here since it's inline in
 // index.html). All pure + offline.  Run: node test/tc88-stream-helpers.test.mjs
 import assert from "node:assert";
-import { takeSentences, extractSayPartial } from "../netlify/functions/converse.mjs";
+import { takeSentences, extractSayPartial, takeFirstEarlyChunk, EARLY_MIN_CHARS } from "../netlify/functions/converse.mjs";
 
 let pass = 0, fail = 0;
 function t(name, fn){ try { fn(); pass++; console.log(`  ok   ${name}`); } catch(e){ fail++; console.log(`  FAIL ${name} — ${e.message}`); } }
@@ -72,6 +72,116 @@ t("incremental: feeding growth only yields NEW sentences off the remainder", () 
   assert.deepStrictEqual(step("Oh no. "), ["Oh no."]);
   assert.deepStrictEqual(step("I'm sorry. "), ["I'm sorry."]);
   assert.deepStrictEqual(step("Tell me", true), ["Tell me"]);
+});
+
+console.log("\n# takeFirstEarlyChunk — the FIRST spoken chunk emits early (time-to-first-word)");
+
+t("nothing yet (empty / whitespace) → null (keep accumulating)", () => {
+  assert.strictEqual(takeFirstEarlyChunk(""), null);
+  assert.strictEqual(takeFirstEarlyChunk("   "), null);
+  assert.strictEqual(takeFirstEarlyChunk(null), null);
+});
+
+t("short fragment under threshold, no comma/sentence → null (not ready)", () => {
+  // "Oh that's" is < 35 chars, no comma, no sentence end → wait for more.
+  assert.strictEqual(takeFirstEarlyChunk("Oh that's"), null);
+});
+
+t("first comma+space fires early (before a full sentence)", () => {
+  const r = takeFirstEarlyChunk("Oh no, I'm so sorry to hear that happened.");
+  assert.strictEqual(r.chunk, "Oh no,");
+  assert.strictEqual(r.tail, " I'm so sorry to hear that happened.");
+});
+
+t("early chunk never splits mid-word (comma cut lands on the comma, tail starts at space)", () => {
+  const r = takeFirstEarlyChunk("Well, tell me more");
+  assert.strictEqual(r.chunk, "Well,");
+  assert.ok(/^\s/.test(r.tail), "tail should begin with the boundary whitespace, not mid-word");
+});
+
+t("no comma but >=35 chars → cut at the next word boundary (never mid-word)", () => {
+  // 35+ chars, no comma, no sentence end yet.
+  const s = "That sounds like it was really heavy and hard to carry";
+  const r = takeFirstEarlyChunk(s);
+  assert.ok(r, "should emit an early chunk once past the char threshold");
+  assert.ok(r.chunk.length >= EARLY_MIN_CHARS, "chunk reaches at least the min-char threshold");
+  // Reassembling chunk (trimmed) + tail must equal the source (no drop, no dup, no mid-word split).
+  assert.strictEqual((r.chunk + r.tail).replace(/\s+/g, " ").trim(), s.replace(/\s+/g, " ").trim());
+  // The boundary is a real whitespace split → the char just after the chunk in the source is space.
+  assert.ok(!/\S$/.test(r.tail[0]) || /\s/.test(r.tail[0]), "tail begins at a word boundary");
+});
+
+t("first full sentence (shorter than 35 chars, no comma) fires as the early chunk", () => {
+  const r = takeFirstEarlyChunk("Oh no. What happened next after that");
+  assert.strictEqual(r.chunk, "Oh no.");
+  assert.strictEqual(r.tail, " What happened next after that");
+});
+
+t("EARLIEST break wins: a comma before the char threshold beats the word-boundary cut", () => {
+  const s = "Okay, that is a lot to hold all at once and I hear you";
+  const r = takeFirstEarlyChunk(s);
+  assert.strictEqual(r.chunk, "Okay,"); // comma at index 4 beats the ~35-char word cut
+});
+
+t("full round-trip: early chunk + remainder streams once, no dup / no drop (mirrors server flushSay)", () => {
+  // Simulate the server: first emit uses takeFirstEarlyChunk; the rest uses takeSentences on the
+  // remainder; a consumed marker (sayEmitted) advances so each char is emitted EXACTLY once.
+  const source = "Oh no, I'm so sorry. That must have been so hard. Tell me what you need";
+  // Feed it in growing chunks the way input_json_delta arrives.
+  const deltas = ["Oh no, I'm ", "so sorry. That must ", "have been so hard. Tell ", "me what you need"];
+  let full = "", sayEmitted = "", firstEmitted = false;
+  const emitted = [];
+  const flush = (final) => {
+    let remainder = full.slice(sayEmitted.length);
+    if (!firstEmitted && !final) {
+      const early = takeFirstEarlyChunk(remainder);
+      if (early) {
+        emitted.push(early.chunk);
+        firstEmitted = true;
+        sayEmitted = full.slice(0, full.length - early.tail.length);
+        remainder = early.tail;
+      } else return;
+    }
+    const { sentences, tail } = takeSentences(remainder, { final });
+    for (const sen of sentences) { emitted.push(sen); firstEmitted = true; }
+    sayEmitted = full.slice(0, full.length - tail.length);
+  };
+  for (const d of deltas) { full += d; flush(false); }
+  flush(true);
+  // First piece is the EARLY clause; then whole sentences; the final flush covers the trailing text.
+  assert.deepStrictEqual(emitted, [
+    "Oh no,",
+    "I'm so sorry.",
+    "That must have been so hard.",
+    "Tell me what you need",
+  ]);
+  // Reassembly proves exactly-once: concatenating every emitted piece == the source (whitespace-normalized).
+  assert.strictEqual(emitted.join(" ").replace(/\s+/g, " ").trim(), source.replace(/\s+/g, " ").trim());
+});
+
+t("early gate applies ONLY to the first emit — later sentences are NOT clause-chopped", () => {
+  // After the first chunk, a long comma-laden sentence must emit whole, not split at its commas.
+  const source = "Hi. I think we should talk, gently, about what comes next now.";
+  const deltas = ["Hi. I think we should ", "talk, gently, about ", "what comes next now."];
+  let full = "", sayEmitted = "", firstEmitted = false;
+  const emitted = [];
+  const flush = (final) => {
+    let remainder = full.slice(sayEmitted.length);
+    if (!firstEmitted && !final) {
+      const early = takeFirstEarlyChunk(remainder);
+      if (early) { emitted.push(early.chunk); firstEmitted = true; sayEmitted = full.slice(0, full.length - early.tail.length); remainder = early.tail; }
+      else return;
+    }
+    const { sentences, tail } = takeSentences(remainder, { final });
+    for (const sen of sentences) { emitted.push(sen); firstEmitted = true; }
+    sayEmitted = full.slice(0, full.length - tail.length);
+  };
+  for (const d of deltas) { full += d; flush(false); }
+  flush(true);
+  assert.deepStrictEqual(emitted, [
+    "Hi.", // first sentence is the early chunk (sentence boundary before any comma/threshold)
+    "I think we should talk, gently, about what comes next now.", // NOT split at its inner commas
+  ]);
 });
 
 console.log("\n# extractSayPartial — tolerant pull of `say` from accumulating tool JSON");
