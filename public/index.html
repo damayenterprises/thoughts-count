@@ -705,42 +705,51 @@
   .tc-chat-hint { text-align:center; font-size:12px; color:var(--ink-soft,#8a8577); margin-top:10px; }
   /* TC-82 Phase 2 (2a): the spoken-mode status + "Stop voice" control under the chat. */
   .tc-cv-voicerow { display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; margin-top:10px; }
-  .tc-cv-vcue { font-size:12.5px; color:var(--ink-soft,#8a8577); } /* retained for aria-live announcements */
 
-  /* TC-88 — a PROMINENT, calm voice-state pulse (replaces the tiny low-contrast text cue). Warm
-     sanctuary: clay for her speaking, sage for your turn, a soft neutral for thinking. Icons via
-     CSS, no emoji. Calm, not flashy. Reduced-motion → a steady static state, no animation. */
-  .tc-cv-pulse { display:inline-flex; align-items:center; gap:11px; padding:7px 15px 7px 12px; border-radius:999px;
-    background:var(--mist,#eef1e9); border:1px solid transparent; transition:background .3s ease, border-color .3s ease; }
-  .tc-cv-pulse[hidden] { display:none; }
-  .tc-cv-pulse .tc-cv-orb { position:relative; width:16px; height:16px; border-radius:50%; flex:0 0 auto; }
-  .tc-cv-pulse .tc-cv-orb::before { content:""; position:absolute; inset:0; border-radius:50%; }
-  .tc-cv-pulse .tc-cv-orb::after { content:""; position:absolute; inset:0; border-radius:50%; opacity:.55; }
-  .tc-cv-plabel { font-size:13px; font-weight:700; letter-spacing:.01em; }
+  /* TC-88 — a PROMINENT, calm full-width VOICE STATE BAR at the top of the conversation panel
+     (the eye's landing zone), promoted out of the crowded footer. The WHOLE strip washes color
+     with state: clay for her speaking, sage for your turn, a soft neutral for thinking. Distinguished
+     THREE ways at once — hue + motion direction (emitting vs receiving) + a text label — so it reads
+     at a glance and for color-blind users. Icons via CSS, no emoji. Calm, big-and-slow not flashy.
+     Reduced-motion → a steady static state (tint + label only), no animation. */
+  .tc-cv-statebar { display:flex; align-items:center; gap:14px; padding:13px 26px;
+    border-bottom:1px solid var(--line,#e0d8c9); background:var(--mist,#eef1e9);
+    transition:background .35s ease; overflow:hidden; }
+  .tc-cv-statebar[hidden] { display:none; }
+  .tc-cv-statebar .tc-cv-orb { position:relative; width:26px; height:26px; border-radius:50%; flex:0 0 auto; }
+  .tc-cv-statebar .tc-cv-orb::before { content:""; position:absolute; inset:0; border-radius:50%; }
+  .tc-cv-statebar .tc-cv-orb::after { content:""; position:absolute; inset:0; border-radius:50%; opacity:.55; }
+  .tc-cv-plabel { font-size:15px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
 
-  /* Speaking — warm clay orb with a soft outward ring pulse. */
-  .tc-cv-pulse[data-state="speaking"] { background:#f6e8de; }
-  .tc-cv-pulse[data-state="speaking"] .tc-cv-orb::before { background:var(--clay,#c28a63); animation:tcCvBreathe 1.5s ease-in-out infinite; }
-  .tc-cv-pulse[data-state="speaking"] .tc-cv-orb::after { box-shadow:0 0 0 2px var(--clay,#c28a63); animation:tcCvRing 1.6s ease-out infinite; }
-  .tc-cv-pulse[data-state="speaking"] .tc-cv-plabel { color:var(--clay-deep,#a97350); }
+  /* Speaking — warm clay wash. Orb breathes (emitting) with a soft outward sound-wave shimmer. */
+  .tc-cv-statebar[data-state="speaking"] { background:#f6e8de; }
+  .tc-cv-statebar[data-state="speaking"] .tc-cv-orb::before { background:var(--clay,#c28a63); animation:tcCvBreathe 1.6s ease-in-out infinite; }
+  .tc-cv-statebar[data-state="speaking"] .tc-cv-orb::after { box-shadow:0 0 0 3px var(--clay,#c28a63); animation:tcCvShimmer 1.7s ease-out infinite; }
+  .tc-cv-statebar[data-state="speaking"] .tc-cv-plabel { color:var(--clay-deep,#a97350); }
 
-  /* Listening — sage mic-ring pulse (your turn). */
-  .tc-cv-pulse[data-state="listening"] { background:#e8eede; }
-  .tc-cv-pulse[data-state="listening"] .tc-cv-orb::before { background:var(--sage,#7d8a68); animation:tcCvBreathe 1.7s ease-in-out infinite; }
-  .tc-cv-pulse[data-state="listening"] .tc-cv-orb::after { box-shadow:0 0 0 2px var(--sage,#7d8a68); animation:tcCvRing 1.8s ease-out infinite; }
-  .tc-cv-pulse[data-state="listening"] .tc-cv-plabel { color:var(--sage-deep,#5f6c4c); }
+  /* Listening (your turn) — sage wash. Orb pulses an OUTWARD mic-ripple (receiving), a motion that
+     reads DIFFERENTLY from Speaking's tight shimmer: it travels further out, like taking sound in. */
+  .tc-cv-statebar[data-state="listening"] { background:#e8eede; }
+  .tc-cv-statebar[data-state="listening"] .tc-cv-orb::before { background:var(--sage,#7d8a68); animation:tcCvBreathe 1.8s ease-in-out infinite; }
+  .tc-cv-statebar[data-state="listening"] .tc-cv-orb::after { box-shadow:0 0 0 2px var(--sage,#7d8a68); animation:tcCvRing 1.9s ease-out infinite; }
+  .tc-cv-statebar[data-state="listening"] .tc-cv-plabel { color:var(--sage-deep,#5f6c4c); }
 
-  /* Thinking — a subtle calm neutral breathe, no expanding ring. */
-  .tc-cv-pulse[data-state="thinking"] { background:var(--mist,#eef1e9); }
-  .tc-cv-pulse[data-state="thinking"] .tc-cv-orb::before { background:var(--ink-soft,#8a8577); animation:tcCvBreathe 2.1s ease-in-out infinite; }
-  .tc-cv-pulse[data-state="thinking"] .tc-cv-plabel { color:var(--ink-soft,#5f6b60); }
+  /* Thinking — a subtle calm neutral mist, one slow single breath, no ripple. */
+  .tc-cv-statebar[data-state="thinking"] { background:var(--mist,#eef1e9); }
+  .tc-cv-statebar[data-state="thinking"] .tc-cv-orb::before { background:var(--ink-soft,#8a8577); animation:tcCvBreathe 2.1s ease-in-out infinite; }
+  .tc-cv-statebar[data-state="thinking"] .tc-cv-orb::after { opacity:0; }
+  .tc-cv-statebar[data-state="thinking"] .tc-cv-plabel { color:var(--ink-soft,#5f6b60); }
 
   @keyframes tcCvBreathe { 0%,100% { transform:scale(.72); opacity:.85; } 50% { transform:scale(1); opacity:1; } }
-  @keyframes tcCvRing { 0% { transform:scale(.7); opacity:.5; } 70% { opacity:0; } 100% { transform:scale(2.1); opacity:0; } }
+  /* Listening ripple travels far OUT (receiving). */
+  @keyframes tcCvRing { 0% { transform:scale(.7); opacity:.5; } 70% { opacity:0; } 100% { transform:scale(2.6); opacity:0; } }
+  /* Speaking shimmer stays close + soft (emitting a gentle sound wave), distinct from the ripple. */
+  @keyframes tcCvShimmer { 0% { transform:scale(.9); opacity:.5; } 60% { opacity:0; } 100% { transform:scale(1.7); opacity:0; } }
   @media (prefers-reduced-motion: reduce) {
-    .tc-cv-pulse .tc-cv-orb::before, .tc-cv-pulse .tc-cv-orb::after { animation:none !important; }
-    .tc-cv-pulse .tc-cv-orb::before { transform:scale(.9); opacity:1; }
-    .tc-cv-pulse .tc-cv-orb::after { opacity:0; } /* no expanding ring; steady static state */
+    /* Drop shimmer/ripple/breathe; rely on the full-width TINT + LABEL (both static) to distinguish. */
+    .tc-cv-statebar .tc-cv-orb::before, .tc-cv-statebar .tc-cv-orb::after { animation:none !important; }
+    .tc-cv-statebar .tc-cv-orb::before { transform:scale(.9); opacity:1; }
+    .tc-cv-statebar .tc-cv-orb::after { opacity:0; } /* no expanding ring/shimmer; steady static state */
   }
 </style>
 
@@ -755,6 +764,15 @@
       <button class="close" onclick="closeFlow()" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="progress"><div class="fill" id="progressFill"></div></div>
+    <!-- TC-88: the prominent full-width voice-state bar. Lives at the TOP of the panel (above the
+         scrolling chat log) so the founder always sees it. Shown only in VOICE mode when a state is
+         active; hidden in typed mode and when voice isn't active. The visually-hidden aria-live span
+         is the dedicated SR mirror (state announced once) — NOT on the churning bar itself. -->
+    <div class="tc-cv-statebar" id="cvStateBar" hidden>
+      <span class="tc-cv-orb" aria-hidden="true"></span>
+      <span class="tc-cv-plabel" id="cvStateLabel"></span>
+      <span id="cvVoiceCue" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;"></span>
+    </div>
     <div id="stage"></div>
   </div>
 </div>
@@ -1502,6 +1520,9 @@ window.openConverseForPerson = openConverseForPerson;
 
 function renderConverse(){
   stopRecordingIfAny();
+  // TC-88: the voice-state bar is persistent (lives in the panel, not the stage). Reset it hidden on
+  // every open so it never leaks into a typed conversation; voice mode re-arms it via cvRenderVoiceCue.
+  cvVoiceCue('');
   stage.innerHTML = `
     <div class="tc-chat">
       <div class="tc-chat-log" id="cvLog"></div>
@@ -1538,18 +1559,14 @@ function renderConverse(){
 // TC-82 Phase 2: the calm spoken-mode cue + a "Stop voice" control under the chat. Tap ends the
 // hands-free loop (aborts TTS + mic) and drops the user to typing — never leaves a hung mic.
 function cvRenderVoiceCue(){
+  // TC-88: the state indicator itself now lives in the persistent full-width bar at the TOP of the
+  // panel (#cvStateBar), driven by cvVoiceCue(). Here we only place the "Stop voice" control in the
+  // footer (alongside the make-plan link). The top bar starts hidden until a state goes active.
+  const bar = document.getElementById('cvStateBar'); if (bar){ bar.hidden = true; bar.removeAttribute('data-state'); }
   const foot = document.getElementById('cvFoot'); if (!foot || foot.querySelector('#cvVoiceRow')) return;
   const row = document.createElement('div');
   row.id = 'cvVoiceRow'; row.className = 'tc-cv-voicerow';
-  // TC-88: a prominent, calm pulse for the voice state (clay speaking / sage your-turn / neutral
-  // thinking) + a visually-hidden aria-live span so screen readers still hear the state change.
-  row.innerHTML =
-    '<span class="tc-cv-pulse" id="cvVoicePulse" hidden>' +
-      '<span class="tc-cv-orb" aria-hidden="true"></span>' +
-      '<span class="tc-cv-plabel" id="cvVoicePulseLabel"></span>' +
-    '</span>' +
-    '<span class="tc-cv-vcue" id="cvVoiceCue" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;"></span>' +
-    '<button type="button" class="link-btn" id="cvStopVoice">Stop voice</button>';
+  row.innerHTML = '<button type="button" class="link-btn" id="cvStopVoice">Stop voice</button>';
   foot.appendChild(row);
   const stop = document.getElementById('cvStopVoice');
   if (stop) stop.onclick = () => { cvStopVoice(); const i = document.getElementById('cvInput'); if (i){ try { i.focus(); } catch(e){} } };
@@ -1560,15 +1577,15 @@ function cvRenderVoiceCue(){
 // mirror so the state is still announced to screen readers. Labels use a comma, never an em-dash
 // (portfolio copy rule).
 function cvVoiceCue(state){
-  const pulse = document.getElementById('cvVoicePulse');
-  const label = document.getElementById('cvVoicePulseLabel');
+  const bar = document.getElementById('cvStateBar');
+  const label = document.getElementById('cvStateLabel');
   const sr = document.getElementById('cvVoiceCue');
   const LABELS = { speaking: 'Speaking', listening: 'Listening, your turn', thinking: 'One sec' };
   const SR = { speaking: 'She’s speaking.', listening: 'Listening, your turn to speak or type below.', thinking: 'One sec.' };
   const known = state === 'speaking' || state === 'listening' || state === 'thinking';
-  if (pulse){
-    if (known){ pulse.setAttribute('data-state', state); pulse.hidden = false; }
-    else { pulse.hidden = true; pulse.removeAttribute('data-state'); }
+  if (bar){
+    if (known){ bar.setAttribute('data-state', state); bar.hidden = false; }
+    else { bar.hidden = true; bar.removeAttribute('data-state'); }
   }
   if (label) label.textContent = known ? LABELS[state] : '';
   if (sr) sr.textContent = known ? SR[state] : '';
