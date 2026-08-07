@@ -704,8 +704,53 @@
   .tc-makeplan:hover { text-decoration:underline; }
   .tc-chat-hint { text-align:center; font-size:12px; color:var(--ink-soft,#8a8577); margin-top:10px; }
   /* TC-82 Phase 2 (2a): the spoken-mode status + "Stop voice" control under the chat. */
-  .tc-cv-voicerow { display:flex; align-items:center; justify-content:center; gap:12px; flex-wrap:wrap; margin-top:8px; }
-  .tc-cv-vcue { font-size:12.5px; color:var(--ink-soft,#8a8577); }
+  .tc-cv-voicerow { display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; margin-top:10px; }
+
+  /* TC-88 — a PROMINENT, calm full-width VOICE STATE BAR at the top of the conversation panel
+     (the eye's landing zone), promoted out of the crowded footer. The WHOLE strip washes color
+     with state: clay for her speaking, sage for your turn, a soft neutral for thinking. Distinguished
+     THREE ways at once — hue + motion direction (emitting vs receiving) + a text label — so it reads
+     at a glance and for color-blind users. Icons via CSS, no emoji. Calm, big-and-slow not flashy.
+     Reduced-motion → a steady static state (tint + label only), no animation. */
+  .tc-cv-statebar { display:flex; align-items:center; gap:14px; padding:13px 26px;
+    border-bottom:1px solid var(--line,#e0d8c9); background:var(--mist,#eef1e9);
+    transition:background .35s ease; overflow:hidden; }
+  .tc-cv-statebar[hidden] { display:none; }
+  .tc-cv-statebar .tc-cv-orb { position:relative; width:26px; height:26px; border-radius:50%; flex:0 0 auto; }
+  .tc-cv-statebar .tc-cv-orb::before { content:""; position:absolute; inset:0; border-radius:50%; }
+  .tc-cv-statebar .tc-cv-orb::after { content:""; position:absolute; inset:0; border-radius:50%; opacity:.55; }
+  .tc-cv-plabel { font-size:15px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
+
+  /* Speaking — warm clay wash. Orb breathes (emitting) with a soft outward sound-wave shimmer. */
+  .tc-cv-statebar[data-state="speaking"] { background:#f6e8de; }
+  .tc-cv-statebar[data-state="speaking"] .tc-cv-orb::before { background:var(--clay,#c28a63); animation:tcCvBreathe 1.6s ease-in-out infinite; }
+  .tc-cv-statebar[data-state="speaking"] .tc-cv-orb::after { box-shadow:0 0 0 3px var(--clay,#c28a63); animation:tcCvShimmer 1.7s ease-out infinite; }
+  .tc-cv-statebar[data-state="speaking"] .tc-cv-plabel { color:var(--clay-deep,#a97350); }
+
+  /* Listening (your turn) — sage wash. Orb pulses an OUTWARD mic-ripple (receiving), a motion that
+     reads DIFFERENTLY from Speaking's tight shimmer: it travels further out, like taking sound in. */
+  .tc-cv-statebar[data-state="listening"] { background:#e8eede; }
+  .tc-cv-statebar[data-state="listening"] .tc-cv-orb::before { background:var(--sage,#7d8a68); animation:tcCvBreathe 1.8s ease-in-out infinite; }
+  .tc-cv-statebar[data-state="listening"] .tc-cv-orb::after { box-shadow:0 0 0 2px var(--sage,#7d8a68); animation:tcCvRing 1.9s ease-out infinite; }
+  .tc-cv-statebar[data-state="listening"] .tc-cv-plabel { color:var(--sage-deep,#5f6c4c); }
+
+  /* Thinking — a subtle calm neutral mist, one slow single breath, no ripple. */
+  .tc-cv-statebar[data-state="thinking"] { background:var(--mist,#eef1e9); }
+  .tc-cv-statebar[data-state="thinking"] .tc-cv-orb::before { background:var(--ink-soft,#8a8577); animation:tcCvBreathe 2.1s ease-in-out infinite; }
+  .tc-cv-statebar[data-state="thinking"] .tc-cv-orb::after { opacity:0; }
+  .tc-cv-statebar[data-state="thinking"] .tc-cv-plabel { color:var(--ink-soft,#5f6b60); }
+
+  @keyframes tcCvBreathe { 0%,100% { transform:scale(.72); opacity:.85; } 50% { transform:scale(1); opacity:1; } }
+  /* Listening ripple travels far OUT (receiving). */
+  @keyframes tcCvRing { 0% { transform:scale(.7); opacity:.5; } 70% { opacity:0; } 100% { transform:scale(2.6); opacity:0; } }
+  /* Speaking shimmer stays close + soft (emitting a gentle sound wave), distinct from the ripple. */
+  @keyframes tcCvShimmer { 0% { transform:scale(.9); opacity:.5; } 60% { opacity:0; } 100% { transform:scale(1.7); opacity:0; } }
+  @media (prefers-reduced-motion: reduce) {
+    /* Drop shimmer/ripple/breathe; rely on the full-width TINT + LABEL (both static) to distinguish. */
+    .tc-cv-statebar .tc-cv-orb::before, .tc-cv-statebar .tc-cv-orb::after { animation:none !important; }
+    .tc-cv-statebar .tc-cv-orb::before { transform:scale(.9); opacity:1; }
+    .tc-cv-statebar .tc-cv-orb::after { opacity:0; } /* no expanding ring/shimmer; steady static state */
+  }
 </style>
 
 <!-- ================= CONVERSATION MODAL ================= -->
@@ -719,6 +764,15 @@
       <button class="close" onclick="closeFlow()" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="progress"><div class="fill" id="progressFill"></div></div>
+    <!-- TC-88: the prominent full-width voice-state bar. Lives at the TOP of the panel (above the
+         scrolling chat log) so the founder always sees it. Shown only in VOICE mode when a state is
+         active; hidden in typed mode and when voice isn't active. The visually-hidden aria-live span
+         is the dedicated SR mirror (state announced once) — NOT on the churning bar itself. -->
+    <div class="tc-cv-statebar" id="cvStateBar" hidden>
+      <span class="tc-cv-orb" aria-hidden="true"></span>
+      <span class="tc-cv-plabel" id="cvStateLabel"></span>
+      <span id="cvVoiceCue" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;"></span>
+    </div>
     <div id="stage"></div>
   </div>
 </div>
@@ -1096,6 +1150,9 @@ function warmVoiceFns(){
     __voiceWarmedAt = now;
     fetch('/api/transcribe', { method: 'GET', cache: 'no-store' }).catch(() => {});
     fetch('/api/speak', { method: 'GET', cache: 'no-store' }).catch(() => {});
+    // TC-88: also wake /api/converse so the first spoken turn doesn't pay a converse cold start.
+    // A GET returns 405 cleanly (method_not_allowed, no body parsed) but still loads the container.
+    fetch('/api/converse', { method: 'GET', cache: 'no-store' }).catch(() => {});
   } catch(e){}
 }
 
@@ -1381,6 +1438,15 @@ let __cv = { messages: [], busy: false, voice: false };
 // instant the user types, taps "Stop voice", makes the plan, or the conversation closes — so a
 // late TTS-ended or transcribe callback can't reopen the mic behind the user's back.
 let __cvVoiceActive = false;
+// TC-88: the streaming voice turn. When she replies by voice we stream her reply and speak it
+// sentence-by-sentence as it generates (she starts sentence 1 while the rest is still written).
+// __cvStreamCtrl aborts the in-flight fetch on any exit; __cvSpeak holds the strictly-sequential
+// speak-queue so she never talks over herself, and the mic opens ONLY after ALL of it has drained.
+let __cvStreamCtrl = null; // AbortController for the in-flight /api/converse stream
+let __cvSpeak = null;      // { queue:[], playing, replyDone, onAllDone, gen } — the speak-queue
+// Each streaming turn gets a fresh generation id; late callbacks from an aborted/superseded turn
+// compare against this and no-op, so stopping is clean even mid-flight.
+let __cvStreamGen = 0;
 // Her opening line — warm, invites the moment, plain punctuation (placeholder copy; will
 // live in the character bible / can be served in her voice later).
 const CV_OPENER = "Tell me who's on your mind, and what's happening for them. I'll help you show up for them.";
@@ -1454,6 +1520,9 @@ window.openConverseForPerson = openConverseForPerson;
 
 function renderConverse(){
   stopRecordingIfAny();
+  // TC-88: the voice-state bar is persistent (lives in the panel, not the stage). Reset it hidden on
+  // every open so it never leaks into a typed conversation; voice mode re-arms it via cvRenderVoiceCue.
+  cvVoiceCue('');
   stage.innerHTML = `
     <div class="tc-chat">
       <div class="tc-chat-log" id="cvLog"></div>
@@ -1490,23 +1559,36 @@ function renderConverse(){
 // TC-82 Phase 2: the calm spoken-mode cue + a "Stop voice" control under the chat. Tap ends the
 // hands-free loop (aborts TTS + mic) and drops the user to typing — never leaves a hung mic.
 function cvRenderVoiceCue(){
+  // TC-88: the state indicator itself now lives in the persistent full-width bar at the TOP of the
+  // panel (#cvStateBar), driven by cvVoiceCue(). Here we only place the "Stop voice" control in the
+  // footer (alongside the make-plan link). The top bar starts hidden until a state goes active.
+  const bar = document.getElementById('cvStateBar'); if (bar){ bar.hidden = true; bar.removeAttribute('data-state'); }
   const foot = document.getElementById('cvFoot'); if (!foot || foot.querySelector('#cvVoiceRow')) return;
   const row = document.createElement('div');
   row.id = 'cvVoiceRow'; row.className = 'tc-cv-voicerow';
-  row.innerHTML = '<span class="tc-cv-vcue" id="cvVoiceCue" aria-live="polite"></span>' +
-    '<button type="button" class="link-btn" id="cvStopVoice">Stop voice</button>';
+  row.innerHTML = '<button type="button" class="link-btn" id="cvStopVoice">Stop voice</button>';
   foot.appendChild(row);
   const stop = document.getElementById('cvStopVoice');
   if (stop) stop.onclick = () => { cvStopVoice(); const i = document.getElementById('cvInput'); if (i){ try { i.focus(); } catch(e){} } };
 }
-// The one-line spoken-mode status ('speaking' / 'listening' / 'thinking'). Purely cosmetic;
-// the real guard is the callback ordering in cvSpeakThenListen, not this text.
+// The spoken-mode status ('speaking' / 'listening' / 'thinking' / '' = hidden). Purely cosmetic;
+// the real guard is the callback ordering in cvSpeakThenListen, not this. TC-88: drives the calm
+// PULSE (clay speaking / sage your-turn / neutral thinking) and keeps a visually-hidden aria-live
+// mirror so the state is still announced to screen readers. Labels use a comma, never an em-dash
+// (portfolio copy rule).
 function cvVoiceCue(state){
-  const el = document.getElementById('cvVoiceCue'); if (!el) return;
-  if (state === 'speaking') el.textContent = 'She’s speaking…';
-  else if (state === 'listening') el.textContent = 'Listening—speak, or type below';
-  else if (state === 'thinking') el.textContent = 'One sec…';
-  else el.textContent = '';
+  const bar = document.getElementById('cvStateBar');
+  const label = document.getElementById('cvStateLabel');
+  const sr = document.getElementById('cvVoiceCue');
+  const LABELS = { speaking: 'Speaking', listening: 'Listening, your turn', thinking: 'One sec' };
+  const SR = { speaking: 'She’s speaking.', listening: 'Listening, your turn to speak or type below.', thinking: 'One sec.' };
+  const known = state === 'speaking' || state === 'listening' || state === 'thinking';
+  if (bar){
+    if (known){ bar.setAttribute('data-state', state); bar.hidden = false; }
+    else { bar.hidden = true; bar.removeAttribute('data-state'); }
+  }
+  if (label) label.textContent = known ? LABELS[state] : '';
+  if (sr) sr.textContent = known ? SR[state] : '';
 }
 
 function cvAppend(role, text){
@@ -1588,6 +1670,307 @@ function speakSafeText(text, cap){
 }
 if (typeof window !== 'undefined') window.__tcSpeakSafeText = speakSafeText; // test hook (no behavior change)
 
+// TC-88 — THE STREAMING VOICE TURN. She speaks sentence-by-sentence as she generates. Two pieces:
+//   1) a strictly-sequential speak-queue (one sentence's audio at a time — never overlaps), and
+//   2) a stream reader that enqueues each {t:"say"} the instant it arrives, so sentence 1 plays
+//      while sentence 2 is still being written.
+// THE FEEDBACK-LOOP GUARD moves from "one utterance ended" to "ALL queued speech has drained":
+// the mic opens only after reply_done AND the queue is empty AND the last sentence's playback ended.
+
+// Pure, testable predicate: given the speak-queue state, may we open the mic? Only when the stream
+// said the reply is fully done, nothing is queued, and nothing is currently playing.
+function cvMayOpenMic(sp){
+  return !!(sp && sp.replyDone && !sp.playing && sp.queue.length === 0);
+}
+if (typeof window !== 'undefined') window.__tcMayOpenMic = cvMayOpenMic; // test hook
+
+// Reset/allocate the speak-queue for a new streaming turn. gen ties every async callback to THIS
+// turn; if the turn is aborted or superseded, stale callbacks compare gen and no-op.
+// TC-88: `ctrl` is ONE AbortController for every pre-fetch this turn kicks off (each sentence's
+// /api/speak fires the instant it's enqueued, in parallel), so cvStopVoice can cancel them all at
+// once — no orphaned TTS fetches. `urls` tracks the object URLs to revoke on teardown.
+function cvNewSpeak(gen){
+  return { gen, queue: [], playing: false, replyDone: false, drained: false, ctrl: new AbortController(), urls: [] };
+}
+
+// Enqueue one sentence — and PRE-GENERATE its audio right now (gapless playback). The moment a
+// sentence streams in we split it into speakable chunks and fire ALL their /api/speak requests in
+// parallel (via sp.ctrl so cvStopVoice cancels them), storing the in-flight clip promises WITH the
+// queued item. By the time the previous sentence finishes playing, this one's audio is already
+// ready — the ~1s inter-sentence dead gap is gone. The pump only PLAYS; it never fetches.
+function cvEnqueueSay(sp, text){
+  if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+  // `reveal` is the untruncated sentence text shown in her bubble (text must ALWAYS end up fully
+  // shown); `t` is the (rarely) speak-capped version actually sent to TTS.
+  const reveal = String(text == null ? '' : text).trim();
+  const t = speakSafeText(text, 400);
+  if (!t){ if (reveal) cvRevealSentence(reveal); return; }
+  if (!ttsAvailable()){
+    // Degraded / no-voice path: we're not actually speaking, so reveal the text immediately as it
+    // streams (never lose text), and queue an empty item so the drain/mic logic still runs.
+    cvRevealSentence(reveal);
+    sp.queue.push({ text: t, reveal, revealed: true, clips: [] });
+    cvPumpSpeak(sp);
+    return;
+  }
+  // TC-88: speak the whole sentence as ONE flowing clip (like the opener) — only a very long
+  // sentence is split. Fire each clip's TTS off immediately, in parallel. A failed/aborted fetch
+  // resolves to null so playback degrades gracefully (skips that clip) without hanging the queue.
+  const chunks = splitSentenceForSpeech(t);
+  const clips = chunks.map(c => fetchClip(c, sp.ctrl.signal).catch(() => null));
+  sp.queue.push({ text: t, reveal, revealed: false, clips });
+  cvPumpSpeak(sp);
+}
+// The pump: if idle and a sentence is queued, PLAY its pre-fetched clips in order (awaiting each
+// stored promise, which is usually already resolved), one audio at a time — strictly serial, in
+// order, no overlap. Meanwhile later sentences' audio keeps generating in parallel. When the queue
+// empties AND the reply is done, that's "all speech drained" → open the mic (the feedback guard).
+function cvPumpSpeak(sp){
+  if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+  if (sp.playing) return;                     // one audio at a time — no overlap
+  if (sp.queue.length === 0){                 // nothing to play right now
+    if (cvMayOpenMic(sp)) cvSpeakDrained(sp);  // reply fully spoken → open the mic
+    return;
+  }
+  const next = sp.queue.shift();
+  sp.playing = true;
+  cvVoiceCue('speaking');
+  cvPlaySentence(sp, next).then(() => {
+    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive){ return; } // aborted/superseded → stop
+    sp.playing = false;
+    cvPumpSpeak(sp); // next sentence, or (if drained + done) open the mic
+  });
+}
+// Play ONE queued sentence's pre-fetched clips, strictly in order on the shared <audio> element.
+// Awaits each stored clip promise (already resolved in the gapless case); a null clip (failed/
+// aborted fetch) is skipped so a single bad chunk never blocks the rest. Resolves when the whole
+// sentence has played (or been aborted). No fetching happens here — that was done at enqueue.
+async function cvPlaySentence(sp, item){
+  const a = getTtsAudio();
+  // TC-88: reveal this sentence's TEXT in step with her VOICE — at the moment its audio starts
+  // playing, not ahead of it. So her words appear as she speaks them (conversational), not printed
+  // like a script the user reads before hearing her. Fail-safe: if no clip plays (all failed) the
+  // reveal still runs in the finally below, so text is NEVER lost.
+  // Reveal ONLY while this turn is still the live one — a stopped/superseded turn's bubble is being
+  // discarded, so late reveals must not pollute a fresh turn's bubble. Within the live turn, the
+  // fail-safe guarantees text always shows even if every clip fails (the finally below).
+  let revealed = false;
+  const reveal = () => {
+    if (revealed || item.revealed) return;
+    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return; // turn torn down → skip (bubble gone)
+    revealed = true; item.revealed = true; cvRevealSentence(item.reveal);
+  };
+  try {
+    for (let i = 0; i < item.clips.length; i++){
+      if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return; // stopped/superseded → stop
+      let url = null;
+      try { url = await item.clips[i]; } catch(e){ url = null; }
+      if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+      if (!url) continue; // this chunk failed → skip it, keep the sentence flowing
+      sp.urls.push(url);
+      reveal(); // first real clip about to play → reveal the sentence's text now (in step with voice)
+      await playClipOn(a, url, /* waitBuffer */ false);
+    }
+  } finally {
+    // Fail-safe: no clips / all clips failed but the turn is still live → text ALWAYS ends up shown.
+    reveal();
+  }
+}
+// Fires once, after the LAST sentence's playback fully ends and the reply is done. A short pause
+// keeps any audio tail out of the recording, then the mic opens — the feedback-loop guard, now
+// keyed on the whole queue draining rather than a single utterance.
+function cvSpeakDrained(sp){
+  if (sp.drained) return; sp.drained = true;
+  setTimeout(() => {
+    if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
+    cvVoiceListen();
+  }, 300);
+}
+
+// Read the NDJSON event stream and drive the speak-queue. Called from cvTurn's voice branch.
+// Guardrails: an AbortController (stored globally so cvStopVoice can kill it), a client read-timeout
+// so a dead stream can't hang, and graceful degradation — if the stream errors before she says
+// anything, fall back to the existing non-streaming reply (cvSpeakThenListen).
+const CV_STREAM_TIMEOUT_MS = 25000; // no bytes for this long → give up on the stream and degrade
+async function cvStreamReply(ctx, force){
+  const gen = ++__cvStreamGen;
+  const sp = cvNewSpeak(gen);
+  __cvSpeak = sp;
+  const ctrl = new AbortController();
+  __cvStreamCtrl = ctrl;
+  let timer = null;
+  const armTimeout = () => { if (timer) clearTimeout(timer); timer = setTimeout(() => { try { ctrl.abort(); } catch(e){} }, CV_STREAM_TIMEOUT_MS); };
+  let gotAny = false;   // did we emit any sentence? (governs degrade-to-nonstream)
+  let sawEvent = false; // did any well-formed event arrive?
+  let readyAnswers = null;
+  // Accumulate her sentences into ONE assistant history message (not one per sentence), so the
+  // conversation history stays identical in shape to the non-stream path.
+  let herMsg = null;
+  const recordSay = (text) => {
+    if (!herMsg){ herMsg = { role: 'assistant', content: text }; __cv.messages.push(herMsg); }
+    else { herMsg.content = herMsg.content + ' ' + text; }
+  };
+
+  try {
+    armTimeout();
+    const r = await fetch('/api/converse', {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx, stream: true }),
+      signal: ctrl.signal,
+    });
+    if (!r.ok || !r.body) throw new Error('stream ' + (r && r.status));
+    const reader = r.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+    for (;;){
+      const { value, done } = await reader.read();
+      if (done) break;
+      if (gen !== __cvStreamGen || !__cvVoiceActive) break; // superseded / stopped → stop reading
+      armTimeout();
+      buf += decoder.decode(value, { stream: true });
+      let nl;
+      while ((nl = buf.indexOf('\n')) >= 0){
+        const line = buf.slice(0, nl).trim();
+        buf = buf.slice(nl + 1);
+        if (!line) continue;
+        let evt; try { evt = JSON.parse(line); } catch(e){ continue; }
+        sawEvent = true;
+        if (evt.t === 'say' && evt.text){
+          gotAny = true;
+          if (gen !== __cvStreamGen || !__cvVoiceActive) break;
+          recordSay(evt.text);        // keep history in lockstep (one assistant message per reply)
+          // TC-88: do NOT reveal the text here (that printed her words ahead of her voice, like a
+          // script). cvEnqueueSay reveals each sentence in step with its audio (or immediately in the
+          // degraded/no-TTS path). Text always ends up fully shown.
+          cvEnqueueSay(sp, evt.text); // speak it in order + reveal its text in sync with the audio
+        } else if (evt.t === 'reply_done'){
+          sp.replyDone = true;
+          cvPumpSpeak(sp); // if the queue already drained, this opens the mic
+        } else if (evt.t === 'ready'){
+          readyAnswers = evt.answers || {};
+        } else if (evt.t === 'error'){
+          throw new Error('stream_error');
+        }
+      }
+    }
+  } catch(e){
+    if (timer){ clearTimeout(timer); timer = null; }
+    // Aborted by cvStopVoice / supersede → nothing more to do (state already torn down).
+    if (gen !== __cvStreamGen || !__cvVoiceActive) return;
+    __cvStreamCtrl = null;
+    cvSetBusy(false);
+    // Degrade: if she never spoke a sentence, fall back to the non-streaming reply so the turn is
+    // retryable and the conversation never breaks. If she'd already started speaking, let what
+    // arrived play out, then reopen the mic (don't restart her mid-thought).
+    if (!gotAny){ cvFallbackReply(force); return; }
+    sp.replyDone = true; cvPumpSpeak(sp);
+    return;
+  }
+  if (timer){ clearTimeout(timer); timer = null; }
+  __cvStreamCtrl = null;
+  cvSetBusy(false);
+  if (gen !== __cvStreamGen || !__cvVoiceActive) return;
+
+  // Ready handoff (she called `ready`, not reply): stop the voice loop, speak a short handoff, then
+  // generate() — byte-identical to the non-stream ready branch in cvTurn.
+  if (readyAnswers){
+    cvHandleReady(readyAnswers);
+    return;
+  }
+  // The stream closed. Make sure the "reply is done" flag is set so a fully-drained queue opens the
+  // mic (covers a stream that ended without an explicit reply_done). If she never said anything at
+  // all (no say, no ready), degrade to the non-streaming reply.
+  if (!gotAny){
+    if (sawEvent){ cvFallbackReply(force); }
+    else { cvFallbackReply(force); }
+    return;
+  }
+  sp.replyDone = true; cvPumpSpeak(sp);
+}
+
+// Non-streaming fallback: one normal /api/converse call, then speak via cvSpeakThenListen (the
+// pre-TC-88 path). Used when the stream errors before she spoke. Keeps the conversation alive.
+async function cvFallbackReply(force){
+  if (!__cvVoiceActive) return;
+  const ctx = cvBuildCtx();
+  let d;
+  try {
+    const r = await fetch('/api/converse', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });
+    d = await r.json();
+  } catch(e){
+    if (!__cvVoiceActive) return;
+    const line = "I lost you for a second there. Could you try that again?";
+    cvAppend('her', line);
+    cvSpeakThenListen(line, false);
+    return;
+  }
+  if (!__cvVoiceActive) return;
+  if (d && d.action === 'ready' && d.answers){ cvHandleReady(d.answers); return; }
+  if (d && d.action === 'reply' && d.say){
+    __cv.messages.push({ role: 'assistant', content: d.say });
+    cvAppend('her', d.say);
+    cvSpeakThenListen(d.say, false);
+    return;
+  }
+  const oops = "Sorry, I drifted for a second. What's going on?";
+  cvAppend('her', oops);
+  cvSpeakThenListen(oops, false);
+}
+
+// The ready handoff, shared by the stream + fallback paths. Identical behavior to cvTurn's ready
+// branch: distill → generate() (unchanged) → remember-from-conversation, with a short spoken line.
+function cvHandleReady(ans){
+  for (const k in answers) delete answers[k];
+  Object.assign(answers, ans);
+  try { window.tcTrack && tcTrack('converse_ready', { turns: __cv.messages.length }); } catch(e){}
+  __cvVoiceActive = false; // stop the listen loop; let the handoff line play out
+  __cvStreamGen++;         // invalidate any pending speak-queue callback
+  cvVoiceCue('thinking');
+  // TC-88: cancel any pre-generated sentence TTS still in flight + revoke its URLs before the
+  // handoff line, so nothing orphaned keeps generating or plays over "Let me put this together."
+  if (__cvSpeak){
+    try { if (__cvSpeak.ctrl) __cvSpeak.ctrl.abort(); } catch(e){}
+    try { (__cvSpeak.urls || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); } catch(e){}
+    __cvSpeak.queue = []; __cvSpeak.playing = false; __cvSpeak = null;
+  }
+  try { cancelSpeech(); } catch(e){} // clear any queued sentence audio before the handoff line
+  speakPrompt("Let me put this together.", () => {});
+  generate();
+  rememberFromConversation();
+}
+
+// Append a streamed sentence to her growing bubble: reuse the last 'her' streaming bubble if this
+// turn already started one, else create it — so a multi-sentence reply reads as one message.
+let __cvStreamBubble = null;
+function cvAppendStream(text){
+  const log = document.getElementById('cvLog'); if (!log) return;
+  if (!__cvStreamBubble || __cvStreamBubble.parentNode !== log){
+    __cvStreamBubble = document.createElement('div');
+    __cvStreamBubble.className = 'tc-bubble her';
+    __cvStreamBubble.textContent = '';
+    log.appendChild(__cvStreamBubble);
+  }
+  const cur = __cvStreamBubble.textContent;
+  __cvStreamBubble.textContent = cur ? (cur + ' ' + String(text || '')) : String(text || '');
+  log.scrollTop = log.scrollHeight;
+}
+// TC-88: reveal ONE sentence's text into her growing bubble. Called at the moment the sentence's
+// audio starts playing (so text tracks her voice), or immediately in the degraded/typed path. Idempotent
+// callers guard against a double reveal; this is a thin, named wrapper over cvAppendStream.
+function cvRevealSentence(text){ cvAppendStream(text); }
+
+// Build the RLS-scoped context object (name/relationship/location/facts/priorPlans) — factored so
+// the stream, fallback, and typed paths all assemble it identically.
+function cvBuildCtx(){
+  return flowPerson ? {
+    name: flowPerson.name || '',
+    relationship: flowPerson.relationship || '',
+    location: flowPerson.location || '',
+    facts: Array.isArray(flowPerson.noticed) ? flowPerson.noticed : [],
+    priorPlans: priorPlansDigest(flowPerson),
+  } : undefined;
+}
+
 // TC-82 Phase 2 (2a) — THE FEEDBACK-LOOP GUARD, in one place. Speak `text`, and open the mic
 // ONLY from speakPrompt's onDone (which fires after the whole utterance's playback has ended,
 // or on a speak failure so the flow never stalls). We never call the listen step on a timer or
@@ -1598,12 +1981,50 @@ function cvSpeakThenListen(text, isOpener){
   if (!__cvVoiceActive) return;
   cvVoiceCue('speaking');
   const toSpeak = speakSafeText(text, 400);
-  // speakPrompt handles chunking, the __ttsCtrl AbortController, iOS-primed <audio>, and always
-  // calls onDone exactly once (end / error / backstop). Its onDone IS the "playback ended" signal.
-  speakPrompt(toSpeak, () => {
+  const afterSpeak = () => {
     if (!__cvVoiceActive) return; // interrupted during playback → do not open the mic
     setTimeout(() => { if (__cvVoiceActive) cvVoiceListen(); }, 300);
-  });
+  };
+  // TC-88 PROBLEM 2 — the FIRST utterance (her opener) sounded slow/slurred/"drunk", then fine
+  // after. Root cause: on a cold, just-unlocked <audio>, chunk-splitting the opener made a tiny
+  // first fragment that speakPrompt play()'d before it was buffered → a starved, distorted open.
+  // Fix: speak the opener as ONE clip (no chunk-split, so no glitchy first fragment) and wait for
+  // it to buffer (canplay) before playing. Cold /api/speak is warmed by warmVoiceFns on the tap
+  // that entered voice mode, so this adds no meaningful latency. Subsequent turns keep the normal
+  // chunked speakPrompt path (already fine post-warmup).
+  if (isOpener && ttsAvailable() && toSpeak){
+    speakOpenerClip(toSpeak, afterSpeak);
+    return;
+  }
+  // speakPrompt handles chunking, the __ttsCtrl AbortController, iOS-primed <audio>, and always
+  // calls onDone exactly once (end / error / backstop). Its onDone IS the "playback ended" signal.
+  speakPrompt(toSpeak, afterSpeak);
+}
+// Speak `text` as a SINGLE, buffer-waited clip (the opener fix). Uses the same shared __ttsCtrl /
+// __ttsFallback / __ttsUrls machinery as speakPrompt so cancelSpeech()/cvStopVoice cancel it and
+// onDone fires exactly once (end / error / play-reject / backstop) — the mic never stalls.
+async function speakOpenerClip(text, onDone){
+  let done = false;
+  const finish = () => {
+    if (done) return; done = true;
+    if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
+    revokeTtsUrls();
+    onDone();
+  };
+  try {
+    const ctrl = new AbortController(); __ttsCtrl = ctrl;
+    __ttsFallback = setTimeout(finish, Math.min(60000, 10000 + text.length * 140));
+    let url = null;
+    try { url = await fetchClip(text, ctrl.signal); } catch(e){ finish(); return; }
+    if (done) return;              // aborted/superseded while fetching
+    __ttsUrls.push(url);
+    const a = getTtsAudio();
+    await playClipOn(a, url, /* waitBuffer */ true); // hold for buffer → no cold-start slur
+    finish();
+  } catch(e){
+    if (e && e.name === 'AbortError') return; // cancelSpeech already cleaned up
+    finish();
+  }
 }
 // Open the mic (reusing beginConfirmRecording's getUserMedia + VAD silence-detection + transcribe),
 // route the transcript into the SAME path a typed turn takes (cvAppend 'me' + push + cvTurn), and
@@ -1649,8 +2070,20 @@ function cvStopVoice(){
   __cvVoiceActive = false;
   __confirmActive = false;
   __voiceHandsFree = false;
-  try { cancelSpeech(); } catch(e){}
-  try { abortConfirmRecording(); } catch(e){}
+  // TC-88: abort the in-flight reply STREAM, invalidate its callbacks, and clear the speak-queue —
+  // so no orphaned stream keeps reading and no queued/late sentence plays after stop. Idempotent.
+  __cvStreamGen++;                                          // any pending speak-queue callback no-ops
+  if (__cvStreamCtrl){ try { __cvStreamCtrl.abort(); } catch(e){} __cvStreamCtrl = null; }
+  // TC-88: abort every pre-generated sentence's in-flight /api/speak fetch and revoke its object
+  // URLs, so no orphaned TTS keeps generating and no pre-fetched clip plays after stop.
+  if (__cvSpeak){
+    try { if (__cvSpeak.ctrl) __cvSpeak.ctrl.abort(); } catch(e){}
+    try { (__cvSpeak.urls || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); } catch(e){}
+    __cvSpeak.queue = []; __cvSpeak.playing = false; __cvSpeak = null;
+  }
+  __cvStreamBubble = null;
+  try { cancelSpeech(); } catch(e){}                        // stop current TTS mid-sentence
+  try { abortConfirmRecording(); } catch(e){}               // stop any live recording
   cvVoiceCue('');
   const row = document.getElementById('cvVoiceRow'); if (row) row.remove();
 }
@@ -1660,13 +2093,16 @@ async function cvTurn(force){
   // Phase 3a: assemble the person's RLS-scoped memory the client already holds — name,
   // relationship, location, remembered facts (noticed), and a token-bounded prior-plans
   // digest — so she opens memory-aware and the plan avoids repeating past suggestions.
-  const ctx = flowPerson ? {
-    name: flowPerson.name || '',
-    relationship: flowPerson.relationship || '',
-    location: flowPerson.location || '',
-    facts: Array.isArray(flowPerson.noticed) ? flowPerson.noticed : [],
-    priorPlans: priorPlansDigest(flowPerson),
-  } : undefined;
+  const ctx = cvBuildCtx();
+  // TC-88: VOICE mode streams her reply and speaks it sentence-by-sentence as it generates (the
+  // typed path below is untouched / byte-identical). cvStreamReply owns busy/typing + the ready
+  // handoff from here; a stream failure degrades to the non-streaming reply so nothing breaks.
+  if (__cv.voice && __cvVoiceActive){
+    __cvStreamBubble = null; // start a fresh growing bubble for this turn
+    cvTyping(false);
+    cvStreamReply(ctx, force);
+    return;
+  }
   let d;
   try {
     const r = await fetch('/api/converse', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });
@@ -1995,14 +2431,66 @@ const END_OF_TURN_SILENCE_MS = 2000;       // continuous silence AFTER speech th
 const CREC_MIN_SPEECH_MS = 400;            // grace: ignore silence until they've spoken this long,
                                            // so a beat right after they start doesn't end the turn
 const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can never hang
-const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null, raf: null, audioCtx: null, spoke: false, spokeAt: 0, silenceStart: 0, aborted: false };
+// TC-88 speculative transcribe: once a qualifying silence has lasted this SHORT soft-pause (well
+// before the 2s end-of-turn) we fire a background /api/transcribe of the audio-so-far, so the
+// transcript is usually ready the instant the 2s confirms — no dead time after the pause.
+const CREC_SOFT_PAUSE_MS = 700;
+const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null, raf: null, audioCtx: null, spoke: false, spokeAt: 0, silenceStart: 0, aborted: false,
+  gen: 0,            // bumped every begin/abort; a late speculative from an old gen no-ops
+  specFired: false,  // fired a speculative for the CURRENT silence window? (re-armed on resume)
+  specPromise: null, // Promise<string> of the latest speculative transcript ('' on any failure)
+  specCtrl: null     // AbortController for the in-flight speculative fetch (superseded on resume)
+};
+// Pure predicate (extracted for testing): should we fire a speculative transcribe THIS frame?
+// True once the user has clearly spoken (grace passed) and a settled silence has lasted the soft-
+// pause, and we haven't already fired one for this silence window. Re-armed (specFired=false) the
+// instant speech resumes (silenceStart cleared), so at most ~one speculative fires per pause.
+function crecShouldSpeculate(s, now){
+  return !!(s && s.active && s.spoke && !s.specFired && s.silenceStart
+    && (now - s.spokeAt) > CREC_MIN_SPEECH_MS
+    && (now - s.silenceStart) >= CREC_SOFT_PAUSE_MS);
+}
 function stopConfirmMeter(){
   try { if (__crec.raf){ cancelAnimationFrame(__crec.raf); __crec.raf = null; } } catch(e){}
   try { if (__crec.audioCtx){ __crec.audioCtx.close(); __crec.audioCtx = null; } } catch(e){}
 }
 function stopConfirmRecording(){ try { if (__crec.active && __crec.mr && __crec.mr.state === 'recording') __crec.mr.stop(); } catch(e){} }
+// Transcribe one audio Blob via /api/transcribe → the recognized text, or '' on any failure.
+// Shared by the speculative (mid-pause) and the final/fallback path so they behave identically.
+// `signal` lets a superseded speculative be aborted. Never throws: '' means "no usable transcript".
+async function crecTranscribeBlob(blob, signal){
+  try {
+    if (!blob || !blob.size) return '';
+    const b64 = await blobToBase64(blob);
+    const headers = { 'content-type': 'application/json' };
+    try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
+    const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }), signal });
+    const d = await r.json();
+    return (r.ok && d.text) ? d.text : '';
+  } catch(e){ return ''; }
+}
+// TC-88: fire ONE speculative transcribe of the audio accumulated so far (all speech up to this
+// soft-pause; the trailing silence transcribes to nothing so it equals what they've said). Because
+// the recorder runs with a timeslice, chunk 0 carries the container header → the accumulated Blob
+// is a self-contained, transcribable file. Stores the promise (+ its AbortController) so the
+// confirm step can use it. Any failure resolves to '' → the confirm falls back to a fresh
+// transcribe of the final blob. Guarded on `gen` so a stale fire after abort/restart no-ops.
+function crecFireSpeculative(gen){
+  if (gen !== __crec.gen || !__crec.active) return;
+  __crec.specFired = true;
+  try { if (__crec.specCtrl){ __crec.specCtrl.abort(); } } catch(e){} // supersede any prior in-flight
+  let ctrl = null; try { ctrl = new AbortController(); } catch(e){ ctrl = null; }
+  __crec.specCtrl = ctrl;
+  let blob;
+  try { blob = new Blob(__crec.chunks.slice(), { type: (__crec.mr && __crec.mr.mimeType) || 'audio/webm' }); }
+  catch(e){ __crec.specPromise = null; return; } // couldn't assemble → confirm uses the fallback
+  __crec.specPromise = crecTranscribeBlob(blob, ctrl && ctrl.signal);
+}
 function abortConfirmRecording(){
   __crec.aborted = true; __crec.active = false;
+  __crec.gen++; // invalidate any in-flight speculative resolution from this turn
+  try { if (__crec.specCtrl){ __crec.specCtrl.abort(); } } catch(e){}
+  __crec.specCtrl = null; __crec.specPromise = null; __crec.specFired = false;
   stopConfirmMeter();
   try { if (__crec.mr && __crec.mr.state === 'recording'){ __crec.mr.onstop = null; __crec.mr.stop(); } } catch(e){}
   try { __crec.stream && __crec.stream.getTracks().forEach(t => t.stop()); } catch(e){}
@@ -2019,6 +2507,8 @@ async function beginConfirmRecording(onText){
   // don't bring a live recorder up behind it. Release the stream and bow out.
   if (!__confirmActive){ try { stream.getTracks().forEach(t => t.stop()); } catch(e){} return false; }
   __crec.stream = stream; __crec.chunks = []; __crec.active = true; __crec.spoke = false; __crec.spokeAt = 0; __crec.silenceStart = 0; __crec.aborted = false;
+  // TC-88 speculative-transcribe state: fresh generation, no speculative yet.
+  const gen = ++__crec.gen; __crec.specFired = false; __crec.specPromise = null; __crec.specCtrl = null;
   // VAD: watch mic loudness; end shortly after speech stops.
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
@@ -2032,10 +2522,21 @@ async function beginConfirmRecording(onText){
       let sum = 0; for (let i = 0; i < buf.length; i++){ const v = (buf[i] - 128) / 128; sum += v * v; }
       const rms = Math.sqrt(sum / buf.length);
       const now = performance.now();
-      if (rms > CREC_SPEECH_RMS){ __crec.spoke = true; if (!__crec.spokeAt) __crec.spokeAt = now; __crec.silenceStart = 0; }
+      if (rms > CREC_SPEECH_RMS){
+        __crec.spoke = true; if (!__crec.spokeAt) __crec.spokeAt = now; __crec.silenceStart = 0;
+        __crec.specFired = false; // speech resumed → re-arm; next soft-pause fires a fresh (longer) speculative
+      }
       // Only start counting end-of-turn silence once they've been speaking a beat (grace), so a
       // brief pause right after they start doesn't end the turn. End only after a settled silence.
-      else if (__crec.spoke && (now - __crec.spokeAt) > CREC_MIN_SPEECH_MS){ if (!__crec.silenceStart) __crec.silenceStart = now; else if (now - __crec.silenceStart > END_OF_TURN_SILENCE_MS){ stopConfirmRecording(); return; } }
+      else if (__crec.spoke && (now - __crec.spokeAt) > CREC_MIN_SPEECH_MS){
+        if (!__crec.silenceStart) __crec.silenceStart = now;
+        else {
+          // TC-88: at the short soft-pause (well before end-of-turn), speculatively transcribe the
+          // audio so far in the background so the transcript is ready when the 2s confirms.
+          if (crecShouldSpeculate(__crec, now)) crecFireSpeculative(gen);
+          if (now - __crec.silenceStart > END_OF_TURN_SILENCE_MS){ stopConfirmRecording(); return; }
+        }
+      }
       __crec.raf = requestAnimationFrame(loop);
     };
     loop(); __crec.audioCtx = ctx;
@@ -2045,21 +2546,41 @@ async function beginConfirmRecording(onText){
   mr.onstop = async () => {
     __crec.active = false; stopConfirmMeter();
     if (__crec.timer){ clearTimeout(__crec.timer); __crec.timer = null; }
+    // Capture the speculative BEFORE we tear anything down; abort clears it (and bumps gen).
+    const specPromise = __crec.specPromise, myGen = gen;
+    // TC-88 (Validator LOW): only TRUST the speculative when the turn ended on SETTLED SILENCE
+    // (the normal VAD path — silenceStart is non-zero at stop, and the speculative covers all
+    // speech up to that pause; the trailing silence transcribes to nothing). On the 30s backstop
+    // (or any non-silence stop) the user was still speaking, so silenceStart is 0 (cleared on the
+    // last loud frame) and the speculative — fired at an EARLIER soft-pause — is truncated: it
+    // would drop the tail. Capture the signal now, before any await, and only in that settled-
+    // silence case do we use the speculative; otherwise fall through to the full-blob transcribe.
+    const endedOnSilence = !!__crec.silenceStart;
     try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
-    if (__crec.aborted) return; // user tapped or navigated away → ignore this recording
+    if (__crec.aborted || myGen !== __crec.gen) return; // user tapped or navigated away → ignore this recording
     const blob = new Blob(__crec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size || !__crec.spoke){ onText(''); return; } // silence → no-op, tap remains
     setListenCue('thinking'); // heard something → reading it while the cue settles
-    try {
-      const b64 = await blobToBase64(blob);
-      const headers = { 'content-type': 'application/json' };
-      try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
-      const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }) });
-      const d = await r.json();
-      onText((r.ok && d.text) ? d.text : '');
-    } catch(e){ onText(''); }
+    // TC-88: prefer the speculative transcript (fired ~1.3s ago at the soft-pause, covering all
+    // speech up to the pause — the trailing silence transcribes to nothing). It's usually already
+    // resolved → onText fires immediately. Still in-flight → await it (still beats starting fresh).
+    // Any failure/empty/never-fired → fall back to a single transcribe of the final blob. onText
+    // fires EXACTLY once, whichever branch wins.
+    let text = '';
+    // Only lean on the speculative on the settled-silence path. On the backstop / non-silence stop
+    // it's truncated, so skip it and transcribe the FINAL full blob below.
+    if (endedOnSilence && specPromise){ try { text = await specPromise; } catch(e){ text = ''; } }
+    // A resume-and-abort could have landed while we awaited — re-check we're still the live turn.
+    if (__crec.aborted || myGen !== __crec.gen) return;
+    if (!text){ text = await crecTranscribeBlob(blob); } // fallback / backstop: fresh full-blob transcribe
+    if (__crec.aborted || myGen !== __crec.gen) return;
+    onText(text || '');
   };
-  mr.start();
+  // TC-88: record with a timeslice so chunks accumulate incrementally — chunk 0 carries the
+  // container header, so an accumulated-chunks Blob mid-turn is a valid, transcribable file. This
+  // is what makes the speculative mid-pause transcribe possible. If a browser rejects the timeslice
+  // argument, fall back to a plain start() — no speculative, but the turn still records + completes.
+  try { mr.start(250); } catch(e){ try { mr.start(); } catch(e2){ try { abortConfirmRecording(); } catch(e3){} return false; } }
   // Hard cap backstop: the turn can never hang. Long enough for a full spoken share (the old 8s
   // could itself clip a longer thought); VAD normally ends the turn well before this.
   __crec.timer = setTimeout(() => { if (__crec.active) stopConfirmRecording(); }, CREC_MAX_MS);
@@ -2090,6 +2611,10 @@ let __confirmRetryTimer = null; // holds the brief "didn't catch that" beat befo
 // (+ a short pause), so the app can't hear its own "say yes to save" and false-save. If voice
 // output is off/unavailable it degrades to the existing text + listen behavior with no change.
 let __ttsFallback = null;
+// TC-88 (iOS): per-clip watchdog timer for playClipOn — resolves the play promise if iOS drops the
+// 'ended' event, so the streaming speak-queue can't hang. Cleared on stop/abort (cvStopVoice →
+// cancelSpeech) so it can't fire after the loop is torn down.
+let __cvClipWatchdog = null;
 // TC-67: the readback is a WARM, human voice generated server-side (OpenAI tts-1-hd "nova",
 // 0.9x — the gentle/slower delivery David picked), NOT the robotic built-in browser voice.
 // The server (/api/speak) holds the key; the browser just plays the returned audio. So voice
@@ -2136,6 +2661,7 @@ function revokeTtsUrls(){ __ttsUrls.forEach(u => { try { URL.revokeObjectURL(u);
 function cancelSpeech(){
   if (__ttsCtrl){ try { __ttsCtrl.abort(); } catch(e){} __ttsCtrl = null; }
   if (__ttsFallback){ clearTimeout(__ttsFallback); __ttsFallback = null; }
+  if (__cvClipWatchdog){ clearTimeout(__cvClipWatchdog); __cvClipWatchdog = null; } // TC-88: kill the per-clip watchdog so it can't fire after abort
   try { const a = __ttsAudio; if (a){ a.onended = null; a.onerror = null; a.pause(); } } catch(e){}
   revokeTtsUrls();
 }
@@ -2160,12 +2686,85 @@ function splitForSpeech(text){
   while (merged.length > 6){ merged[merged.length - 2] += ' ' + merged.pop(); } // bound the number of calls
   return merged.length ? merged : [String(text)];
 }
+// TC-88 — split ONE streamed reply sentence into speakable clips. The founder heard her replies as
+// choppy fragments because each sentence was further chunk-split (like splitForSpeech's 140-char
+// cuts) and each sub-chunk was a separate TTS clip spoken in isolation — so a normal sentence came
+// out fragment-by-fragment, in a different, more deliberate voice/pace than the opener. Fix: speak a
+// normal sentence as ONE flowing clip (matching speakOpenerClip). Only a very long sentence
+// (>~300 chars) is split, on a word boundary, so /api/speak's cap and latency stay sane. Pure.
+const CV_SENTENCE_CLIP_MAX = 300;
+function splitSentenceForSpeech(text){
+  let s = String(text == null ? '' : text).trim();
+  if (!s) return [];
+  if (s.length <= CV_SENTENCE_CLIP_MAX) return [s]; // normal sentence → ONE clip (flowing, like the opener)
+  const out = [];
+  while (s.length > CV_SENTENCE_CLIP_MAX){
+    let cut = s.lastIndexOf(' ', CV_SENTENCE_CLIP_MAX);
+    if (cut < CV_SENTENCE_CLIP_MAX * 0.5) cut = CV_SENTENCE_CLIP_MAX; // no good space → hard cut
+    out.push(s.slice(0, cut).trim());
+    s = s.slice(cut).trim();
+  }
+  if (s) out.push(s);
+  return out;
+}
+if (typeof window !== 'undefined') window.__tcSplitSentenceForSpeech = splitSentenceForSpeech; // test hook
 function fetchClip(text, signal){
   const headers = { 'content-type': 'application/json' };
   try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
   return fetch('/api/speak', { method: 'POST', headers, body: JSON.stringify({ text }), signal })
     .then(r => { if (!r.ok) throw new Error('speak ' + r.status); return r.blob(); })
     .then(b => URL.createObjectURL(b));
+}
+// Play ONE already-fetched clip URL on the shared <audio> element and resolve when it ends (or
+// errors). When waitBuffer is set we hold for the first frames to be decodable before play() —
+// calling play() on a not-yet-buffered first clip is what made the opener sound slow/slurred on
+// iOS (the "drunk" artifact). onended/onerror resolve exactly once; a play() rejection also
+// resolves so the caller never hangs. Strictly one clip at a time — the caller awaits before the next.
+//
+// TC-88 (Validator MEDIUM, iOS): iOS Safari sometimes DROPS the 'ended' event. Without a backstop
+// the promise never resolves → cvPlaySentence hangs → sp.playing stuck true → cvPumpSpeak never
+// advances → the mic never reopens and the hands-free loop silently dies. The pre-TC-88 speakPrompt
+// path armed __ttsFallback as exactly this backstop; the refactor dropped it. We restore it here as
+// a per-clip WATCHDOG. It's a genuine backstop: it fires ONLY if neither 'ended' nor 'error' arrives
+// within a cap sized generously to the clip (audio.duration + margin once known, else 10s + a per-
+// char estimate like speakPrompt) — so a legitimately long clip never trips it. On firing it clears
+// the audio handlers (so a late 'ended' can't double-resolve) and RESOLVES so the queue keeps
+// draining. single-resolve: `settled` guards ended/error/rejection/watchdog against each other. The
+// live timer is exposed as __cvClipWatchdog so cvStopVoice/cancelSpeech can clear it on abort.
+function playClipOn(a, url, waitBuffer){
+  return new Promise((resolve) => {
+    let settled = false;
+    const clearWatchdog = () => { if (__cvClipWatchdog){ clearTimeout(__cvClipWatchdog); __cvClipWatchdog = null; } };
+    const done = () => { if (settled) return; settled = true; a.onended = null; a.onerror = null; a.oncanplay = null; clearWatchdog(); resolve(); };
+    a.onended = done;
+    a.onerror = done;
+    // Backstop cap: generous by default (dropped-'ended' is rare and short clips dominate); once the
+    // browser knows the real duration we size to it + margin so even a long clip is covered.
+    const baseCap = () => {
+      let d = 0; try { d = a.duration; } catch(e){}
+      if (d && isFinite(d) && d > 0) return Math.min(60000, Math.round(d * 1000) + 8000);
+      return 22000; // no known duration → generous fixed floor (a 140-char chunk is only a few seconds; mirrors speakPrompt's 10s+ backstop)
+    };
+    const armWatchdog = () => {
+      clearWatchdog();
+      __cvClipWatchdog = setTimeout(done, baseCap()); // fires only if ended/error were dropped
+    };
+    const start = () => {
+      if (settled) return;
+      a.oncanplay = null;
+      const p = a.play();
+      if (p && p.catch) p.catch(() => done());
+      armWatchdog(); // arm once playback is actually kicked off (duration usually known by now)
+    };
+    a.src = url;
+    if (waitBuffer){
+      a.oncanplay = start;                       // start once enough is buffered (kills the cold-start slur)
+      try { a.load(); } catch(e){}
+      setTimeout(() => { if (!settled && a.oncanplay) start(); }, 400); // safety if canplay never fires
+    } else {
+      start();
+    }
+  });
 }
 // Speak `text` in a warm voice, THEN call onDone exactly once (on end, on error, or a generous
 // fallback). onDone GATES the mic on the confirm/reflect cards, so it MUST fire even if playback
