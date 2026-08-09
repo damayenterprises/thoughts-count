@@ -721,6 +721,9 @@
   .tc-makeplan { background:transparent; border:none; color:var(--sage-deep,#5f6d4a); font-size:13.5px; cursor:pointer; font-family:inherit; }
   .tc-makeplan:hover { text-decoration:underline; }
   .tc-chat-hint { text-align:center; font-size:12px; color:var(--ink-soft,#8a8577); margin-top:10px; }
+  /* TC-89 (rework): the "…add to someone you know" door on the primary voice/conversation screen. */
+  .tc-cv-known { text-align:center; margin-top:10px; }
+  .tc-cv-known .link-btn { font-size:13.5px; color:var(--sage-deep,#5f6d4a); }
   /* TC-82 Phase 2 (2a): the spoken-mode status + "Stop voice" control under the chat. */
   .tc-cv-voicerow { display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; margin-top:10px; }
 
@@ -1234,6 +1237,10 @@ async function tcVoicePickPerson(){
     return;
   }
   unlockSpeech(); warmVoiceFns();
+  // Entering the picker is a fresh "add to someone" intent — clear any leftover conversation/voice
+  // state so a stale onSaved callback or locked person can't ride along (we may arrive here from the
+  // primary conversation modal via cvStopVoice, or from the older listening overlay).
+  __voicePerson = null; __voiceRememberOnSaved = null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment…</p></div>`;
   scrim.scrollTop = 0;
@@ -1254,8 +1261,11 @@ function renderPersonPicker(people, filter){
     const sub = [p.relationship, p.location].filter(Boolean).map(escapeHtml).join(' · ');
     return `<button type="button" class="cta ghost vp-pick" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" style="width:100%;justify-content:flex-start;text-align:left;">${escapeHtml(p.name)}${sub ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${sub}</span>` : ''}</button>`;
   }).join('');
+  // Only show the "no one named X" line when the filter actually matched NOBODY — otherwise it
+  // contradicts the rows above it (typing "chris" with two Chrises listed must not also say
+  // "No one named chris yet.") — TC-89 rework.
   const emptyMsg = f
-    ? `<p class="q-help" style="margin:8px 0;">No one named “${escapeHtml(filter)}” yet.</p>`
+    ? (matched.length ? '' : `<p class="q-help" style="margin:8px 0;">No one named “${escapeHtml(filter)}” yet.</p>`)
     : (people.length ? '' : `<p class="q-help" style="margin:8px 0;">You don't have anyone saved yet.</p>`);
   const sayBtn = voiceCanRecord()
     ? `<button type="button" class="cta ghost" id="vpSay" style="width:100%;justify-content:center;">${micSvg(17,'currentColor','#c28a63')}<span style="margin-left:8px;">Say a name</span></button>`
@@ -1697,12 +1707,20 @@ function renderConverse(){
         </button>
       </div>
       <div class="tc-chat-foot" id="cvFoot"></div>
+      ${(tcSignedIn() && !flowPerson) ? `<div class="tc-cv-known" id="cvKnownRow"><button type="button" class="link-btn" id="cvAboutKnown">…or add a note to someone you already know</button></div>` : ''}
       <div class="tc-chat-hint" id="cvHint">${__cv.voice ? 'She’ll talk with you and listen back. Say "that’s enough, make my plan" any time, or type instead.' : 'She’ll ask what she needs, then build your plan. You can say "that’s enough, make my plan" any time.'}</div>
     </div>`;
   const opener = cvOpener();
   cvAppend('her', opener);
   const input = document.getElementById('cvInput');
   const send = document.getElementById('cvSend');
+  // TC-89 (rework): the "…add to someone you know" door is now on the PRIMARY voice screen (the
+  // conversation modal the home "Say it out loud" mic opens), not only the older listening overlay.
+  // Tapping it cleanly ends this conversation's voice loop, then opens the recent-first + type-to-find
+  // + say-a-name picker (tcVoicePickPerson) → find → lock → the confirm card that names the existing
+  // person ("Add to <Name>") so new-vs-existing is unmistakable before anything saves.
+  const cvAbout = document.getElementById('cvAboutKnown');
+  if (cvAbout) cvAbout.onclick = () => { try { cvStopVoice(); } catch(e){} tcVoicePickPerson(); };
   const grow = () => { input.style.height = 'auto'; input.style.height = Math.min(120, input.scrollHeight) + 'px'; };
   input.addEventListener('input', grow);
   // TC-82 Phase 2: a typed turn at ANY point (even mid voice mode) drops into the visible chat.
