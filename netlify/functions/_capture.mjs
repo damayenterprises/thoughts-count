@@ -259,6 +259,15 @@ function locMatch(a, b) {
 // Level A = confident enough to write now (strong-key, or a single clear name match); Level B =
 // ambiguous or unknown → To-Review, nothing written until the user confirms. `context` may carry
 // a locationHint (to tell two same-named people apart) and identifiers (email/phone strong keys).
+//
+// context.fallbackFirstName (TC-91): opt-in first-name fallback for the VOICE/TYPED capture path
+// only. When the RPC candidate set surfaces no name match, compare the spoken name's FIRST TOKEN
+// against every saved person's FIRST TOKEN via the deterministic name engine (firstNamesEquivalent),
+// so a bare spoken first name ("Jon") still catches a saved full name ("John Miller") the trigram
+// RPC missed (~0.14 similarity). OFF by default so the import dedup path (which uses its OWN RPC at
+// threshold 0.4 in _import.mjs, and never calls resolvePerson) is provably unaffected — the two
+// capture callers (resolve() and resolve-name.mjs) opt in explicitly. A fallback hit is only ever a
+// CANDIDATE that flows into the existing confirm-WHO UI (Level B); never a silent attach.
 export async function resolvePerson(supa, userId, hintName, context = {}) {
   const name = String(hintName || "").trim();
   if (!name) {
@@ -295,6 +304,44 @@ export async function resolvePerson(supa, userId, hintName, context = {}) {
     .filter((c) => c.kind && meta[c.person_id] && !meta[c.person_id].deleted);
 
   if (!matches.length) {
+    // TC-91 first-name fallback (voice/typed capture only — see context.fallbackFirstName above).
+    // The RPC's trigram+surname net missed everyone, but a bare spoken first name can still be an
+    // existing saved person whose stored name is fuller ("Jon" said, "John Miller" saved). Compare
+    // first-token↔first-token with the SAME deterministic engine (firstNamesEquivalent → _names.mjs,
+    // which owns the Jon/John homophone + diminutive rules AND the length floor that kills 3-letter
+    // noise like Tim/Jon). Every hit is a CANDIDATE only — it re-enters the identical confirm-WHO
+    // paths below (single → one confirm-WHO; several → the ambiguous "which one?" list). Never a
+    // silent attach; never a default pick. Reuses the same lightweight people read as roster biasing.
+    if (context.fallbackFirstName) {
+      const fb = await firstNameFallbackCandidates(supa, userId, name);
+      if (fb.length === 1) {
+        const m = fb[0];
+        // Exactly one first-name match: a single confirm-WHO (Level B — the user must confirm WHO
+        // before any write; a fallback hit is a homophone guess, never confident enough for Level A).
+        return {
+          level: "B",
+          proposedPersonId: m.id,
+          fallback: true, // marks a first-name homophone guess (not a trigram/surname match) so
+                          // callers render it as a "is this them?" confirm-WHO, never a silent write.
+          confidence: 0.7,
+          evidence: `the only ${firstOf(name)} in your people${m.location ? `, in ${m.location}` : ""} — is this them?`,
+          name,
+        };
+      }
+      if (fb.length > 1) {
+        // Several people share this first name — bias to SPLIT: surface all as candidates, never a
+        // default pick (same contract as the RPC-side ambiguous branch below).
+        return {
+          level: "B",
+          proposedPersonId: null,
+          ambiguous: true,
+          candidates: fb.map((m) => ({ id: m.id, name: m.name, location: m.location || "" })),
+          confidence: 0.65,
+          evidence: `there's more than one ${firstOf(name)} — tap the right one`,
+          name,
+        };
+      }
+    }
     return { level: "B", proposedPersonId: null, confidence: 0, evidence: `You don't have anyone named ${name} yet — confirm to add them.`, name };
   }
 
@@ -356,6 +403,9 @@ export async function resolve(userId, parsed, supa, context = {}) {
     const resolution = await resolvePerson(supa, userId, g.personHint, {
       locationHint: parsed.location_hint || context.locationHint || "",
       identifiers: context.identifiers,
+      // TC-91: this is the voice/typed capture path — opt into the first-name fallback so a bare
+      // spoken first name still surfaces an existing fuller-named person as a confirm-WHO candidate.
+      fallbackFirstName: true,
     });
     groups.push({ ...g, resolution });
   }
@@ -403,6 +453,36 @@ export async function rosterNames(supa, userId) {
     }
     return out;
   } catch (e) { console.error("rosterNames", e); return []; }
+}
+
+// TC-91 — first-name fallback candidate finder. When the trigram+surname RPC surfaced nobody for a
+// spoken/typed name, walk the SAME bounded people read used for roster biasing (id + name + location,
+// user_id-pinned, undeleted, newest-first, capped) and keep every person whose FIRST TOKEN is
+// equivalent to the hint's FIRST TOKEN under the deterministic engine (firstNamesEquivalent). This is
+// what catches "Jon" → saved "John Miller": the full-name trigram missed it, but first-token↔first-token
+// (jon↔john) passes _names.mjs's spelling-close rule, while its length floor still rejects 3-letter
+// coincidences (Tim/Jon). Returns [{ id, name, location }]; [] on any failure (fallback is best-effort,
+// the caller then shows the normal "add new"). Never resolves a tombstoned person (deleted_at filter).
+async function firstNameFallbackCandidates(supa, userId, hintName) {
+  const hint = String(hintName || "").trim();
+  if (!hint) return [];
+  try {
+    const { data, error } = await supa
+      .from("people")
+      .select("id, name, location")
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(ROSTER_CAP);
+    if (error) { console.error("firstNameFallbackCandidates", error); return []; }
+    const out = [];
+    for (const p of data || []) {
+      const nm = String(p.name || "").trim();
+      if (!nm) continue;
+      if (firstNamesEquivalent(hint, nm)) out.push({ id: p.id, name: nm, location: p.location || "" });
+    }
+    return out;
+  } catch (e) { console.error("firstNameFallbackCandidates", e); return []; }
 }
 
 // ──────────────────────────────────────────────────────────────────────────────────────────

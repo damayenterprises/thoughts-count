@@ -85,7 +85,14 @@ export default async (req) => {
       // (add a new person / update an existing one / pick among look-alikes) so the voice
       // confirm card can show it. capture-resolve later writes it on confirm. ──
       if (preview) {
-        const existing = r.level === "A" && r.proposedPersonId ? await getPerson(supa, userId, r.proposedPersonId) : null;
+        // A single confirm-WHO target: a confident Level-A match OR a single TC-91 first-name
+        // fallback hit (Level B + fallback — a homophone guess like "Jon"→saved "John Miller").
+        // Both render the TC-89 "is this them?" update card (name-back + someone-else/new escapes).
+        // The preview path WRITES NOTHING — it only holds a pending capture — so surfacing the
+        // fallback person here is a confirm-WHO suggestion, never a silent attach; capture-resolve
+        // still requires the user's explicit confirm before anything is written.
+        const singleTarget = r.proposedPersonId && (r.level === "A" || r.fallback);
+        const existing = singleTarget ? await getPerson(supa, userId, r.proposedPersonId) : null;
         const cap = await insertCapture(supa, userId, {
           raw_text: rawText, source, status: "pending", context_locked: false,
           proposed_person_id: existing ? existing.id : (r.proposedPersonId || null),
