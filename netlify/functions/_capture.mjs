@@ -280,7 +280,14 @@ export async function resolvePerson(supa, userId, hintName, context = {}) {
   //    name engine decides real equivalence. NO new fuzzy logic. The RPC does not filter tombstoned
   //    people, so we drop any hard-deleted match here — never resolve/attach to a removed person
   //    (spec §4: a deleted person is excluded from every read/write).
-  const { data: cands, error } = await supa.rpc("tc38_fuzzy_person_match", { p_user_id: userId, p_name: name, p_threshold: 0.4 });
+  // TC-89 (1b): widen the trigram recall band for the voice/typed resolver from 0.4 → 0.25.
+  // Bare first-name homophones like "Jon"/"John" score ~0.29 on trigram and, with no surname to
+  // hit the RPC's surname branch, fall below 0.4 → the candidate never surfaces → a mis-spelled
+  // duplicate is silently created. 0.25 sits just under that 0.29 so the pair enters the CANDIDATE
+  // set only; the deterministic name engine (nameMatchKind → _names.mjs) still makes the real
+  // yes/no call and the bias-to-split / never-auto-merge guarantees are unchanged. Caller-side
+  // value only (the RPC default stays 0.4 for import dedup) — no migration, reversible by one number.
+  const { data: cands, error } = await supa.rpc("tc38_fuzzy_person_match", { p_user_id: userId, p_name: name, p_threshold: 0.25 });
   if (error) { console.error("resolvePerson rpc", error); }
   const meta = await peopleMetaFor(supa, userId, (cands || []).map((c) => c.person_id));
   const matches = (cands || [])
