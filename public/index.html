@@ -446,6 +446,24 @@
   @keyframes re-listen-pulse { 0% { box-shadow: 0 0 0 0 rgba(194,138,99,.45); } 100% { box-shadow: 0 0 0 10px rgba(194,138,99,0); } }
   @media (prefers-reduced-motion: reduce) { .re-listen-dot { animation: none !important; } }
 
+  /* TC-89: tap-to-edit person name on the voice confirm card. Reads as gently-editable text
+     (a soft underline + pencil), not a form field, and has a large hit target for eyes-free use. */
+  .tc-name-edit { display: inline-flex; align-items: center; gap: 0; background: transparent; border: none;
+    padding: 2px 6px; margin: 0 -2px; border-radius: 8px; cursor: pointer; color: inherit; font: inherit;
+    line-height: inherit; min-height: 40px; -webkit-tap-highlight-color: transparent; }
+  .tc-name-edit .tc-name-edit-txt { font-weight: 600; border-bottom: 1.5px dashed var(--sage, #7d8a68); padding-bottom: 1px; }
+  .tc-name-edit svg { color: var(--sage-deep, #5f6c4c); opacity: .8; }
+  .tc-name-edit:hover { background: var(--cloud, #f4f1e9); }
+  .tc-name-edit:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist, #eef2e6); }
+  .tc-name-editing { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
+  .tc-name-input { font: inherit; font-weight: 600; padding: 6px 10px; min-width: 8ch; max-width: 60vw;
+    border: 1.5px solid var(--sage, #7d8a68); border-radius: 10px; background: #fff; color: var(--ink, #3b362e); }
+  .tc-name-input:focus { outline: none; border-color: var(--sage-deep, #5f6c4c); box-shadow: 0 0 0 3px var(--mist, #eef2e6); }
+  .tc-name-done { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px;
+    padding: 0; border: none; border-radius: 999px; background: var(--sage, #7d8a68); color: #fff; cursor: pointer; }
+  .tc-name-done:hover { background: var(--sage-deep, #5f6c4c); }
+  .tc-name-done:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist, #eef2e6); }
+
   /* TC-67: "Read replies aloud" opt-in on the listening screen. Calm, out of the way —
      a small brand-styled switch (not a native checkbox) to match the hand-crafted UI. */
   .tc-readaloud { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 13px; color: var(--ink-soft, #7a7263); cursor: pointer; user-select: none; }
@@ -2273,34 +2291,135 @@ function renderRememberCard(cap){
     document.getElementById('reCancel').onclick = () => nextOrClose();
     scrim.scrollTop = 0; return;
   }
+  // TC-89 (Part 2): the person name on an add/update card is now the load-bearing correctable
+  // field. It renders as tappable text with a pencil affordance; fixing the spelling here is how
+  // we stop a mis-heard name from creating (or attaching to) the wrong person. `renderConfirm`
+  // rebuilds the card body around the CURRENT name + choice so an edit re-renders cleanly.
   const isUpdate = cap.kind === 'update';
-  const name = isUpdate ? (cap.personName || 'them') : (cap.personHint || 'someone new');
-  stage.innerHTML = `
-    <div class="panel-body" style="text-align:center;">
-      <div class="q-eyebrow">${isUpdate ? 'Update · ' + escapeHtml(name) : 'New person'}</div>
-      <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 4px;">${isUpdate ? `I'll add this to ${escapeHtml(name)}:` : `I'll remember ${escapeHtml(name)} and note:`}</p>
-      ${facts}
-      <p class="q-help" style="margin-top:10px;">Sound right?</p>
-      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px;">
-        <button type="button" class="cta" id="reConfirm">${isUpdate ? `Yes, add it` : `Yes, remember ${escapeHtml(first(name))}`}</button>
-        <button type="button" class="link-btn" id="reCancel">Cancel</button>
-      </div>
-      <div class="re-listen-cue" id="reListenCue" hidden></div>
-    </div>`;
-  const choice = isUpdate ? { personId: cap.personId } : { newPersonName: cap.personHint };
-  // Same save whether confirmed by tap or by a spoken "yes" (TC-63); a tap stops the listen.
-  const doConfirm = () => { stopConfirmListen(); confirmRemember(cap, choice); };
-  const doCancel = () => { stopConfirmListen(); nextOrClose(); };
-  document.getElementById('reConfirm').onclick = doConfirm;
-  document.getElementById('reCancel').onclick = doCancel;
-  // TC-67: spoken confirmation reads back exactly what will be saved, then listens.
-  const ft = factsPlain(cap.facts);
-  const spoken = isUpdate
-    ? (ft ? `I'll add this to ${name}: ${ft}. Sound right? Say yes, or tap.` : `I'll add this to ${name}. Sound right? Say yes, or tap.`)
-    : (ft ? `I'll remember ${name} and note: ${ft}. Sound right? Say yes, or tap.` : `I'll remember ${name}. Sound right? Say yes, or tap.`);
-  startConfirmListen({ onYes: doConfirm, onNo: doCancel, speak: spoken });
-  scrim.scrollTop = 0;
+  // The working state the card confirms with. Starts on the resolved person (update) or the
+  // parsed new name (add); an edit + re-check can move it between attach-existing and keep-new.
+  let choice = isUpdate ? { personId: cap.personId, name: cap.personName || 'them' }
+                        : { newPersonName: cap.personHint || '', name: cap.personHint || 'someone new' };
+
+  function renderConfirm(){
+    stopConfirmListen(); // never carry a listen across a re-render
+    const name = choice.name || 'them';
+    const attach = !!choice.personId; // confirming onto an existing saved person
+    const eyebrow = attach ? 'Update · ' + escapeHtml(name) : 'New person';
+    const lead = attach ? `I'll add this to ${nameEditHtml(name)}:` : `I'll remember ${nameEditHtml(name)} and note:`;
+    stage.innerHTML = `
+      <div class="panel-body" style="text-align:center;">
+        <div class="q-eyebrow" id="reEyebrow">${eyebrow}</div>
+        <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 4px;">${lead}</p>
+        ${facts}
+        <div id="reNameMsg" style="margin-top:8px;"></div>
+        <p class="q-help" style="margin-top:10px;">Sound right? <span style="color:var(--ink-soft,#7a7263);">Tap the name to fix the spelling.</span></p>
+        <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px;">
+          <button type="button" class="cta" id="reConfirm">${attach ? `Yes, add it` : `Yes, remember ${escapeHtml(first(name))}`}</button>
+          <button type="button" class="link-btn" id="reCancel">Cancel</button>
+        </div>
+        <div class="re-listen-cue" id="reListenCue" hidden></div>
+      </div>`;
+    const doConfirm = () => { stopConfirmListen(); confirmRemember(cap, choice); };
+    const doCancel = () => { stopConfirmListen(); nextOrClose(); };
+    document.getElementById('reConfirm').onclick = doConfirm;
+    document.getElementById('reCancel').onclick = doCancel;
+    wireNameEdit();
+    // TC-67: spoken confirmation reads back exactly what will be saved, then listens.
+    const ft = factsPlain(cap.facts);
+    const spoken = attach
+      ? (ft ? `I'll add this to ${name}: ${ft}. Sound right? Say yes, or tap.` : `I'll add this to ${name}. Sound right? Say yes, or tap.`)
+      : (ft ? `I'll remember ${name} and note: ${ft}. Sound right? Say yes, or tap.` : `I'll remember ${name}. Sound right? Say yes, or tap.`);
+    startConfirmListen({ onYes: doConfirm, onNo: doCancel, speak: spoken });
+    scrim.scrollTop = 0;
+  }
+
+  // The tappable name pill (icon, not emoji — polish bar). Kept inline so it flows in the sentence.
+  function nameEditHtml(name){
+    return `<button type="button" class="tc-name-edit" id="reNameEdit" aria-label="Edit name">`
+      + `<b class="tc-name-edit-txt">${escapeHtml(name)}</b>${pencilSvg(15)}</button>`;
+  }
+
+  // Turn the name pill into a focused inline field. On Done: if the spelling changed, RE-CHECK it
+  // against the roster (David's decision #1) so a corrected name that now matches a saved person
+  // offers "same person?" instead of silently creating a duplicate.
+  function wireNameEdit(){
+    const btn = document.getElementById('reNameEdit');
+    if (!btn) return;
+    btn.onclick = () => {
+      stopConfirmListen(); // don't let a spoken "yes" fire mid-edit
+      const cur = choice.name || '';
+      btn.outerHTML = `<span class="tc-name-editing">`
+        + `<input type="text" id="reNameInput" class="tc-name-input" value="${escapeHtml(cur)}" autocomplete="off" aria-label="Person's name" />`
+        + `<button type="button" class="tc-name-done" id="reNameDone" aria-label="Done">${checkSvgLocal(16)}</button></span>`;
+      const inp = document.getElementById('reNameInput');
+      const done = document.getElementById('reNameDone');
+      try { inp.focus(); inp.setSelectionRange(cur.length, cur.length); } catch(e){}
+      const finish = () => applyEditedName((inp.value || '').trim());
+      done.onclick = finish;
+      inp.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); finish(); } if (e.key === 'Escape'){ e.preventDefault(); renderConfirm(); } });
+    };
+  }
+
+  async function applyEditedName(edited){
+    const prev = choice.name || '';
+    // No real change → just restore the card as it was.
+    if (!edited || edited.toLowerCase() === prev.toLowerCase()){ renderConfirm(); return; }
+    const msg = document.getElementById('reNameMsg');
+    if (msg) msg.innerHTML = `<span class="q-help" style="color:var(--ink-soft,#7a7263);">Checking your people…</span>`;
+    let res = null;
+    try { res = await window.TCCompanion.resolveName(edited); } catch(e){ res = { kind: 'none' }; }
+    // If the corrected name matches a saved person that ISN'T the one we're already attached to,
+    // offer to use them (attach) or keep it as a new person. Otherwise take the edit at face value.
+    if (res && res.kind === 'match' && res.person && res.person.id !== choice.personId){
+      renderNameRematch(edited, [{ id: res.person.id, name: res.person.name }]);
+    } else if (res && res.kind === 'ambiguous' && Array.isArray(res.candidates) && res.candidates.length){
+      renderNameRematch(edited, res.candidates);
+    } else {
+      // No match (or it re-matched the same person we're already on): keep the corrected spelling.
+      // Editing an UPDATE card to a name that no longer matches that person flips to new-person
+      // semantics here (drop personId) — capture-resolve branches on newPersonName vs personId.
+      choice = { newPersonName: edited, name: edited };
+      renderConfirm();
+    }
+  }
+
+  // Gentle "that matches your saved <Name> — same person?" prompt. Warm, one tap each; never a form.
+  function renderNameRematch(edited, candidates){
+    stopConfirmListen();
+    const one = candidates.length === 1;
+    const rows = candidates.map((c, i) => {
+      const sub = c.location ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${escapeHtml(c.location)}</span>` : '';
+      return `<button type="button" class="cta ghost re-rematch" data-i="${i}" style="width:100%;justify-content:center;">Yes, it's ${escapeHtml(first(c.name))}${sub}</button>`;
+    }).join('');
+    const heading = one
+      ? `That matches your saved <b>${escapeHtml(candidates[0].name)}</b> — same person?`
+      : `You have a few people like <b>${escapeHtml(edited)}</b> — which one?`;
+    stage.innerHTML = `
+      <div class="panel-body" style="text-align:center;">
+        <div class="q-eyebrow">A quick check</div>
+        <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 6px;">${heading}</p>
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:12px;max-width:360px;margin-left:auto;margin-right:auto;">
+          ${rows}
+          <button type="button" class="cta ghost re-keepnew" style="width:100%;justify-content:center;">No, keep ${escapeHtml(edited)} as someone new</button>
+        </div>
+        <div style="margin-top:14px;"><button type="button" class="link-btn" id="reRematchBack">Back</button></div>
+      </div>`;
+    stage.querySelectorAll('.re-rematch').forEach(b => b.onclick = () => {
+      const c = candidates[Number(b.dataset.i)];
+      choice = { personId: c.id, name: c.name }; // attach to the saved person, their spelling
+      renderConfirm();
+    });
+    stage.querySelector('.re-keepnew').onclick = () => { choice = { newPersonName: edited, name: edited }; renderConfirm(); };
+    document.getElementById('reRematchBack').onclick = () => renderConfirm();
+    scrim.scrollTop = 0;
+  }
+
+  renderConfirm();
 }
+// TC-89: small stroke icons for the confirm-card name editor (icons, not emoji — polish bar).
+function pencilSvg(sz){ return `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-left:5px;vertical-align:-2px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>`; }
+function checkSvgLocal(sz){ return `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7"/></svg>`; }
 function nextOrClose(){ if (__voiceQueue.length) renderNextRememberCard(); else closeFlow(); }
 let __lastSavedName = '';
 async function confirmRemember(cap, choice){
