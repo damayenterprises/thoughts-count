@@ -45,6 +45,12 @@ export function captureExtract(sb, { rawText, lockedPersonId = null, source = "t
 export function captureResolve(sb, { captureId, action, personId = null, newPersonName = null, contactKind = null }) {
   return post(sb, "/api/capture/resolve", { captureId, action, personId, newPersonName, contactKind });
 }
+// TC-89 — resolve a bare NAME against the user's people, writing nothing. Returns
+// { kind:'match'|'ambiguous'|'none', person?, candidates?, evidence }. Used to re-check a
+// corrected name on a confirm card, and to lock onto a spoken existing person.
+export function resolveName(sb, name) {
+  return post(sb, "/api/resolve-name", { name });
+}
 
 /* ---------------- reads (RLS-scoped anon) ---------------- */
 

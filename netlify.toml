@@ -129,3 +129,10 @@
   from = "/api/capture/resolve"
   to = "/.netlify/functions/capture-resolve"
   status = 200
+
+# --- TC-89 Voice name catch-&-correct: resolve a bare NAME against the roster (read-only, writes
+# nothing) — powers re-check-after-edit on the confirm card + the "say a name" existing-person door.
+[[redirects]]
+  from = "/api/resolve-name"
+  to = "/.netlify/functions/resolve-name"
+  status = 200

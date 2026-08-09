@@ -6,7 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
-import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve } from "/_capture.js";
+import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
@@ -249,6 +249,12 @@ async function boot() {
     // Person-card voice note: identity is known, so preview targets that one person.
     capturePreviewLocked: (personId, rawText) => captureExtract(sb, { rawText, lockedPersonId: personId, source: "voice", preview: true }),
     captureConfirm: ({ captureId, personId = null, newPersonName = null }) => captureResolve(sb, { captureId, action: "confirm", personId, newPersonName }),
+    // TC-89: resolve a corrected/spoken NAME against the roster, writing nothing (re-check on
+    // confirm-card edit; lock onto a spoken existing person). Signed-out → no-op.
+    resolveName: (name) => (user ? resolveName(sb, name) : Promise.resolve({ kind: "none" })),
+    // TC-89: the personal circle ordered MOST-RECENTLY-ENGAGED first (for the "…about someone
+    // you know" picker: recent people are the common one-tap case; type-to-filter covers the rest).
+    listPeopleForVoice,
     factsToText: (facts) => noticedList(facts),
     openPerson: (personId) => openHome(),
     // TC-66 Phase 3b: write-back from a memory-aware conversation. Rides the EXISTING
@@ -437,6 +443,26 @@ async function loadPeople() {
     for (const p of people) p.facts = byPerson[p.id] || [];
   } catch (e) { console.error("facts load failed", e); }
   return people;
+}
+// TC-89 — the personal circle for the voice "…about someone you know" picker, ordered
+// MOST-RECENTLY-ENGAGED first. A flat A-Z list doesn't scale (a user may have 100+ people);
+// recent-first puts the common case one tap away, and the picker's type-to-filter + say-a-name
+// cover everyone else. Recency = the newest of {a saved plan, a noticed fact, the person's own
+// created_at} — a cheap client-side proxy (no schema change, no migration) for "last touched".
+// Returns [{ id, name, relationship, location, recency }] newest-first.
+async function listPeopleForVoice() {
+  if (!user) return [];
+  const people = await loadPeople();
+  const ts = (s) => { const n = s ? Date.parse(s) : NaN; return Number.isFinite(n) ? n : 0; };
+  const recencyOf = (p) => {
+    let r = ts(p.created_at);
+    for (const f of (p.facts || [])) r = Math.max(r, ts(f.created_at));
+    for (const pl of (p.saved_plans || [])) r = Math.max(r, ts(pl.created_at));
+    return r;
+  };
+  return people
+    .map((p) => ({ id: p.id, name: p.name, relationship: p.relationship || "", location: p.location || "", recency: recencyOf(p) }))
+    .sort((a, b) => b.recency - a.recency);
 }
 async function addPerson(p) {
   const { data, error } = await sb.from("people").insert({ user_id: user.id, ...p }).select().single();
