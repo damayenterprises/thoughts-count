@@ -1218,6 +1218,148 @@ function tcVoiceNote(personId, personName, onSaved){
   beginHomeRecording(onLockedText);
 }
 window.tcVoiceNote = tcVoiceNote;
+
+// ── TC-89 (Part 3): start a voice note ABOUT an existing person ────────────────────────────
+// Signed-in only (you must HAVE people to target). David's decision #2: recent-people-first
+// (one tap for the common case) + type-to-filter + say-the-name (the SAFE use of voice — a
+// spoken name is matched against the known roster, and anything ambiguous is confirmed, never
+// guessed). All roads end at the existing locked note flow (tcVoiceNote → lockedPersonId).
+function tcSignedIn(){ try { return !!(window.TCCompanion && window.TCCompanion.isSignedIn && window.TCCompanion.isSignedIn()); } catch(e){ return false; } }
+
+let __voicePickCache = null; // people (recent-first) loaded once per picker open
+async function tcVoicePickPerson(){
+  if (!voiceAllowedClient()) return;
+  if (!tcSignedIn()){ // anon: gently invite sign-in rather than a dead end
+    if (window.TCCompanion && window.TCCompanion.openSignIn){ window.TCCompanion.openSignIn(); }
+    return;
+  }
+  unlockSpeech(); warmVoiceFns();
+  scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment…</p></div>`;
+  scrim.scrollTop = 0;
+  try {
+    __voicePickCache = (window.TCCompanion && window.TCCompanion.listPeopleForVoice) ? await window.TCCompanion.listPeopleForVoice() : [];
+  } catch(e){ __voicePickCache = []; }
+  renderPersonPicker(__voicePickCache, '');
+}
+window.tcVoicePickPerson = tcVoicePickPerson;
+
+// The picker: recent people first (one tap), a type-to-filter box, and a "Say a name" mic.
+const PICKER_RECENT_SHOWN = 8; // how many recent people to show before "type to find anyone else"
+function renderPersonPicker(people, filter){
+  const f = String(filter || '').trim().toLowerCase();
+  const matched = f ? people.filter(p => String(p.name || '').toLowerCase().includes(f)) : people;
+  const shown = f ? matched.slice(0, 40) : matched.slice(0, PICKER_RECENT_SHOWN);
+  const rows = shown.map(p => {
+    const sub = [p.relationship, p.location].filter(Boolean).map(escapeHtml).join(' · ');
+    return `<button type="button" class="cta ghost vp-pick" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" style="width:100%;justify-content:flex-start;text-align:left;">${escapeHtml(p.name)}${sub ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${sub}</span>` : ''}</button>`;
+  }).join('');
+  const emptyMsg = f
+    ? `<p class="q-help" style="margin:8px 0;">No one named “${escapeHtml(filter)}” yet.</p>`
+    : (people.length ? '' : `<p class="q-help" style="margin:8px 0;">You don't have anyone saved yet.</p>`);
+  const sayBtn = voiceCanRecord()
+    ? `<button type="button" class="cta ghost" id="vpSay" style="width:100%;justify-content:center;">${micSvg(17,'currentColor','#c28a63')}<span style="margin-left:8px;">Say a name</span></button>`
+    : '';
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div class="q-eyebrow">Add to someone you know</div>
+      <h2 class="q-title" style="font-size:22px;">Who's this about?</h2>
+      <div style="max-width:380px;margin:12px auto 0;">
+        <input type="text" id="vpFilter" class="tc-name-input" placeholder="Type a name to find anyone" autocomplete="off" style="width:100%;box-sizing:border-box;max-width:none;text-align:left;font-weight:400;" value="${escapeHtml(filter || '')}" />
+      </div>
+      ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#7a7263);">Recent — or type to find anyone else</p>` : ''}
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:10px;max-width:380px;margin-left:auto;margin-right:auto;">
+        ${rows}
+        ${emptyMsg}
+        ${sayBtn}
+      </div>
+      <div style="margin-top:16px;"><button type="button" class="link-btn" id="vpCancel">Cancel</button></div>
+    </div>`;
+  scrim.scrollTop = 0;
+  const filterEl = document.getElementById('vpFilter');
+  if (filterEl){
+    filterEl.oninput = () => renderPersonPickerKeepFocus(people, filterEl.value);
+    filterEl.onkeydown = (e) => {
+      if (e.key === 'Enter'){ e.preventDefault(); const first = stage.querySelector('.vp-pick'); if (first) first.click(); }
+    };
+  }
+  stage.querySelectorAll('.vp-pick').forEach(b => b.onclick = () => tcVoiceNote(b.dataset.id, b.dataset.name, __voiceRememberOnSaved));
+  const say = document.getElementById('vpSay');
+  if (say) say.onclick = () => tcVoiceSayName();
+  document.getElementById('vpCancel').onclick = () => closeFlow();
+}
+// Re-render on filter change without losing the caret (re-render is cheap; restore focus + caret).
+function renderPersonPickerKeepFocus(people, filter){
+  renderPersonPicker(people, filter);
+  const el = document.getElementById('vpFilter');
+  if (el){ try { el.focus(); const n = el.value.length; el.setSelectionRange(n, n); } catch(e){} }
+}
+function voiceCanRecord(){ try { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined'); } catch(e){ return false; } }
+
+// Say-a-name: record → roster-biased transcribe → resolve against the roster. Single confident
+// match locks to them; several matches → pick; no match → offer to add them (fresh remember).
+function tcVoiceSayName(){
+  if (!voiceAllowedClient()) return;
+  unlockSpeech(); warmVoiceFns();
+  __voiceHandsFree = true; __voicePerson = null;
+  renderHomeListening();
+  const heading = document.getElementById('homeListenHeading'); if (heading) heading.textContent = 'Who is it?';
+  const sub = document.getElementById('homeListenSub'); if (sub) sub.textContent = 'Say the name of someone you already have.';
+  beginHomeRecording(onSpokenName);
+}
+async function onSpokenName(text){
+  const t = String(text || '').trim();
+  if ((t.match(/[\p{L}\p{N}]/gu) || []).length < 1){ renderHomeError("I didn't quite catch that name."); return; }
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Finding them…</p></div>`;
+  scrim.scrollTop = 0;
+  let res = null;
+  try { res = await window.TCCompanion.resolveName(t); } catch(e){ res = { kind: 'none' }; }
+  if (res && res.kind === 'match' && res.person){
+    // Confident single match → lock to them and run the existing locked note flow.
+    tcVoiceNote(res.person.id, res.person.name, __voiceRememberOnSaved);
+  } else if (res && res.kind === 'ambiguous' && Array.isArray(res.candidates) && res.candidates.length){
+    renderSpokenNamePick(t, res.candidates);
+  } else {
+    renderSpokenNameNoMatch(t);
+  }
+}
+function renderSpokenNamePick(spoken, candidates){
+  const rows = candidates.map((c, i) => {
+    const sub = c.location ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${escapeHtml(c.location)}</span>` : '';
+    return `<button type="button" class="cta ghost sn-pick" data-i="${i}" style="width:100%;justify-content:flex-start;text-align:left;">${escapeHtml(c.name)}${sub}</button>`;
+  }).join('');
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div class="q-eyebrow">A quick check</div>
+      <h2 class="q-title" style="font-size:22px;">You have a few — which one?</h2>
+      <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:12px;max-width:360px;margin-left:auto;margin-right:auto;">
+        ${rows}
+      </div>
+      <div style="margin-top:14px;"><button type="button" class="link-btn" id="snCancel">Cancel</button></div>
+    </div>`;
+  scrim.scrollTop = 0;
+  stage.querySelectorAll('.sn-pick').forEach(b => b.onclick = () => { const c = candidates[Number(b.dataset.i)]; tcVoiceNote(c.id, c.name, __voiceRememberOnSaved); });
+  document.getElementById('snCancel').onclick = () => closeFlow();
+}
+function renderSpokenNameNoMatch(spoken){
+  const nm = escapeHtml(spoken);
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div class="q-eyebrow">Add to someone you know</div>
+      <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 8px;">I don't have a ${nm} yet.</p>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:8px;">
+        <button type="button" class="cta" id="snAdd">Add ${nm} as someone new</button>
+        <button type="button" class="cta ghost" id="snBack" style="justify-content:center;">Pick from my people</button>
+        <button type="button" class="link-btn" id="snClose">Cancel</button>
+      </div>
+    </div>`;
+  scrim.scrollTop = 0;
+  // "Add new" → the fresh remember flow (they speak the note; the add card carries the name).
+  document.getElementById('snAdd').onclick = () => tcVoiceRemember(__voiceRememberOnSaved);
+  document.getElementById('snBack').onclick = () => renderPersonPicker(__voicePickCache || [], '');
+  document.getElementById('snClose').onclick = () => closeFlow();
+}
+
 function hStatus(t){ const el = document.getElementById('homeMicStatus'); if (el) el.textContent = t || ''; }
 function renderHomeListening(){
   stage.innerHTML = `
@@ -1235,11 +1377,15 @@ function renderHomeListening(){
         <button type="button" class="cta" id="homeDoneBtn">Done</button>
         <button type="button" class="link-btn" id="homeCancelBtn">Cancel</button>
       </div>
+      ${(tcSignedIn() && !__voicePerson) ? `<div style="margin-top:12px;"><button type="button" class="link-btn" id="homeAboutKnown">…or add to someone you already know</button></div>` : ''}
       ${ttsAvailable() ? `<div><label class="tc-readaloud"><input type="checkbox" id="homeReadAloud" class="tc-switch-input"${readAloudEnabled() ? ' checked' : ''}><span class="tc-switch" aria-hidden="true"></span><span>Read my replies aloud (hands-free)</span></label></div>` : ''}
     </div>`;
   scrim.scrollTop = 0;
   document.getElementById('homeDoneBtn').onclick = () => { unlockSpeech(); toProcessing(); stopHomeRecording(); };
   document.getElementById('homeCancelBtn').onclick = () => { cancelHomeRecording(); closeFlow(); };
+  // TC-89 (Part 3): jump to targeting an existing person — stop the fresh recording, open the picker.
+  const aboutBtn = document.getElementById('homeAboutKnown');
+  if (aboutBtn) aboutBtn.onclick = () => { cancelHomeRecording(); tcVoicePickPerson(); };
   // TC-67: per-device opt-in for spoken confirmations (off by default). Persists immediately.
   // Priming iOS speech the moment they turn it ON (a tap) unlocks the later spoken replies.
   const raBox = document.getElementById('homeReadAloud');
