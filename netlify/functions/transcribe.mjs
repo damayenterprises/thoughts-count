@@ -13,7 +13,40 @@
 // recording at ~60s, so this is a backstop, not the primary limit.
 import { getStore } from "@netlify/blobs";
 import { normalizeAudience } from "./public-config.mjs";
-import { requireUser } from "./_supabase.mjs";
+import { requireUser, serviceClient, supabaseConfigured } from "./_supabase.mjs";
+import { rosterNames } from "./_capture.mjs";
+
+// TC-89 (1a): cap the total characters of the roster we hand OpenAI as a spelling bias, so a
+// large (Pro) roster can never bloat the transcription request or add latency. rosterNames
+// already caps the COUNT (200); this is a belt-and-suspenders char ceiling on the joined string.
+const ROSTER_PROMPT_MAX_CHARS = 1200;
+
+// Build the OpenAI transcription `prompt` from the verified user's roster — a documented
+// vocabulary/spelling nudge so spoken names land on the spelling the user already saved
+// ("John" not "Jon"). Best-effort ONLY: no bearer / bad token / any failure → "" (anon path
+// and the open flow are never affected). The roster is derived SERVER-SIDE from the verified
+// token — we never trust a client-supplied roster (an anon caller could otherwise inject bias).
+async function rosterPrompt(req) {
+  try {
+    if (!supabaseConfigured()) return "";
+    const auth = await requireUser(req);
+    if (auth.error || !auth.userId) return ""; // anon or invalid token → skip biasing, transcribe as today
+    const names = await rosterNames(serviceClient(), auth.userId);
+    if (!names.length) return "";
+    // Join newest-first until the char ceiling, so the most-recent (most-likely) names win the budget.
+    const parts = [];
+    let len = 0;
+    for (const n of names) {
+      const add = (parts.length ? 2 : 0) + n.length; // ", " + name
+      if (len + add > ROSTER_PROMPT_MAX_CHARS) break;
+      parts.push(n); len += add;
+    }
+    if (!parts.length) return "";
+    // A light natural-language frame reads better to the model than a bare CSV and keeps it a
+    // spelling nudge, not a transcript. Names the user cares about, spelled their way.
+    return `Names that may be spoken, spelled as the speaker prefers: ${parts.join(", ")}.`;
+  } catch (e) { console.error("rosterPrompt (best-effort, skipping)", e); return ""; }
+}
 
 const MAX_BYTES = 5 * 1024 * 1024;
 // Light abuse guard: cap how often one caller can transcribe, so an open (ungated)
@@ -74,6 +107,12 @@ export default async (req) => {
   // gpt-4o-mini-transcribe is ~2x faster than whisper-1 at equal accuracy — cuts the wait
   // before the app can reply (the biggest piece of the hands-free latency). Returns { text }.
   form.append("model", "gpt-4o-mini-transcribe");
+
+  // TC-89 (1a): bias the transcription toward the signed-in user's saved names so a spoken name
+  // is spelled the way they saved it (the first line of defense against a mis-spelled duplicate).
+  // Best-effort — anon callers and any failure just get the un-biased transcription as before.
+  const prompt = await rosterPrompt(req);
+  if (prompt) form.append("prompt", prompt);
 
   try {
     const res = await fetch("https://api.openai.com/v1/audio/transcriptions", {

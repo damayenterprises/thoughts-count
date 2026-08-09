@@ -362,6 +362,49 @@ export async function resolve(userId, parsed, supa, context = {}) {
   return { groups, co_mentioned: !!parsed?.co_mentioned };
 }
 
+// ──────────────────────────────────────────────────────────────────────────────────────────
+//  ROSTER  (TC-89 — shared read for transcription biasing + the "say a name" front door)
+// ──────────────────────────────────────────────────────────────────────────────────────────
+
+// How many roster names we ever pull for biasing. A personal circle is tens of people; even a
+// Pro book-of-business is low-hundreds. 200 keeps the OpenAI transcription `prompt` well under a
+// few-hundred tokens (so it never bloats the request or the latency) while covering essentially
+// every real roster. If a user somehow exceeds it, we take the 200 MOST-RECENTLY-CREATED people —
+// a stable, deterministic proxy for "most likely to be talked about" without a schema change.
+// (David's decision #3: reasonable cap, most-recent first. A richer recency signal — last note /
+// last plan — is a future refinement; created_at is the cheap, indexed default.)
+const ROSTER_CAP = 200;
+
+// Fetch the verified user's people names for name biasing/matching. MUST be called with a
+// service-role client and a userId taken from a VERIFIED token (never a request-body value) —
+// this bypasses RLS, so the user_id pin is the whole safety story (_supabase.mjs contract).
+// Returns a deduped array of names (first + full), newest-first, capped at ROSTER_CAP. Any
+// failure returns [] — callers treat biasing as best-effort and never break on it.
+export async function rosterNames(supa, userId) {
+  try {
+    const { data, error } = await supa
+      .from("people")
+      .select("name")
+      .eq("user_id", userId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(ROSTER_CAP);
+    if (error) { console.error("rosterNames", error); return []; }
+    const seen = new Set();
+    const out = [];
+    for (const p of data || []) {
+      const full = String(p.name || "").trim();
+      if (!full) continue;
+      for (const variant of [full, tokens(full)[0]]) {
+        const v = String(variant || "").trim();
+        const key = v.toLowerCase();
+        if (v && !seen.has(key)) { seen.add(key); out.push(v); }
+      }
+    }
+    return out;
+  } catch (e) { console.error("rosterNames", e); return []; }
+}
+
 // ── small helpers ──────────────────────────────────────────────────────────────────────────
 
 function firstOf(name) { return tokens(name)[0] || name; }
