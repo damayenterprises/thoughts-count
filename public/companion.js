@@ -213,15 +213,17 @@ async function boot() {
     if (evt === "SIGNED_OUT") {
       try { window.tcClearLastPlan && window.tcClearLastPlan(); window.tcRefreshLastPlanAffordance && window.tcRefreshLastPlanAffordance(); } catch (e) {}
     }
-    // Auto-open "Your People" ONCE, only on a genuine magic-link return. Supabase
-    // re-fires SIGNED_IN on session restore and tab refocus, so we consume the flag
-    // after the first open — otherwise the panel keeps popping up unbidden when the
-    // user comes back to the tab from another screen.
+    // On a genuine magic-link return, close the sign-in modal and land on the MAIN
+    // page (TC-92). We no longer force-open "Your People" on login — the top-bar
+    // "People I care about" control is one click into the list when the user chooses.
+    // Supabase re-fires SIGNED_IN on session restore and tab refocus, so we consume
+    // the flag after the first handling.
     if (evt === "SIGNED_IN" && fromMagicLink) {
       fromMagicLink = false;
       // TC-62: if they came back to finish remembering someone they spoke about
       // while anon, resume that exact request (their words are held on this device)
-      // and land on "[Name] is on your list" — not a blank home.
+      // and land on "[Name] is on your list" — not a blank home. This is a deliberate
+      // pending-action deep link, preserved through the round-trip (NOT auto-open).
       const pend = consumePendingVoice();
       if (pend && pend.intent === "remember" && pend.transcript && window.tcResumeRemember) {
         closeModal();
@@ -229,7 +231,9 @@ async function boot() {
         window.tcResumeRemember(pend.transcript);
         return;
       }
-      closeModal(); openHome();
+      // TC-92: no pending action → just dismiss the sign-in modal and stay on the
+      // main page. Do NOT auto-open the People home.
+      closeModal();
     }
   });
 
