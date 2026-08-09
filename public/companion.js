@@ -449,7 +449,10 @@ async function loadPeople() {
 // recent-first puts the common case one tap away, and the picker's type-to-filter + say-a-name
 // cover everyone else. Recency = the newest of {a saved plan, a noticed fact, the person's own
 // created_at} — a cheap client-side proxy (no schema change, no migration) for "last touched".
-// Returns [{ id, name, relationship, location, recency }] newest-first.
+// Returns [{ id, name, relationship, location, detail, recency }] newest-first.
+// `detail` is a recognizable fallback (relationship -> location -> most recent noticed fact)
+// so a picker row is never a bare name for someone whose only distinguishing info is a fact
+// (TC-89 FIX #4). p.facts is loaded newest-first, so noticedList(...)[0] is the latest fact.
 async function listPeopleForVoice() {
   if (!user) return [];
   const people = await loadPeople();
@@ -460,8 +463,14 @@ async function listPeopleForVoice() {
     for (const pl of (p.saved_plans || [])) r = Math.max(r, ts(pl.created_at));
     return r;
   };
+  const detailOf = (p) => {
+    if (p.relationship) return p.relationship;
+    if (p.location) return p.location;
+    const fact = noticedList(p.facts || [])[0];
+    return fact ? String(fact).trim() : "";
+  };
   return people
-    .map((p) => ({ id: p.id, name: p.name, relationship: p.relationship || "", location: p.location || "", recency: recencyOf(p) }))
+    .map((p) => ({ id: p.id, name: p.name, relationship: p.relationship || "", location: p.location || "", detail: detailOf(p), recency: recencyOf(p) }))
     .sort((a, b) => b.recency - a.recency);
 }
 async function addPerson(p) {

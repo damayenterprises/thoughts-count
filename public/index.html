@@ -1258,7 +1258,10 @@ function renderPersonPicker(people, filter){
   const matched = f ? people.filter(p => String(p.name || '').toLowerCase().includes(f)) : people;
   const shown = f ? matched.slice(0, 40) : matched.slice(0, PICKER_RECENT_SHOWN);
   const rows = shown.map(p => {
-    const sub = [p.relationship, p.location].filter(Boolean).map(escapeHtml).join(' · ');
+    // Recognizable detail so a picker row is never a bare name: relationship/location when we have
+    // them, else the recent-fact fallback the engine attached (p.detail) — TC-89 FIX #4.
+    let sub = [p.relationship, p.location].filter(Boolean).map(escapeHtml).join(' · ');
+    if (!sub && p.detail) sub = escapeHtml(String(p.detail).trim());
     return `<button type="button" class="cta ghost vp-pick" data-id="${escapeHtml(p.id)}" data-name="${escapeHtml(p.name)}" style="width:100%;justify-content:flex-start;text-align:left;">${escapeHtml(p.name)}${sub ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${sub}</span>` : ''}</button>`;
   }).join('');
   // Only show the "no one named X" line when the filter actually matched NOBODY — otherwise it
@@ -1423,6 +1426,7 @@ function renderHomeListening(){
         <span class="tc-listen-core">${micSvg(28, '#fff', '#fff')}</span>
       </div>
       <p class="big" id="homeListenHeading" style="margin-top:14px;" aria-live="polite">I'm listening…</p>
+      ${(__voicePerson && __voicePerson.name) ? `<p class="lines" style="color:var(--accent,#c28a63);font-weight:600;margin-bottom:2px;">Adding to ${escapeHtml(__voicePerson.name)}</p>` : ''}
       <p class="lines" id="homeListenSub">Take your time. Tell me what's happening and who it's about.</p>
       <div id="homeMicStatus" style="font-size:12.5px;color:var(--ink-soft,#7a7263);margin-top:8px;"></div>
       <div id="homeListenControls" style="margin-top:20px;display:flex;gap:12px;justify-content:center;align-items:center;">
@@ -2518,10 +2522,11 @@ function renderRememberCard(cap){
     // server (personDetail / personHasDetail); only trust it while still on that original person.
     const onResolvedPerson = attach && cap.personId && choice.personId === cap.personId;
     const detail = onResolvedPerson && cap.personHasDetail && cap.personDetail ? String(cap.personDetail).trim() : '';
+    // Reuse the say-a-name door's phrasing helper so both doors read the who-line IDENTICALLY:
+    // "<Name> — <detail>?" (never the ungrammatical "The <Name> <detail>?"), with the same
+    // "the <Name> you already have?" no-detail fallback — TC-89 FIX #3.
     const whoLine = onResolvedPerson
-      ? (detail
-          ? `<p class="q-help" style="margin-top:6px;">The <b>${escapeHtml(name)}</b> ${escapeHtml(detail)}?</p>`
-          : `<p class="q-help" style="margin-top:6px;">The <b>${escapeHtml(name)}</b> you already have?</p>`)
+      ? `<p class="q-help" style="margin-top:6px;">${knownPersonPhrase({ name, detail, hasDetail: !!detail })}</p>`
       : '';
     const eyebrow = attach ? 'Update · ' + escapeHtml(name) : 'New person';
     const lead = attach ? `I'll add this to ${nameEditHtml(name)}:` : `I'll remember ${nameEditHtml(name)} and note:`;
@@ -2544,11 +2549,12 @@ function renderRememberCard(cap){
     const doCancel = () => { stopConfirmListen(); nextOrClose(); };
     document.getElementById('reConfirm').onclick = doConfirm;
     document.getElementById('reCancel').onclick = doCancel;
-    // "No — someone else": never silently attach to the saved person. Flip to new-person semantics
-    // (drop personId → capture-resolve creates/reassigns via newPersonName), aligning with the
-    // resolver's bias-to-SPLIT. The name stays editable to correct the spelling of the new person.
+    // "No — someone else": open the people picker so the user can reach a DIFFERENT existing person
+    // (e.g. "I meant my OTHER Maria") — consistent with the say-a-name door, NOT a jump straight to
+    // creating a third same-named person. Adding as new is the secondary option inside the picker.
+    // TC-89 FIX #2 (previously this flipped straight to new-person semantics).
     const elseBtn = document.getElementById('reElse');
-    if (elseBtn) elseBtn.onclick = () => { stopConfirmListen(); choice = { newPersonName: name, name }; renderConfirm(); };
+    if (elseBtn) elseBtn.onclick = () => { stopConfirmListen(); renderRememberPersonPicker(''); };
     wireNameEdit();
     // TC-67: spoken confirmation reads back exactly what will be saved, then listens.
     const ft = factsPlain(cap.facts);
@@ -2638,6 +2644,66 @@ function renderRememberCard(cap){
     stage.querySelector('.re-keepnew').onclick = () => { choice = { newPersonName: edited, name: edited }; renderConfirm(); };
     document.getElementById('reRematchBack').onclick = () => renderConfirm();
     scrim.scrollTop = 0;
+  }
+
+  // TC-89 FIX #2: the update card's "No — someone else" people picker. Unlike the home say-a-name
+  // door (which starts a fresh recording via tcVoiceNote), here the note is ALREADY captured on
+  // `cap` — so tapping a person RE-TARGETS this capture onto them and returns to the confirm card;
+  // it never re-records. Mirrors the say-a-name door's framing + the recognizable-detail rows, and
+  // keeps "It's a new <Name>" as the secondary way out. Loads people lazily and caches them.
+  async function renderRememberPersonPicker(filter){
+    const spokenName = choice.name || 'them';
+    if (!Array.isArray(__voicePickCache)){
+      stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Loading your people…</p></div>`;
+      scrim.scrollTop = 0;
+      try { __voicePickCache = (window.TCCompanion && window.TCCompanion.listPeopleForVoice) ? await window.TCCompanion.listPeopleForVoice() : []; }
+      catch(e){ __voicePickCache = []; }
+    }
+    const people = __voicePickCache || [];
+    const f = String(filter || '').trim().toLowerCase();
+    const matched = f ? people.filter(p => String(p.name || '').toLowerCase().includes(f)) : people;
+    const shown = f ? matched.slice(0, 40) : matched.slice(0, PICKER_RECENT_SHOWN);
+    const rows = shown.map((p, i) => {
+      // Same recognizable-detail fallback as the home picker (FIX #4): relationship/location, else
+      // the recent-fact detail — a row is never a bare name.
+      let sub = [p.relationship, p.location].filter(Boolean).map(escapeHtml).join(' · ');
+      if (!sub && p.detail) sub = escapeHtml(String(p.detail).trim());
+      return `<button type="button" class="cta ghost rp-pick" data-i="${i}" style="width:100%;justify-content:flex-start;text-align:left;">${escapeHtml(p.name)}${sub ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${sub}</span>` : ''}</button>`;
+    }).join('');
+    const emptyMsg = f
+      ? (matched.length ? '' : `<p class="q-help" style="margin:8px 0;">No one named “${escapeHtml(filter)}” yet.</p>`)
+      : (people.length ? '' : `<p class="q-help" style="margin:8px 0;">You don't have anyone saved yet.</p>`);
+    stage.innerHTML = `
+      <div class="panel-body" style="text-align:center;">
+        <div class="q-eyebrow">Add to someone you know</div>
+        <h2 class="q-title" style="font-size:22px;">Who's this about?</h2>
+        <div style="max-width:380px;margin:12px auto 0;">
+          <input type="text" id="rpFilter" class="tc-name-input" placeholder="Type a name to find anyone" autocomplete="off" style="width:100%;box-sizing:border-box;max-width:none;text-align:left;font-weight:400;" value="${escapeHtml(filter || '')}" />
+        </div>
+        ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#7a7263);">Recent — or type to find anyone else</p>` : ''}
+        <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:10px;max-width:380px;margin-left:auto;margin-right:auto;">
+          ${rows}
+          ${emptyMsg}
+          <button type="button" class="cta ghost" id="rpNew" style="width:100%;justify-content:center;">It's a new ${escapeHtml(spokenName)}</button>
+        </div>
+        <div style="margin-top:16px;"><button type="button" class="link-btn" id="rpBack">Back</button></div>
+      </div>`;
+    scrim.scrollTop = 0;
+    const filterEl = document.getElementById('rpFilter');
+    if (filterEl){
+      filterEl.oninput = () => { renderRememberPersonPicker(filterEl.value); };
+      filterEl.onkeydown = (e) => { if (e.key === 'Enter'){ e.preventDefault(); const first = stage.querySelector('.rp-pick'); if (first) first.click(); } };
+      try { filterEl.focus(); const n = filterEl.value.length; filterEl.setSelectionRange(n, n); } catch(e){}
+    }
+    stage.querySelectorAll('.rp-pick').forEach(b => b.onclick = () => {
+      const p = shown[Number(b.dataset.i)];
+      // Re-target the already-captured note onto the chosen existing person, then confirm.
+      choice = { personId: p.id, name: p.name };
+      renderConfirm();
+    });
+    // Secondary: add as a genuinely new same-named person (the old "someone else" behavior).
+    document.getElementById('rpNew').onclick = () => { choice = { newPersonName: spokenName, name: spokenName }; renderConfirm(); };
+    document.getElementById('rpBack').onclick = () => renderConfirm();
   }
 
   renderConfirm();
