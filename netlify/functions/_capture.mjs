@@ -405,6 +405,62 @@ export async function rosterNames(supa, userId) {
   } catch (e) { console.error("rosterNames", e); return []; }
 }
 
+// ──────────────────────────────────────────────────────────────────────────────────────────
+//  RECOGNIZABLE DETAIL  (TC-89 refinement — "which person did you mean?")
+// ──────────────────────────────────────────────────────────────────────────────────────────
+
+// When a voice/name flow LOCKS onto an existing saved person by a spoken/typed name, the risk is
+// IDENTITY, not spelling: the "Marc" the user means may be a DIFFERENT real human than the "Marc"
+// they already saved (same sound, sometimes same spelling). So before we start the note we must make
+// WHO we picked unmistakable — name them back with something the user will recognize.
+//
+// Returns { detail, hasDetail }:
+//   detail    — a short recognizable phrase pulled from what the RECORD ACTUALLY HAS, in priority
+//               order: relationship ("your close friend") → location ("in Denver") → most recent
+//               open fact ("just started a new job"). NEVER invented — only real stored values.
+//   hasDetail — false when the record carries nothing distinguishing, so the caller can fall back to
+//               the clear "the <Name> you already have?" framing instead of a bare name.
+// Best-effort: any failure returns an empty, no-detail result so the confirm still renders.
+export async function recognizableDetail(supa, userId, personId) {
+  const empty = { detail: "", hasDetail: false };
+  if (!personId) return empty;
+  try {
+    const { data: person } = await supa
+      .from("people")
+      .select("relationship, location")
+      .eq("user_id", userId)
+      .eq("id", personId)
+      .is("deleted_at", null)
+      .maybeSingle();
+    if (!person) return empty;
+
+    const rel = String(person.relationship || "").trim();
+    const loc = String(person.location || "").trim();
+    // 1) Relationship / how they know them ("your close friend", "someone you manage").
+    if (rel) return { detail: rel, hasDetail: true };
+    // 2) Location ("in Denver").
+    if (loc) return { detail: `in ${loc}`, hasDetail: true };
+
+    // 3) Most recent thing on record about them — a single open (undeleted) fact, newest first.
+    //    Kept to the plain object text so it reads like a memory jog, not a data dump.
+    const { data: facts } = await supa
+      .from("facts")
+      .select("object, created_at")
+      .eq("user_id", userId)
+      .eq("person_id", personId)
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(1);
+    const recent = String(facts?.[0]?.object || "").trim();
+    if (recent) return { detail: recent, hasDetail: true };
+
+    return empty;
+  } catch (e) {
+    console.error("recognizableDetail", e);
+    return empty;
+  }
+}
+
 // ── small helpers ──────────────────────────────────────────────────────────────────────────
 
 function firstOf(name) { return tokens(name)[0] || name; }

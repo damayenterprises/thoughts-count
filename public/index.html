@@ -1325,17 +1325,56 @@ async function onSpokenName(text){
   let res = null;
   try { res = await window.TCCompanion.resolveName(t); } catch(e){ res = { kind: 'none' }; }
   if (res && res.kind === 'match' && res.person){
-    // Confident single match → lock to them and run the existing locked note flow.
-    tcVoiceNote(res.person.id, res.person.name, __voiceRememberOnSaved);
+    // TC-89 refinement: a confident single match is NOT a green light to start the note. The
+    // risk is IDENTITY — this saved "Marc" may be a different real person than the one they mean.
+    // Confirm WHO first, with a recognizable detail + an easy "someone else" escape, BEFORE we
+    // lock and record. One tap to proceed if it's right.
+    renderSpokenNameConfirm(t, res.person);
   } else if (res && res.kind === 'ambiguous' && Array.isArray(res.candidates) && res.candidates.length){
     renderSpokenNamePick(t, res.candidates);
   } else {
     renderSpokenNameNoMatch(t);
   }
 }
+// Phrase a saved person as "<Name> — <recognizable detail>?" using whatever the record actually
+// has (relationship / location / most recent fact). When there's nothing distinguishing, fall back
+// to a clear "the <Name> you already have?" framing — never invent a detail. `p` = { name, detail,
+// hasDetail }. Returns an HTML string (name bolded). TC-89.
+function knownPersonPhrase(p){
+  const nm = escapeHtml(p && p.name ? p.name : 'them');
+  const detail = p && p.hasDetail && p.detail ? String(p.detail).trim() : '';
+  if (detail) return `<b>${nm}</b> — ${escapeHtml(detail)}?`;
+  return `the <b>${nm}</b> you already have?`;
+}
+// The confirm-WHO step for a single spoken-name match. Names them back with a recognizable detail
+// and always offers "No — someone else" (→ the picker) and adding them as new, before recording.
+function renderSpokenNameConfirm(spoken, person){
+  stage.innerHTML = `
+    <div class="panel-body" style="text-align:center;">
+      <div class="q-eyebrow">A quick check</div>
+      <p style="font-family:'Fraunces',Georgia,serif;font-size:20px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 8px;">${knownPersonPhrase(person)}</p>
+      <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:10px;max-width:360px;margin-left:auto;margin-right:auto;">
+        <button type="button" class="cta" id="snYes" style="width:100%;justify-content:center;">Yes, that's ${escapeHtml((person.name||'them').split(/\s+/)[0])}</button>
+        <button type="button" class="cta ghost" id="snElse" style="width:100%;justify-content:center;">No — someone else</button>
+        <button type="button" class="cta ghost" id="snNew" style="width:100%;justify-content:center;">It's a new ${escapeHtml(spoken)}</button>
+      </div>
+      <div style="margin-top:14px;"><button type="button" class="link-btn" id="snConfirmCancel">Cancel</button></div>
+    </div>`;
+  scrim.scrollTop = 0;
+  // Right person → NOW lock and run the existing locked note flow.
+  document.getElementById('snYes').onclick = () => tcVoiceNote(person.id, person.name, __voiceRememberOnSaved);
+  // Wrong person → back to the picker so they can find/see the right human (never silently attach).
+  document.getElementById('snElse').onclick = () => renderPersonPicker(__voicePickCache || [], '');
+  // A same-named but unsaved person → add them fresh (they'll speak the note; the add card carries the name).
+  document.getElementById('snNew').onclick = () => tcVoiceRemember(__voiceRememberOnSaved);
+  document.getElementById('snConfirmCancel').onclick = () => closeFlow();
+}
 function renderSpokenNamePick(spoken, candidates){
   const rows = candidates.map((c, i) => {
-    const sub = c.location ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${escapeHtml(c.location)}</span>` : '';
+    // Show a recognizable detail (relationship / location / most recent fact) so two same-name
+    // people are never indistinguishable buttons — TC-89.
+    const d = (c.hasDetail && c.detail) ? c.detail : c.location;
+    const sub = d ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${escapeHtml(d)}</span>` : '';
     return `<button type="button" class="cta ghost sn-pick" data-i="${i}" style="width:100%;justify-content:flex-start;text-align:left;">${escapeHtml(c.name)}${sub}</button>`;
   }).join('');
   stage.innerHTML = `
@@ -1344,11 +1383,14 @@ function renderSpokenNamePick(spoken, candidates){
       <h2 class="q-title" style="font-size:22px;">You have a few — which one?</h2>
       <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:12px;max-width:360px;margin-left:auto;margin-right:auto;">
         ${rows}
+        <button type="button" class="cta ghost sn-new" style="width:100%;justify-content:center;">None of these — a new ${escapeHtml(spoken)}</button>
       </div>
       <div style="margin-top:14px;"><button type="button" class="link-btn" id="snCancel">Cancel</button></div>
     </div>`;
   scrim.scrollTop = 0;
   stage.querySelectorAll('.sn-pick').forEach(b => b.onclick = () => { const c = candidates[Number(b.dataset.i)]; tcVoiceNote(c.id, c.name, __voiceRememberOnSaved); });
+  const snNew = stage.querySelector('.sn-new');
+  if (snNew) snNew.onclick = () => tcVoiceRemember(__voiceRememberOnSaved);
   document.getElementById('snCancel').onclick = () => closeFlow();
 }
 function renderSpokenNameNoMatch(spoken){
@@ -2469,17 +2511,31 @@ function renderRememberCard(cap){
     stopConfirmListen(); // never carry a listen across a re-render
     const name = choice.name || 'them';
     const attach = !!choice.personId; // confirming onto an existing saved person
+    // TC-89 refinement: when we're attaching to an EXISTING saved person that a spoken/typed name
+    // resolved to (the original resolved person, not one the user re-picked), name them back with a
+    // recognizable detail so a wrong-identity match is caught before we write — and give an explicit
+    // "someone else" escape, not just tap-to-fix-spelling. Detail rides on the capture from the
+    // server (personDetail / personHasDetail); only trust it while still on that original person.
+    const onResolvedPerson = attach && cap.personId && choice.personId === cap.personId;
+    const detail = onResolvedPerson && cap.personHasDetail && cap.personDetail ? String(cap.personDetail).trim() : '';
+    const whoLine = onResolvedPerson
+      ? (detail
+          ? `<p class="q-help" style="margin-top:6px;">The <b>${escapeHtml(name)}</b> ${escapeHtml(detail)}?</p>`
+          : `<p class="q-help" style="margin-top:6px;">The <b>${escapeHtml(name)}</b> you already have?</p>`)
+      : '';
     const eyebrow = attach ? 'Update · ' + escapeHtml(name) : 'New person';
     const lead = attach ? `I'll add this to ${nameEditHtml(name)}:` : `I'll remember ${nameEditHtml(name)} and note:`;
     stage.innerHTML = `
       <div class="panel-body" style="text-align:center;">
         <div class="q-eyebrow" id="reEyebrow">${eyebrow}</div>
         <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 4px;">${lead}</p>
+        ${whoLine}
         ${facts}
         <div id="reNameMsg" style="margin-top:8px;"></div>
         <p class="q-help" style="margin-top:10px;">Sound right? <span style="color:var(--ink-soft,#7a7263);">Tap the name to fix the spelling.</span></p>
         <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px;">
           <button type="button" class="cta" id="reConfirm">${attach ? `Yes, add it` : `Yes, remember ${escapeHtml(first(name))}`}</button>
+          ${attach ? `<button type="button" class="cta ghost" id="reElse" style="width:100%;max-width:320px;justify-content:center;">No — someone else</button>` : ''}
           <button type="button" class="link-btn" id="reCancel">Cancel</button>
         </div>
         <div class="re-listen-cue" id="reListenCue" hidden></div>
@@ -2488,6 +2544,11 @@ function renderRememberCard(cap){
     const doCancel = () => { stopConfirmListen(); nextOrClose(); };
     document.getElementById('reConfirm').onclick = doConfirm;
     document.getElementById('reCancel').onclick = doCancel;
+    // "No — someone else": never silently attach to the saved person. Flip to new-person semantics
+    // (drop personId → capture-resolve creates/reassigns via newPersonName), aligning with the
+    // resolver's bias-to-SPLIT. The name stays editable to correct the spelling of the new person.
+    const elseBtn = document.getElementById('reElse');
+    if (elseBtn) elseBtn.onclick = () => { stopConfirmListen(); choice = { newPersonName: name, name }; renderConfirm(); };
     wireNameEdit();
     // TC-67: spoken confirmation reads back exactly what will be saved, then listens.
     const ft = factsPlain(cap.facts);

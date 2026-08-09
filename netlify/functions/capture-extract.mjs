@@ -10,7 +10,7 @@
 // skip resolution entirely and every fact is Level A on that person.
 
 import { requireUser, serviceClient, json } from "./_supabase.mjs";
-import { extract, resolve, writeFactsToPerson } from "./_capture.mjs";
+import { extract, resolve, writeFactsToPerson, recognizableDetail } from "./_capture.mjs";
 
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 
@@ -93,10 +93,21 @@ export default async (req) => {
           parsed: { facts: g.facts, person_hint: g.personHint, location_hint: parsed.location_hint || "", candidates: r.candidates || [] },
         });
         const kind = existing ? "update" : ((r.candidates && r.candidates.length) ? "pick" : "add");
+        // TC-89 refinement: when a spoken/typed name RESOLVED to an existing saved person, name
+        // them back on the confirm card with a recognizable detail (relationship / location / most
+        // recent fact) + a "someone else" escape, so a wrong-identity match ("a different Marc") is
+        // caught before we write. hasDetail:false → the card uses the "the Marc you already have?"
+        // fallback framing. Only fetched for the update (existing-person) case.
+        let personDetail = "", personHasDetail = false;
+        if (existing) {
+          const d = await recognizableDetail(supa, userId, existing.id);
+          personDetail = d.detail; personHasDetail = d.hasDetail;
+        }
         results.push({
           preview: true, kind, captureId: cap.id,
           personId: existing ? existing.id : null,
           personName: existing ? existing.name : null,
+          personDetail, personHasDetail,
           personHint: g.personHint || null,
           facts: g.facts, candidates: r.candidates || [], evidence: r.evidence, count: g.facts.length,
         });
