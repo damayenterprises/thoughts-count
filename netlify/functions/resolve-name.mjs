@@ -15,7 +15,7 @@
 // writes, no pending capture created. Requires auth (you must HAVE people to match against).
 
 import { requireUser, serviceClient, json } from "./_supabase.mjs";
-import { resolvePerson, recognizableDetail } from "./_capture.mjs";
+import { resolveNameShaped } from "./_capture.mjs";
 
 export default async (req) => {
   if (req.method !== "POST") return json(405, { error: "Method not allowed" });
@@ -27,55 +27,17 @@ export default async (req) => {
   const name = String(body?.name || "").trim();
   if (!name) return json(400, { error: "No name to look up." });
 
-  const supa = serviceClient();
-  const userId = auth.userId;
-
   try {
-    // TC-91: voice/typed name resolution — opt into the first-name fallback so a bare spoken first
-    // name ("Jon") surfaces an existing fuller-named saved person ("John Miller") as a confirm/pick
-    // candidate the trigram RPC alone would miss. Still read-only; still never a silent attach.
-    const r = await resolvePerson(supa, userId, name, { fallbackFirstName: true });
-
-    // A single confident match (Level A + a proposed person). Enrich with the saved person's
-    // canonical name AND a recognizable detail (relationship / location / most recent fact) so the
-    // caller can say "Marc — your friend in Denver?" and the user can catch a wrong-identity match
-    // BEFORE any note is written. `hasDetail:false` tells the caller to fall back to the clear
-    // "the <Name> you already have?" framing rather than a bare name (TC-89 refinement).
-    // A single match to confirm: either a confident RPC match (Level A) OR a single TC-91 first-name
-    // fallback hit (Level B + fallback flag — a homophone guess like "Jon"→saved "John Miller"). Both
-    // render the same confirm-WHO "same person?" card; NEITHER writes anything here (read-only) and the
-    // fallback still requires the user to confirm before capture-resolve attaches — never a silent write.
-    if (r.proposedPersonId && (r.level === "A" || r.fallback)) {
-      const person = await getPerson(supa, userId, r.proposedPersonId);
-      if (person) {
-        const { detail, hasDetail } = await recognizableDetail(supa, userId, person.id);
-        return json(200, { kind: "match", person: { id: person.id, name: person.name, detail, hasDetail }, evidence: r.evidence || "" });
-      }
-      // Proposed person vanished (tombstoned between reads) → treat as no match.
-    }
-
-    // Several same-name people, nothing to tell them apart → let the user pick (never a guess).
-    // Attach a recognizable detail per candidate so the pick list distinguishes real humans, not
-    // just repeats the same name on every button.
-    if (Array.isArray(r.candidates) && r.candidates.length) {
-      const candidates = await Promise.all(
-        r.candidates.map(async (c) => {
-          const { detail, hasDetail } = await recognizableDetail(supa, userId, c.id);
-          return { id: c.id, name: c.name, location: c.location || "", detail, hasDetail };
-        })
-      );
-      return json(200, { kind: "ambiguous", candidates, evidence: r.evidence || "" });
-    }
-
-    // No saved person matches this name.
-    return json(200, { kind: "none", evidence: r.evidence || "" });
+    // TC-93: the resolve verdict + the confirm/pick shape now live in ONE shared function
+    // (resolveNameShaped in _capture.mjs) that this endpoint AND the converse `resolve_person`
+    // tool both call, so their behavior can never drift. It runs the SAME deterministic engine
+    // (resolvePerson → _names.mjs) with the voice/typed first-name fallback opted in, enriches each
+    // result with a recognizable detail, and writes NOTHING (read-only; the confirm-WHO UI + the
+    // authenticated capture-resolve remain the only write path — never a silent attach).
+    const shaped = await resolveNameShaped(serviceClient(), auth.userId, name);
+    return json(200, shaped);
   } catch (err) {
     console.error("resolve-name failed", err);
     return json(500, { error: err.message || "We couldn't look that up just now." });
   }
 };
-
-async function getPerson(supa, userId, personId) {
-  const { data } = await supa.from("people").select("id, name").eq("user_id", userId).eq("id", personId).is("deleted_at", null).maybeSingle();
-  return data || null;
-}

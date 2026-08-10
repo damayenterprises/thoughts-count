@@ -220,20 +220,7 @@ async function boot() {
     // the flag after the first handling.
     if (evt === "SIGNED_IN" && fromMagicLink) {
       fromMagicLink = false;
-      // TC-62: if they came back to finish remembering someone they spoke about
-      // while anon, resume that exact request (their words are held on this device)
-      // and land on "[Name] is on your list" — not a blank home. This is a deliberate
-      // pending-action deep link, preserved through the round-trip (NOT auto-open).
-      const pend = consumePendingVoice();
-      if (pend && pend.intent === "remember" && pend.transcript && window.tcResumeRemember) {
-        closeModal();
-        try { window.tcTrack && window.tcTrack("voice_remember_resumed"); } catch (e) {}
-        window.tcResumeRemember(pend.transcript);
-        return;
-      }
-      // TC-92: no pending action → just dismiss the sign-in modal and stay on the
-      // main page. Do NOT auto-open the People home.
-      closeModal();
+      routeAfterSignIn();
     }
   });
 
@@ -319,6 +306,23 @@ function openModal() { ensureModal(); document.getElementById("tcModal").classLi
 function closeModal() { const m = document.getElementById("tcModal"); if (m) m.classList.remove("open"); document.body.style.overflow = ""; }
 const modalBody = () => document.getElementById("tcModalBody");
 
+// TC-94: the shared post-sign-in routing, called by BOTH the magic-link return (onAuthStateChange,
+// gated on fromMagicLink) AND the typed-code verify path (which has NO tokens in the URL, so that
+// gate is false for it). Factoring it here means the two paths can never drift:
+//   • pending "remember" (TC-62) → close the modal, resume that exact request, land on "[Name] is
+//     on your list".
+//   • otherwise → just close the modal and stay on the MAIN page (TC-92 — do NOT auto-open People).
+function routeAfterSignIn() {
+  const pend = consumePendingVoice();
+  if (pend && pend.intent === "remember" && pend.transcript && window.tcResumeRemember) {
+    closeModal();
+    try { window.tcTrack && window.tcTrack("voice_remember_resumed"); } catch (e) {}
+    window.tcResumeRemember(pend.transcript);
+    return;
+  }
+  closeModal();
+}
+
 /* ---------------- sign in ---------------- */
 function openSignIn() {
   openModal();
@@ -348,8 +352,11 @@ function openSignIn() {
   emailEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); send(); } });
 }
 
-// A clean, inviting confirmation after a sign-in link is sent — replaces the form
-// entirely (no more email box) so the whole screen says "we've got it, go check".
+// A clean, inviting confirmation after a sign-in email is sent. TC-94: this now LEADS with the
+// typed code (the whole point of the ticket — a home-screen-app user can sign in in-place, no Safari
+// hop), while keeping the link as the secondary option. The same email carries both an 8-digit code
+// and a link. On verify success we run routeAfterSignIn() EXPLICITLY, because the magic-link routing
+// in onAuthStateChange is gated on fromMagicLink, which is false for a typed code (no URL tokens).
 // opts.note appends a small extra line (TC-62 safekeeping: "open on this device");
 // opts.onRetry overrides the "use a different email" handler (default: openSignIn).
 function renderCheckInbox(email, opts = {}) {
@@ -363,13 +370,44 @@ function renderCheckInbox(email, opts = {}) {
           <circle cx="37" cy="34" r="7" fill="#e4ecdb" stroke="#c28a63"/><path d="M34 34l2 2 4-4" stroke="#5f6c4c"/>
         </svg>
       </div>
-      <h2 class="q-title" style="margin-top:14px;">Check your inbox</h2>
-      <p class="q-help" style="max-width:34ch;margin-left:auto;margin-right:auto;">We just sent a sign-in link to <b>${esc(email)}</b>. Open it from your email and you're in — no password to remember.</p>
+      <h2 class="q-title" style="margin-top:14px;">Check your email</h2>
+      <p class="q-help" style="max-width:36ch;margin-left:auto;margin-right:auto;">We just sent a code to <b>${esc(email)}</b>. Enter it here to sign in — no password to remember.</p>
       ${noteHtml}
-      <p class="tc-help-sm" style="text-align:center;max-width:34ch;margin:0 auto 20px;">The link opens right back here. You can safely close this window in the meantime.</p>
-      <button class="cta" id="tcInboxDone" style="min-width:180px;justify-content:center;">Got it</button>
+      <div class="tc-code-wrap" style="max-width:22ch;margin:16px auto 6px;">
+        <input type="text" id="tcCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter your code" style="text-align:center;font-size:18px;" />
+      </div>
+      <div class="nav" style="justify-content:center;"><button class="cta" id="tcVerifyCode" style="min-width:180px;justify-content:center;">Sign me in</button></div>
+      <div class="k-msg" id="tcCodeMsg" style="text-align:center;"></div>
+      <p class="tc-help-sm" style="text-align:center;max-width:36ch;margin:14px auto 8px;">Prefer the link? The email also has one, and it opens right back here.</p>
+      <button class="link-btn" id="tcInboxDone" style="padding:0 2px;">Close and use the link instead</button>
       <div class="k-privacy" style="margin-top:16px;">Didn't see it? Check spam, or <button class="link-btn tc-inbox-retry" style="padding:0 2px;">use a different email</button>.</div>
     </div>`;
+  const codeEl = modalBody().querySelector("#tcCode");
+  const msg = modalBody().querySelector("#tcCodeMsg");
+  const btn = modalBody().querySelector("#tcVerifyCode");
+  if (codeEl) { try { codeEl.focus(); } catch (e) {} }
+  // TC-94: keep the TYPED digits pleasantly spaced, but DON'T apply letter-spacing to the
+  // placeholder — at letter-spacing:3px inside a narrow centered box the placeholder overflowed
+  // and clipped ("Enter your cod") on a ~360px phone. Toggle the spacing on only when there's a value.
+  if (codeEl) {
+    const applyCodeSpacing = () => { codeEl.style.letterSpacing = codeEl.value ? "6px" : ""; };
+    codeEl.addEventListener("input", applyCodeSpacing);
+    applyCodeSpacing();
+  }
+  const verify = async () => {
+    const token = (codeEl.value || "").replace(/\s+/g, "").trim();
+    if (!/^\d{6,8}$/.test(token)) { msg.className = "k-msg bad"; msg.textContent = "That code should be the digits from your email."; return; }
+    btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Signing you in…";
+    // type:"email" verifies BOTH a returning-user sign-in OTP and a new-user signup OTP.
+    const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
+    if (error) { btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = error.message || "That code didn't work. Check it and try again, or request a new one."; return; }
+    // Signed in IN THIS CONTEXT (no Safari hop). onAuthStateChange won't route this (no URL tokens),
+    // so run the shared routing explicitly — identical to the magic-link path.
+    try { window.tcTrack && window.tcTrack("signin_code_verified"); } catch (e) {}
+    routeAfterSignIn();
+  };
+  if (btn) btn.onclick = verify;
+  if (codeEl) codeEl.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); verify(); } });
   modalBody().querySelector("#tcInboxDone").onclick = closeModal;
   modalBody().querySelector(".tc-inbox-retry").onclick = opts.onRetry || openSignIn;
 }

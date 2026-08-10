@@ -2,7 +2,19 @@
 // Sends via SendGrid (reusing the Damay account key). Sender is the branded
 // domain care@thoughtscount.com (authenticated in that account, 2026-07-26).
 
+// TC-93 ONE VOICE: the nudge/reminder emails are things Della "sends", so they must read like the
+// exact same person as the home page — warm, brief, restraint-forward, and signed as her. We import
+// HER_NAME (never hardcode the literal name) so a future rename stays a one-line change in
+// _persona.mjs. Dates/links/reminder values are untouched; this is copy + a signature only.
+// (_persona.mjs imports nothing, so this adds no import cycle.)
+import { HER_NAME } from "./_persona.mjs";
+
 const BRAND = "Thoughts Count";
+
+// A short warm sign-off in her voice, reused across the emails she sends. Plain straight
+// punctuation only (no em/en dashes, curly quotes, or ellipsis) so it reads hand-written.
+const herSignoff = () =>
+  `<div style="margin-top:18px;color:#6f675b;">Thinking of you,<br><span style="font-family:Georgia,serif;color:#5f6c4c;">${esc(HER_NAME)}</span></div>`;
 
 export async function sendEmail({ to, subject, html, text }) {
   const key = getEnv("SENDGRID_API_KEY");
@@ -77,22 +89,27 @@ export function planEmailHtml(plan) {
   return WRAP(inner);
 }
 
+// TC-93 ONE VOICE: reworded to Della's warm, brief, restraint-forward voice + signed as her.
+// The reminder value (gesture), the timing (when), and the headline are unchanged.
 export function reminderEmailHtml({ when, gesture, headline }) {
   const inner = `
-    <div style="font-family:Georgia,serif;font-size:18px;color:#3b362e;margin-bottom:6px;">A gentle nudge — ${esc(when)}</div>
-    <div style="color:#6f675b;margin-bottom:14px;">You wanted to keep showing up${headline ? " for: " + esc(headline) : ""}.</div>
+    <div style="font-family:Georgia,serif;font-size:18px;color:#3b362e;margin-bottom:6px;">A gentle nudge for ${esc(when)}</div>
+    <div style="color:#6f675b;margin-bottom:14px;">You told me you wanted to keep showing up${headline ? " for " + esc(headline) : ""}, so here I am.</div>
     <div style="background:#f4ead3;border-radius:14px;padding:16px 18px;font-size:16px;">${esc(gesture)}</div>
-    <div style="margin-top:16px;color:#6f675b;">A small gesture now, when everyone else has moved on, is exactly the kind that's remembered.</div>`;
+    <div style="margin-top:16px;color:#6f675b;">A small gesture now, when everyone else has moved on, is exactly the kind that gets remembered.</div>
+    ${herSignoff()}`;
   return WRAP(inner);
 }
 
 // Proactive, standing nudge for a saved person's upcoming key date (companion).
+// TC-93 ONE VOICE: Della's voice + signature. personName, label, whenText, and planUrl unchanged.
 export function peopleNudgeEmailHtml({ personName, label, whenText, planUrl }) {
   const inner = `
     <div style="font-family:Georgia,serif;font-size:18px;color:#3b362e;margin-bottom:6px;">${esc(personName)}'s ${esc(label)} is ${esc(whenText)}</div>
-    <div style="color:#6f675b;margin-bottom:14px;">A gentle heads-up, so you have time to show up well.</div>
-    <div style="background:#f4ead3;border-radius:14px;padding:16px 18px;font-size:15px;">Want a thoughtful, personal plan for ${esc(personName)}? <a href="${esc(planUrl)}" style="color:#a97350;font-weight:600;text-decoration:none;">Take two minutes here →</a></div>
-    <div style="margin-top:16px;color:#6f675b;">Thinking of it ahead of everyone else is exactly what makes it land.</div>`;
+    <div style="color:#6f675b;margin-bottom:14px;">Just a quiet heads-up from me, so you have time to show up the way you'd want to.</div>
+    <div style="background:#f4ead3;border-radius:14px;padding:16px 18px;font-size:15px;">Want to think it through together for ${esc(personName)}? <a href="${esc(planUrl)}" style="color:#a97350;font-weight:600;text-decoration:none;">Take two minutes with me here</a></div>
+    <div style="margin-top:16px;color:#6f675b;">Thinking of it ahead of everyone else is what makes it land.</div>
+    ${herSignoff()}`;
   return WRAP(inner);
 }
 

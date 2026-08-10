@@ -455,6 +455,45 @@ export async function rosterNames(supa, userId) {
   } catch (e) { console.error("rosterNames", e); return []; }
 }
 
+// TC-93 — the prompt-sized roster for the person-aware home conversation. ONE cheap query (no
+// per-person fact read — that would be N queries and blow the Siri/Alexa speed budget). Returns
+// [{ name, detail }] newest-first, capped at ROSTER_CAP, where `detail` is built INLINE from the
+// relationship/location the same read already carries ("your close friend", "in Denver", or "" if
+// neither). This lands in the CACHED system block (paid once per conversation), so Della can
+// recognize "which Marc?" on the natural voice path with zero extra round-trip. The precise
+// fact-based recognizableDetail is reserved for the resolve_person checker on tricky turns only.
+// Must be called with a service-role client + a userId from a VERIFIED token (RLS is bypassed, so
+// the user_id pin is the whole safety story). Any failure returns [] — the conversation just runs
+// name-unaware (exactly today's anon behavior), never breaks.
+export async function rosterForPrompt(supa, userId) {
+  try {
+    const { data, error } = await supa
+      .from("people")
+      .select("name, relationship, location")
+      .eq("user_id", userId)
+      .eq("contact_kind", "personal")
+      .is("deleted_at", null)
+      .order("created_at", { ascending: false })
+      .limit(ROSTER_CAP);
+    if (error) { console.error("rosterForPrompt", error); return []; }
+    const seen = new Set();
+    const out = [];
+    for (const p of data || []) {
+      const name = String(p.name || "").trim();
+      if (!name) continue;
+      const key = name.toLowerCase();
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const rel = String(p.relationship || "").trim();
+      const loc = String(p.location || "").trim();
+      // Same priority as recognizableDetail's non-fact tiers: relationship, then location.
+      const detail = rel ? rel : (loc ? `in ${loc}` : "");
+      out.push({ name, detail });
+    }
+    return out;
+  } catch (e) { console.error("rosterForPrompt", e); return []; }
+}
+
 // TC-91 — first-name fallback candidate finder. When the trigram+surname RPC surfaced nobody for a
 // spoken/typed name, walk the SAME bounded people read used for roster biasing (id + name + location,
 // user_id-pinned, undeleted, newest-first, capped) and keep every person whose FIRST TOKEN is
@@ -539,6 +578,49 @@ export async function recognizableDetail(supa, userId, personId) {
     console.error("recognizableDetail", e);
     return empty;
   }
+}
+
+// TC-93 — the shared, READ-ONLY name resolver both resolve-name.mjs (the T2/T4 endpoint) and
+// converse.mjs (the `resolve_person` precise-checker tool) call, so their verdict can NEVER drift.
+// Runs the SAME deterministic engine as capture (resolvePerson → _names.mjs) with the voice/typed
+// first-name fallback opted in, then enriches the matched person / each candidate with the real
+// recognizableDetail (relationship → location → most recent fact) so the caller can say
+// "Marc, your friend in Denver — or someone new?" and the user can catch a wrong-identity match
+// BEFORE anything is written. Writes NOTHING. Returns the canonical shape:
+//   { kind:'match'|'ambiguous'|'none', person?:{id,name,detail,hasDetail}, candidates?:[...], evidence }
+// Must be called with a service-role client + a userId from a VERIFIED token (RLS is bypassed).
+export async function resolveNameShaped(supa, userId, hintName, context = {}) {
+  const name = String(hintName || "").trim();
+  if (!name) return { kind: "none", evidence: "" };
+
+  const r = await resolvePerson(supa, userId, name, { fallbackFirstName: true, ...context });
+
+  // A single match to confirm: a confident RPC match (Level A) OR a single first-name fallback hit
+  // (Level B + fallback flag, a homophone guess like "Jon"→saved "John Miller"). Both render the
+  // same confirm-WHO card; neither writes anything (read-only).
+  if (r.proposedPersonId && (r.level === "A" || r.fallback)) {
+    const { data: person } = await supa
+      .from("people").select("id, name").eq("user_id", userId).eq("id", r.proposedPersonId).is("deleted_at", null).maybeSingle();
+    if (person) {
+      const { detail, hasDetail } = await recognizableDetail(supa, userId, person.id);
+      return { kind: "match", person: { id: person.id, name: person.name, detail, hasDetail }, evidence: r.evidence || "" };
+    }
+    // Proposed person vanished (tombstoned between reads) → fall through to no match.
+  }
+
+  // Several same-name people, nothing to tell them apart → let the user pick (never a guess). A
+  // recognizable detail per candidate keeps the pick list from repeating the same bare name.
+  if (Array.isArray(r.candidates) && r.candidates.length) {
+    const candidates = await Promise.all(
+      r.candidates.map(async (c) => {
+        const { detail, hasDetail } = await recognizableDetail(supa, userId, c.id);
+        return { id: c.id, name: c.name, location: c.location || "", detail, hasDetail };
+      })
+    );
+    return { kind: "ambiguous", candidates, evidence: r.evidence || "" };
+  }
+
+  return { kind: "none", evidence: r.evidence || "" };
 }
 
 // ── small helpers ──────────────────────────────────────────────────────────────────────────
