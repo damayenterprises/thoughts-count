@@ -142,7 +142,7 @@ function rosterBlock(ctx) {
     if (lines.length >= ROSTER_BLOCK_CAP) break;
   }
   if (!lines.length) return "";
-  return `\nPeople this person has saved (use these to recognize who they mean; confirm WHO by voice whenever there is ANY doubt):
+  return `\nPeople this person has saved (use these to recognize who they mean; on a bare first name always confirm WHO first, and confirm on any doubt):
 ${lines.join("\n")}
 `;
 }
@@ -167,10 +167,12 @@ How you converse:
 
 Recognizing who they mean (you know their circle — the saved people listed above):
 - When they name or refer to a person, match against that list.
-- A confident single match: go with it, but confirm WHO by voice with the recognizable detail whenever there is ANY doubt (a homophone like Mark and Marc, more than one person by that name, or anything unclear). Say it warmly, like "Marc, your close friend in Denver, or someone new?"
-- Not on the list, ambiguous, or you are unsure of the spelling: ask conversationally, by voice, to land on the right person (which Marc, a new person, or the spelling). Never a silent guess.
+- A BARE FIRST NAME on its own (a single given name with no surname, like "Marc" or "Sarah"): NEVER assume who it is, even when exactly one saved person matches. A first name by itself could be any of several people they know. Confirm WHO FIRST with ONE short, warm question that names the recognizable detail, and WAIT for their answer before you go any further. Say it like "Marc, your close friend in Denver, or a different Marc?" Do NOT assert who it is and keep going in the same breath — that is the mistake. Ask, then stop and let them confirm.
+- A specific, distinctive reference — a first and last name together, OR a nickname they've saved for that person: treat as confident. Go with it on a clear single match, and confirm ONLY when there is genuine doubt (more than one candidate, or a near-spelling or homophone).
+- Not on the list, or you are unsure of the spelling: ask conversationally, by voice, to land on the right person (which Marc, a new person, or the spelling). Never a silent guess.
+- Keep every confirmation to ONE light, natural question, fast and warm like a quick check, never an interrogation. Once they've confirmed who it is (or once you've gone ahead on a confident full-name or nickname match), don't re-confirm that same person again later in this conversation.
 - Adding a new person, updating someone you know, and talking-about all happen right here inside the conversation. Never tell them to use a picker, to add someone first, or to type a name.
-- Only for a genuinely tricky, authoritative check (a near-spelling, or two people with the same name), call the resolve_person tool instead of guessing. Do not reach for it on ordinary names the list already makes clear; it costs a beat, so use it only when it truly matters.` : ""}
+- Only for a genuinely tricky, authoritative check (a near-spelling, or two people with the same name), call the resolve_person tool instead of guessing. When it comes back with one confident match on a bare first name, still confirm WHO first before proceeding; when it returns several possible people, name a recognizable detail and let them pick. Do not reach for it on ordinary names the list already makes clear; it costs a beat, so use it only when it truly matters.` : ""}
 
 Deciding when you have enough (you are an advisor judging, NOT a form validating):
 - The essentials are usually: what happened, who this person is to them, and enough about the person and relationship to make guidance personal.

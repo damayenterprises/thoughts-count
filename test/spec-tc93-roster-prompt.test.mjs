@@ -49,9 +49,14 @@ t("each name renders with its detail, or bare when no detail", () => {
   assert.ok(/- Priya \(in Denver\)/.test(sp));
   assert.ok(/- Sam\n/.test(sp) || /- Sam$/.test(sp), "bare name when detail empty");
 });
-t("recognize-who voice rules appear (confirm WHO by voice, no picker)", () => {
+t("recognize-who rules appear (bare-first-name confirm, no picker, resolve_person)", () => {
   assert.ok(/Recognizing who they mean/.test(sp));
-  assert.ok(/confirm WHO by voice/.test(sp));
+  // TC-93 fix: a bare first name must be confirmed WHO FIRST before proceeding.
+  assert.ok(/BARE FIRST NAME/.test(sp));
+  assert.ok(/Confirm WHO FIRST/.test(sp));
+  assert.ok(/WAIT for their answer before you go any further/.test(sp));
+  // A distinctive full-name / saved-nickname reference is treated as confident.
+  assert.ok(/first and last name together, OR a nickname/.test(sp));
   assert.ok(/Never tell them to use a picker/.test(sp));
   assert.ok(/resolve_person tool/.test(sp));
 });
