@@ -373,8 +373,8 @@ function renderCheckInbox(email, opts = {}) {
       <h2 class="q-title" style="margin-top:14px;">Check your email</h2>
       <p class="q-help" style="max-width:36ch;margin-left:auto;margin-right:auto;">We just sent a code to <b>${esc(email)}</b>. Enter it here to sign in — no password to remember.</p>
       ${noteHtml}
-      <div class="tc-code-wrap" style="max-width:20ch;margin:16px auto 6px;">
-        <input type="text" id="tcCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter your code" style="text-align:center;letter-spacing:3px;font-size:18px;" />
+      <div class="tc-code-wrap" style="max-width:22ch;margin:16px auto 6px;">
+        <input type="text" id="tcCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter your code" style="text-align:center;font-size:18px;" />
       </div>
       <div class="nav" style="justify-content:center;"><button class="cta" id="tcVerifyCode" style="min-width:180px;justify-content:center;">Sign me in</button></div>
       <div class="k-msg" id="tcCodeMsg" style="text-align:center;"></div>
@@ -386,6 +386,14 @@ function renderCheckInbox(email, opts = {}) {
   const msg = modalBody().querySelector("#tcCodeMsg");
   const btn = modalBody().querySelector("#tcVerifyCode");
   if (codeEl) { try { codeEl.focus(); } catch (e) {} }
+  // TC-94: keep the TYPED digits pleasantly spaced, but DON'T apply letter-spacing to the
+  // placeholder — at letter-spacing:3px inside a narrow centered box the placeholder overflowed
+  // and clipped ("Enter your cod") on a ~360px phone. Toggle the spacing on only when there's a value.
+  if (codeEl) {
+    const applyCodeSpacing = () => { codeEl.style.letterSpacing = codeEl.value ? "6px" : ""; };
+    codeEl.addEventListener("input", applyCodeSpacing);
+    applyCodeSpacing();
+  }
   const verify = async () => {
     const token = (codeEl.value || "").replace(/\s+/g, "").trim();
     if (!/^\d{6,8}$/.test(token)) { msg.className = "k-msg bad"; msg.textContent = "That code should be the digits from your email."; return; }
