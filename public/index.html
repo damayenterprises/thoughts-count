@@ -1753,8 +1753,8 @@ function renderConverse(){
         </button>
       </div>
       <div class="tc-chat-foot" id="cvFoot"></div>
-      ${(tcSignedIn() && !flowPerson) ? `<div class="tc-cv-known" id="cvKnownRow"><button type="button" class="link-btn" id="cvAboutKnown">…or add a note to someone you already know</button></div>` : ''}
-      <div class="tc-chat-hint" id="cvHint">${__cv.voice ? 'She’ll talk with you and listen back. Say "that’s enough, make my plan" any time, or type instead.' : 'She’ll ask what she needs, then build your plan. You can say "that’s enough, make my plan" any time.'}</div>
+      ${(tcSignedIn() && !flowPerson) ? `<div class="tc-cv-known" id="cvKnownRow"><button type="button" class="link-btn" id="cvAboutKnown">Or jump straight to someone you know</button></div>` : ''}
+      <div class="tc-chat-hint" id="cvHint">${__cv.voice ? "She'll talk with you and listen back. Say \"that's enough, make my plan\" any time, or type instead." : "She'll ask what she needs, then build your plan. You can say \"that's enough, make my plan\" any time."}</div>
     </div>`;
   const opener = cvOpener();
   cvAppend('her', opener);
@@ -1809,7 +1809,7 @@ function cvVoiceCue(state){
   const label = document.getElementById('cvStateLabel');
   const sr = document.getElementById('cvVoiceCue');
   const LABELS = { speaking: 'Speaking', listening: 'Listening, your turn', thinking: 'One sec' };
-  const SR = { speaking: 'She’s speaking.', listening: 'Listening, your turn to speak or type below.', thinking: 'One sec.' };
+  const SR = { speaking: "She's speaking.", listening: 'Listening, your turn to speak or type below.', thinking: 'One sec.' };
   const known = state === 'speaking' || state === 'listening' || state === 'thinking';
   if (bar){
     if (known){ bar.setAttribute('data-state', state); bar.hidden = false; }
@@ -2015,6 +2015,16 @@ function cvSpeakDrained(sp){
   }, 300);
 }
 
+// TC-93: converse request headers — always JSON, plus the signed-in user's Authorization token
+// when present, so the server can prime the roster + offer the resolve_person checker on the HOME
+// path even when no person is in focus. Mirrors the guarded /api/transcribe pattern exactly:
+// signed-out (no token) sends no header → the server behaves byte-identically to today (anon).
+function cvConverseHeaders(){
+  const headers = { 'content-type': 'application/json' };
+  try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
+  return headers;
+}
+
 // Read the NDJSON event stream and drive the speak-queue. Called from cvTurn's voice branch.
 // Guardrails: an AbortController (stored globally so cvStopVoice can kill it), a client read-timeout
 // so a dead stream can't hang, and graceful degradation — if the stream errors before she says
@@ -2042,7 +2052,7 @@ async function cvStreamReply(ctx, force){
   try {
     armTimeout();
     const r = await fetch('/api/converse', {
-      method: 'POST', headers: { 'content-type': 'application/json' },
+      method: 'POST', headers: cvConverseHeaders(),
       body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx, stream: true }),
       signal: ctrl.signal,
     });
@@ -2123,7 +2133,7 @@ async function cvFallbackReply(force){
   const ctx = cvBuildCtx();
   let d;
   try {
-    const r = await fetch('/api/converse', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });
+    const r = await fetch('/api/converse', { method: 'POST', headers: cvConverseHeaders(), body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });
     d = await r.json();
   } catch(e){
     if (!__cvVoiceActive) return;
@@ -2286,7 +2296,7 @@ function cvVoiceListen(){
       __confirmActive = false;
       if (!__cvVoiceActive) return;
       cvStopVoice();
-      cvAppend('her', "I can’t hear you right now—go ahead and type, and we’ll keep going.");
+      cvAppend('her', "I can't hear you right now. Go ahead and type, and we'll keep going.");
       const i = document.getElementById('cvInput'); if (i){ try { i.focus(); } catch(e){} }
     }
   });
@@ -2333,7 +2343,7 @@ async function cvTurn(force){
   }
   let d;
   try {
-    const r = await fetch('/api/converse', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });
+    const r = await fetch('/api/converse', { method: 'POST', headers: cvConverseHeaders(), body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx }) });
     d = await r.json();
   } catch(e){
     cvTyping(false); cvSetBusy(false);
@@ -3029,6 +3039,12 @@ let __cvClipWatchdog = null;
 // 0.9x — the gentle/slower delivery David picked), NOT the robotic built-in browser voice.
 // The server (/api/speak) holds the key; the browser just plays the returned audio. So voice
 // output is "available" whenever the browser can fetch + play audio (virtually everywhere).
+// TC-93 ONE VOICE (guard): every spoken surface goes through /api/speak so Della always sounds
+// like the exact same person as the home page. This deliberately checks ONLY Audio + fetch and
+// MUST NOT be "helpfully" extended to fall back to window.speechSynthesis / SpeechSynthesisUtterance
+// — a robotic browser voice would break the one-voice contract. There is no browser-speech fallback
+// anywhere in this file, and there must never be one. If a device can't fetch+play audio, we simply
+// show her words silently rather than speak in a different voice.
 function ttsAvailable(){ try { return typeof window.Audio !== 'undefined' && typeof window.fetch === 'function'; } catch(e){ return false; } }
 // Per-device preference (TC-67): read confirmations aloud. OFF by default — the user opts in
 // only when their surroundings are private, so a personal note is never spoken unless they
