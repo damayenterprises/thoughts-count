@@ -842,6 +842,33 @@ async function acquireMicStream(){
   catch(e){ __micStream = null; return null; }
   return __micStream;
 }
+// TC-93 (regression fix): give each recording TURN its own fresh audio track, derived from the
+// held stream. We hold ONE granted stream for the whole visit (one permission prompt), but a
+// MediaRecorder + WebAudio analyser graph must be built on a PRISTINE track each turn: reusing the
+// exact same track across turns — after a prior turn's AudioContext was created + closed on it —
+// left the track producing silence for the next turn's recorder/analyser (VAD read instant silence,
+// blob came back empty, the turn ended hearing nothing). track.clone() returns an independent live
+// track from the SAME already-granted device with NO new getUserMedia and NO new permission prompt.
+// The per-turn clone is what each turn records + analyses; it is stopped at end of turn (releasing
+// only the clone), while the shared __micStream track stays live + enabled for the rest of the visit.
+// Returns a fresh MediaStream (caller owns it, must stop its tracks at end of turn) or null.
+function acquireTurnStream(){
+  if (!__micStream) return null;
+  const tracks = __micStream.getAudioTracks();
+  if (!tracks.length || tracks.every(t => t.readyState === 'ended')) return null;
+  // Keep the shared track enabled — a prior teardown must never leave it muted for the next turn.
+  try { tracks.forEach(t => { if (!t.enabled) t.enabled = true; }); } catch(e){}
+  try { return __micStream.clone(); } catch(e){ /* clone unsupported → fall back to the shared stream */ return __micStream; }
+}
+// Stop a per-turn clone's tracks WITHOUT touching the held visit stream. Safe if s is the shared
+// stream (clone() unsupported) or already stopped — we never stop __micStream here.
+function stopTurnStream(s){
+  try { if (s && s !== __micStream) s.getTracks().forEach(t => t.stop()); } catch(e){}
+}
+// A freshly created AudioContext can come up 'suspended' (autoplay policy); its analyser then reads
+// only neutral/silent frames, so the VAD would never see speech. Resume it (best effort) so the
+// level meter + silence detection see real audio.
+function resumeCtx(ctx){ try { if (ctx && ctx.state === 'suspended' && ctx.resume) ctx.resume(); } catch(e){} }
 // Release the held stream. Only called on page unload — NOT on conversation end, so the next
 // conversation in the same visit reuses the stream with no new prompt.
 function releaseMicStream(){
@@ -1092,8 +1119,11 @@ async function toggleMic(btn, ta){
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined'){
     micStatus("Your browser can't record here — you can type instead."); return;
   }
-  // TC-93: reuse the visit-held stream (one prompt per visit) instead of a fresh getUserMedia.
-  const stream = await acquireMicStream();
+  // TC-93: hold one granted stream for the visit (one prompt), but record each turn on a FRESH
+  // per-turn clone so the recorder always has a pristine track. Stop the clone (not the held
+  // stream) at end of turn.
+  if (!(await acquireMicStream())){ micStatus("We need microphone permission to hear you — you can type instead."); return; }
+  const stream = acquireTurnStream();
   if (!stream){ micStatus("We need microphone permission to hear you — you can type instead."); return; }
   __rec.stream = stream; __rec.chunks = []; __rec.active = true;
   const mr = new MediaRecorder(stream);
@@ -1102,7 +1132,7 @@ async function toggleMic(btn, ta){
   mr.onstop = async () => {
     __rec.active = false;
     if (__rec.timer){ clearTimeout(__rec.timer); __rec.timer = null; }
-    // TC-93: do NOT stop the tracks — the stream is held for the whole visit and reused.
+    stopTurnStream(stream); // release the per-turn clone; the held visit stream stays live
     const blob = new Blob(__rec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size){ setMic(btn, 'idle'); micStatus(''); return; }
     setMic(btn, 'thinking'); micStatus('Writing down what you said…');
@@ -1495,8 +1525,11 @@ async function beginHomeRecording(onText){
   if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined'){
     renderHomeError("Your browser can't record here — you can type instead."); return;
   }
-  // TC-93: reuse the visit-held stream (one prompt per visit) instead of a fresh getUserMedia.
-  const stream = await acquireMicStream();
+  // TC-93: hold one granted stream for the visit (one prompt), but record each turn on a FRESH
+  // per-turn clone so the recorder + level-meter analyser always have a pristine track. The clone
+  // is stopped at end of turn; the held visit stream stays live for the next turn/conversation.
+  if (!(await acquireMicStream())){ renderHomeError("We need microphone permission to hear you — you can type instead."); return; }
+  const stream = acquireTurnStream();
   if (!stream){ renderHomeError("We need microphone permission to hear you — you can type instead."); return; }
   __hrec.stream = stream; __hrec.chunks = []; __hrec.active = true;
   startLevelMeter(stream);
@@ -1505,7 +1538,7 @@ async function beginHomeRecording(onText){
   mr.onstop = async () => {
     __hrec.active = false; if (__hrec.timer){ clearTimeout(__hrec.timer); __hrec.timer = null; }
     stopLevelMeter();
-    // TC-93: do NOT stop the tracks — the stream is held for the whole visit and reused.
+    stopTurnStream(stream); // release the per-turn clone; the held visit stream stays live
     const blob = new Blob(__hrec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size){ renderHomeError("I didn't quite catch that."); return; }
     toProcessing(); // ensure the settle state shows even on auto-stop paths
@@ -1523,12 +1556,13 @@ async function beginHomeRecording(onText){
   __hrec.timer = setTimeout(() => { if (__hrec.active){ toProcessing(); stopHomeRecording(); } }, 60000);
 }
 function stopHomeRecording(){ try { if (__hrec.active && __hrec.mr && __hrec.mr.state === 'recording') __hrec.mr.stop(); } catch(e){} }
-function cancelHomeRecording(){ __hrec.active = false; stopLevelMeter(); try { if (__hrec.mr && __hrec.mr.state === 'recording'){ __hrec.mr.onstop = null; __hrec.mr.stop(); } } catch(e){} /* TC-93: do NOT stop the held stream's tracks — reused across the visit. */ if (__hrec.timer){ clearTimeout(__hrec.timer); __hrec.timer = null; } }
+function cancelHomeRecording(){ __hrec.active = false; stopLevelMeter(); try { if (__hrec.mr && __hrec.mr.state === 'recording'){ __hrec.mr.onstop = null; __hrec.mr.stop(); } } catch(e){} stopTurnStream(__hrec.stream); /* TC-93: stop only the per-turn clone; the held visit stream stays live. */ __hrec.stream = null; if (__hrec.timer){ clearTimeout(__hrec.timer); __hrec.timer = null; } }
 // Live mic loudness → drives the listening ripple's --level (calm swell, not a jumpy
 // waveform). Taps the existing stream (no second permission). Degrades gracefully.
 function startLevelMeter(stream){
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    resumeCtx(ctx); // a suspended context reads only silence → the ripple never swells
     const src = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser();
     analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.8;
@@ -2945,25 +2979,32 @@ function abortConfirmRecording(){
   __crec.specCtrl = null; __crec.specPromise = null; __crec.specFired = false;
   stopConfirmMeter();
   try { if (__crec.mr && __crec.mr.state === 'recording'){ __crec.mr.onstop = null; __crec.mr.stop(); } } catch(e){}
-  // TC-93: do NOT stop the held stream's tracks — reused across conversations for the whole visit.
+  // TC-93: onstop was nulled above, so stop THIS turn's clone here (not the held visit stream).
+  stopTurnStream(__crec.stream); __crec.stream = null;
   if (__crec.timer){ clearTimeout(__crec.timer); __crec.timer = null; }
 }
 // Record a short spoken answer and hand the transcript (or '' if nothing usable) to onText.
 // Returns false if the browser can't record or permission is denied → caller falls to tap.
 async function beginConfirmRecording(onText){
   if (typeof MediaRecorder === 'undefined') return false;
-  // TC-93: reuse the visit-held stream (one prompt per visit) instead of a fresh getUserMedia.
-  const stream = await acquireMicStream();
+  // TC-93: hold one granted stream for the visit (one prompt), but record + run VAD each turn on a
+  // FRESH per-turn clone so the recorder and the silence-detection analyser always have a pristine
+  // track. Reusing the SAME track across turns left it silent after a prior turn's AudioContext was
+  // closed on it — the VAD read instant silence and the turn ended hearing nothing. The clone stops
+  // at end of turn; the held visit stream stays live for the next turn.
+  if (!(await acquireMicStream())) return false;
+  const stream = acquireTurnStream();
   if (!stream) return false;
   // A tap (or navigation) may have resolved the card while the mic was opening — if so,
   // don't bring a live recorder up behind it. Bow out, but KEEP the held stream alive for reuse.
-  if (!__confirmActive){ return false; }
+  if (!__confirmActive){ stopTurnStream(stream); return false; }
   __crec.stream = stream; __crec.chunks = []; __crec.active = true; __crec.spoke = false; __crec.spokeAt = 0; __crec.silenceStart = 0; __crec.aborted = false;
   // TC-88 speculative-transcribe state: fresh generation, no speculative yet.
   const gen = ++__crec.gen; __crec.specFired = false; __crec.specPromise = null; __crec.specCtrl = null;
   // VAD: watch mic loudness; end shortly after speech stops.
   try {
     const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    resumeCtx(ctx); // a suspended context reads only silence → the VAD would never see speech
     const src = ctx.createMediaStreamSource(stream);
     const analyser = ctx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.8;
     src.connect(analyser);
@@ -3008,7 +3049,7 @@ async function beginConfirmRecording(onText){
     // would drop the tail. Capture the signal now, before any await, and only in that settled-
     // silence case do we use the speculative; otherwise fall through to the full-blob transcribe.
     const endedOnSilence = !!__crec.silenceStart;
-    // TC-93: do NOT stop the tracks — the stream is held for the whole visit and reused.
+    stopTurnStream(stream); // TC-93: release this turn's clone; the held visit stream stays live
     if (__crec.aborted || myGen !== __crec.gen) return; // user tapped or navigated away → ignore this recording
     const blob = new Blob(__crec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size || !__crec.spoke){ onText(''); return; } // silence → no-op, tap remains
