@@ -413,6 +413,46 @@
   .hero-start-label { font-family: 'Fraunces', serif; font-style: italic; font-size: 15px; color: var(--ink-soft); margin-bottom: 12px; }
   .hero-actions { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
   .hero-actions .cta { justify-content: center; }
+
+  /* ---------- orb-home: Della's presence orb as the hero front door ----------
+     The orb (canvas nebula, engine in /_orb.js) is the centerpiece + the mic. The
+     .stage is the tap target; CSS transforms carry the body breath/pulse per data-state,
+     the canvas carries the color life. Palette/motion mirror public/orb.html (approved). */
+  .hero-orb-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 4px auto 2px; }
+  .hero-orb-wrap .stage { position: relative; width: 240px; height: 240px; display: flex; align-items: center; justify-content: center;
+                          cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; outline: none; }
+  .hero-orb-wrap .stage:focus-visible { box-shadow: 0 0 0 3px var(--cloud), 0 0 0 6px var(--sage); }
+  .hero-orb-wrap .orb { position: relative; width: 200px; height: 200px; border-radius: 50%; will-change: transform; }
+  .hero-orb-wrap .orbIW { overflow: visible; }
+  .hero-orb-wrap .orbIW canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; display: block;
+                                 box-shadow: 0 14px 40px rgba(120,70,40,.20); }
+  .hero-orb-wrap .orbIW .halo { position: absolute; inset: -24px; border-radius: 50%; z-index: -1; will-change: transform, opacity;
+                                background: radial-gradient(circle, rgba(199,123,89,.30) 0%, rgba(159,197,150,.16) 46%, rgba(159,197,150,0) 72%);
+                                filter: blur(8px); }
+  .hero-orb-prompt { font-size: 17px; color: var(--ink); font-weight: 700; }
+  .hero-typelink { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--sage-deep);
+                   cursor: pointer; padding: 4px 8px; text-decoration: underline; text-underline-offset: 3px; opacity: .95; transition: opacity .15s ease; }
+  .hero-typelink:hover { opacity: 1; }
+
+  /* state motion — the CANVAS carries color; CSS transforms add the breath/pulse body.
+     Both read data-state on the .stage (mirrors the approved prototype's motion). */
+  .hero-orb-wrap .stage[data-state="idle"]      .orb { animation: orbIdleBreath 5.4s ease-in-out infinite; }
+  .hero-orb-wrap .stage[data-state="listening"] .orb { animation: orbListenRipple 2.6s ease-in-out infinite; }
+  .hero-orb-wrap .stage[data-state="thinking"]  .orb { animation: orbThinkSettle 3.0s ease-in-out infinite; }
+  .hero-orb-wrap .stage[data-state="speaking"]  .orb { animation: orbSpeakPulse 1.9s ease-in-out infinite; }
+  @keyframes orbIdleBreath  { 0%,100% { transform: translateY(0) scale(1); }    50% { transform: translateY(-4px) scale(1.028); } }
+  @keyframes orbListenRipple{ 0%,100% { transform: scale(1); } 28% { transform: scale(.952); } 62% { transform: scale(1.012); } }
+  @keyframes orbThinkSettle { 0%,100% { transform: scale(.988); } 50% { transform: scale(1.014); } }
+  @keyframes orbSpeakPulse  { 0% { transform: scale(1); } 24% { transform: scale(1.03); } 48% { transform: scale(.996); } 70% { transform: scale(1.022); } 100% { transform: scale(1); } }
+  .hero-orb-wrap .halo { animation: orbHaloBreath 5.4s ease-in-out infinite; }
+  @keyframes orbHaloBreath { 0%,100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.1); opacity: 1; } }
+  .hero-orb-wrap .stage[data-state="listening"] .halo { animation: orbHaloListen 2.6s ease-in-out infinite; }
+  @keyframes orbHaloListen { 0%,100% { transform: scale(1); opacity: .92; } 40% { transform: scale(.9); opacity: .72; } }
+  .hero-orb-wrap .stage[data-state="speaking"] .halo { animation: orbHaloSpeak 1.9s ease-in-out infinite; }
+  @keyframes orbHaloSpeak { 0%,100% { transform: scale(1); opacity: .9; } 24% { transform: scale(1.1); opacity: .98; } 70% { transform: scale(1.06); opacity: .94; } }
+  /* reduced motion: the canvas already draws one calm warm still frame; kill the CSS body/halo pulse. */
+  @media (prefers-reduced-motion: reduce) { .hero-orb-wrap .orb, .hero-orb-wrap .halo { animation: none !important; } }
+
   /* TC-81: quiet inline "View your last plan" recovery affordance. */
   .tc-lastplan { margin: 16px auto 0; display: none; }
   .tc-lastplan.show { display: block; }
@@ -424,8 +464,7 @@
   .tc-toast .tc-toast-x { flex: 0 0 auto; background: none; border: none; color: rgba(255,255,255,.92); cursor: pointer; padding: 4px; line-height: 0; border-radius: 8px; }
   .tc-toast .tc-toast-x:hover { color: #fff; }
   @media (prefers-reduced-motion: reduce) { .tc-toast { transition: opacity .28s ease; transform: translateX(-50%); } .tc-toast.show { transform: translateX(-50%); } }
-  #homeMicBtn svg { animation: tc-mic-nudge 5.5s ease-in-out infinite; transform-origin: center; }
-  @keyframes tc-mic-nudge { 0%, 88%, 100% { transform: scale(1); opacity: 1; } 94% { transform: scale(1.12); opacity: .85; } }
+  /* (orb-home: #homeMicBtn retired — the hero orb is now the mic; its nudge keyframes removed.) */
   .tc-listen { --level: 0; position: relative; width: 132px; height: 132px; margin: 8px auto 4px; display: grid; place-items: center; }
   .tc-listen-core { position: relative; z-index: 2; width: 64px; height: 64px; border-radius: 50%; background: var(--sage); box-shadow: 0 6px 18px rgba(95,108,76,.28); display: grid; place-items: center; animation: tc-breathe 3.6s ease-in-out infinite; transform: scale(calc(1 + var(--level) * 0.14)); transition: transform .12s ease-out; }
   .tc-listen-ripple { position: absolute; border-radius: 50%; border: 1.5px solid var(--sage); opacity: 0; width: 64px; height: 64px; animation: tc-ripple 3.6s ease-out infinite; }
@@ -437,7 +476,7 @@
   .tc-listen.settling .tc-listen-ripple { animation: none; opacity: 0; transition: opacity .5s ease; }
   .tc-listen.settling .tc-listen-core { transform: scale(1); transition: transform .5s ease; }
   @keyframes tc-ripple { 0% { transform: scale(1); opacity: .45; } 70% { opacity: .12; } 100% { transform: scale(calc(2.1 + var(--level) * 1.3)); opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { #homeMicBtn svg, .tc-listen-core, .tc-listen-ripple { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .tc-listen-core, .tc-listen-ripple { animation: none !important; } }
 
   /* TC-63: hands-free confirm cue — a calm "say yes, or tap" line shown under an
      add/update confirm card while we listen for a spoken answer. Tap always works. */
@@ -604,9 +643,21 @@
     <p class="gets">You'll get: <b>what to say</b> · <b>what to do</b> · <b>what to send</b> · <b>how to keep showing up</b></p>
     <div class="hero-start">
       <div class="hero-start-label">I want to show up for someone…</div>
-      <div class="hero-actions">
-        <button type="button" class="cta" id="homeTypeBtn" onclick="openConverse()"></button>
-        <button type="button" class="cta sage" id="homeMicBtn" style="display:none;"></button>
+      <!-- TC-90/orb-home: Della's presence orb IS the front door. The orb is the mic —
+           tap / Enter / Space starts the hands-free spoken conversation (or, mic-less,
+           opens the typed one). The old two-button hero-actions (#homeMicBtn "Say it out
+           loud" + #homeTypeBtn "Type it out") were retired; #homeTypeBtn survives, demoted
+           to the small "or type instead" link below so its openConverse() wiring still binds. -->
+      <div class="hero-orb-wrap">
+        <div class="stage" id="homeOrbStage" data-state="idle" data-life="energetic"
+             role="button" tabindex="0" aria-label="Talk it through — tap to start">
+          <div class="orb orbIW">
+            <div class="halo"></div>
+            <canvas width="240" height="240"></canvas>
+          </div>
+        </div>
+        <div class="hero-orb-prompt" id="homeOrbPrompt">Tap to talk</div>
+        <button type="button" class="hero-typelink" id="homeTypeBtn" onclick="openConverse()">or type instead</button>
       </div>
       <!-- TC-81: quiet recovery link — shown only when a valid, unexpired plan is stored on this device. -->
       <div class="tc-lastplan" id="lastPlanAffordance">
@@ -1288,33 +1339,57 @@ function bubbleSvg(size, stroke, accent){
     <line x1="9" y1="13.5" x2="13.5" y2="13.5" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
   </svg>`;
 }
-// The typed method button (always available). The mic method is added by setupHomeVoice.
-function renderTypeBtn(){
-  const t = document.getElementById('homeTypeBtn');
-  if (t) t.innerHTML = bubbleSvg(18, 'currentColor', '#c28a63') + '<span class="mic-label">Type it out</span>';
-}
-renderTypeBtn();
+// orb-home: the hero orb IS the front door + the mic. There's no longer a "Say it out loud"
+// button (retired) — the orb's tap / Enter / Space starts the hands-free spoken conversation,
+// exactly like the old #homeMicBtn did (same startHomeVoiceConverse → unlockSpeech + warm +
+// openConverse voice:true). The "or type instead" link keeps id #homeTypeBtn + its inline
+// openConverse() handler, so all existing wiring that looks up that id still binds.
+//
+// Mic-less / desktop degrade: when voice isn't allowed OR no mic is present, the orb still
+// renders as a presence, but a tap opens the TYPED conversation and the prompt reads "Tap to
+// type" so we never promise a mic that isn't there.
 async function setupHomeVoice(){
-  const mic = document.getElementById('homeMicBtn'); if (!mic) return;
-  const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
-  if (!voiceAllowedClient() || !canRecord){ mic.style.display = 'none'; return; }
-  let hasMic = true;
-  try { if (navigator.mediaDevices.enumerateDevices){ const ds = await navigator.mediaDevices.enumerateDevices(); const ins = ds.filter(d => d.kind === 'audioinput'); if (ds.length && ins.length === 0) hasMic = false; } } catch(e){}
-  const isPhone = (window.matchMedia && matchMedia('(pointer:coarse)').matches) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  if (!hasMic && !isPhone){ mic.style.display = 'none'; return; } // computer, no mic → typing only
-  mic.style.display = '';
-  // TC-82 Phase 2 (2a): the home mic now opens the MULTI-TURN spoken advisor conversation
-  // (was: one-shot record→transcribe→reflect→plan). It reuses the same chat surface as
-  // "Talk it through," just orchestrated hands-free. Priming + warming still happen in the tap.
-  mic.onclick = startHomeVoiceConverse;
-  mic.innerHTML = micSvg(19, 'currentColor', '#c28a63') + '<span class="mic-label">Say it out loud</span>';
-  // TC-70: stable, consistent CTAs — "Type it out" is always the primary (terracotta,
-  // lower-friction no-mic path) and comes first; "Talk it through" is the sage secondary
-  // that comes second. Order no longer swaps by device, so the hero reads the same every
-  // load (source order already places Type before Talk — no `order` overrides needed).
+  const stage  = document.getElementById('homeOrbStage'); if (!stage) return;
+  const prompt = document.getElementById('homeOrbPrompt');
+
+  // Decide whether the orb can drive voice on this device (mirrors the old mic-button gate).
+  let voiceReady = voiceAllowedClient();
+  if (voiceReady){
+    const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    if (!canRecord){ voiceReady = false; }
+    else {
+      let hasMic = true;
+      try { if (navigator.mediaDevices.enumerateDevices){ const ds = await navigator.mediaDevices.enumerateDevices(); const ins = ds.filter(d => d.kind === 'audioinput'); if (ds.length && ins.length === 0) hasMic = false; } } catch(e){}
+      const isPhone = (window.matchMedia && matchMedia('(pointer:coarse)').matches) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      if (!hasMic && !isPhone){ voiceReady = false; } // computer, no mic → typing only
+    }
+  }
+
+  // The orb's action. Voice path primes iOS audio + warms the voice fns WITHIN this tap (as the
+  // old mic button did) then opens the hands-free spoken conversation; typed path just opens chat.
+  function orbAction(){
+    if (voiceReady) startHomeVoiceConverse();
+    else openConverse();
+  }
+  stage.__orbAction = orbAction; // so a later voice-gate change can rebind cleanly
+  stage.onclick = orbAction;
+  stage.onkeydown = function(e){
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); orbAction(); }
+  };
+
+  // Prompt copy + a11y label reflect the actual action; the name is single-sourced
+  // (window.__HER_NAME, set by companion.js from /api/public-config → _persona HER_NAME).
+  // Before the name has arrived we show a clean "Tap to talk" / "Tap to type" (no "with her"),
+  // then re-render on the 'tc-her-name' event once it's known.
+  const her = window.__HER_NAME || '';
+  const withHer = her ? (' with ' + her) : '';
+  if (prompt) prompt.textContent = (voiceReady ? 'Tap to talk' : 'Tap to type') + withHer;
+  stage.setAttribute('aria-label', 'Talk it through' + withHer + (voiceReady ? ' — tap to start' : ' — tap to type'));
 }
 window.addEventListener('tc-voice-gate-ready', setupHomeVoice);
 setupHomeVoice();
+// If the name arrives from /api/public-config after first paint, refresh the prompt/label.
+window.addEventListener('tc-her-name', setupHomeVoice);
 
 // Cold-start warming (TC-67): the moment the user taps into a voice flow, spin up the two voice
 // functions so they're hot by the time we actually call them (a few seconds later, after the user
@@ -1975,6 +2050,10 @@ function cvVoiceCue(state){
   }
   if (label) label.textContent = known ? LABELS[state] : '';
   if (sr) sr.textContent = known ? SR[state] : '';
+  // orb-home (broadcast, don't subscribe): drive the hero presence orb from the SAME voice
+  // cue that runs the TC-88 state bar. ''→idle; listening/thinking/speaking pass straight
+  // through. The orb reads data-state next frame (no event bus). Best-effort; never throws.
+  try { window.TCOrb && window.TCOrb.setState(known ? state : 'idle'); } catch(e){}
 }
 
 function cvAppend(role, text){
@@ -4206,6 +4285,13 @@ function tcToastHide(){
   // The single inline-mic factory (assigns window.mountInlineMic for the classic intake script
   // above; ES modules import it directly from /_inline-mic.js).
   import '/_inline-mic.js';
+
+  // orb-home: mount Della's presence orb onto the hero stage and expose it as window.TCOrb.
+  // cvVoiceCue() broadcasts state changes to window.TCOrb.setState(); the canvas engine lives
+  // in /_orb.js (Inner Weather, energetic; pauses off-screen/hidden; reduced-motion still frame).
+  import { mountOrb } from '/_orb.js';
+  const __orbStage = document.getElementById('homeOrbStage');
+  if (__orbStage) { try { window.TCOrb = mountOrb(__orbStage, { life: 'energetic' }); } catch (e) {} }
 </script>
 <script type="module" src="/companion.js"></script>
 <script type="module" src="/roster.js"></script>
