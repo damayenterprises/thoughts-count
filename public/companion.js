@@ -711,8 +711,9 @@ function renderHome(people, opts = {}) {
       <div style="height:14px"></div>
       ${comingUp}
       ${captureStripHtml(people)}
-      ${controls}
-      <div id="tcPeopleList"></div>
+      <!-- TC-116: the Add affordance is pinned to the TOP of the People surface (above the
+           search/sort controls and the list) so adding someone never means scrolling past
+           everyone. The manual/import form expands in place, still at the top. -->
       <button class="cta ghost tc-addtoggle" id="tcAddToggle" style="width:100%;justify-content:center;margin-top:6px;">${plusSvg(16, "currentColor")}<span>Add someone</span></button>
       <div class="block tc-addwrap" id="tcAddForm" style="display:none;">
         <h4><span class="ic">${plusSvg(17, "var(--sage-deep)")}</span>Add someone</h4>
@@ -744,6 +745,8 @@ function renderHome(people, opts = {}) {
         <div class="nav"><button class="link-btn" id="np_cancel">Cancel</button><button class="cta" id="np_save">Add them →</button></div>
         <div class="k-msg" id="np_msg"></div>
       </div>
+      ${controls}
+      <div id="tcPeopleList"></div>
     </div>`;
 
   const listEl = () => modalBody().querySelector("#tcPeopleList");
