@@ -4,19 +4,22 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <meta name="robots" content="noindex" />
-<title>Della · presence explorations</title>
+<title>Della · Inner Weather</title>
 <style>
   /* =========================================================================
-     Della — orb presence explorations (standalone prototype)
-     Same living-light language as the app home: sage/green -> blue drifting
-     clouds, warm terracotta core. Pure CSS/canvas, no libs, no framework.
-     Palette pulled from index.html :root + the #bg cloud colors.
+     Della — "Inner Weather" presence orb (standalone prototype)
+     David's direction: NO white glow. A warm living nebula in a sphere —
+     the app's green->blue background palette blended with a terracotta-clay
+     (#c77b59) heart, drifting/folding/pulsing so it clearly reads ALIVE.
+     Rendered on canvas (like Lantern was) so hues truly BLEND, not stack.
+     Hero = revised Inner Weather. Two liveliness variants below it so David
+     can dial the amount of movement.
      ========================================================================= */
   :root {
     --sage:      #7d8a68;
     --sage-deep: #5f6c4c;
-    --clay:      #c28a63;
-    --clay-deep: #a97350;
+    --clay:      #c77b59;   /* the warm terracotta-clay heart */
+    --clay-deep: #a86046;
     --ink:       #34382f;
     --ink-soft:  #5f6b60;
     --line:      #d9e4dd;
@@ -24,9 +27,6 @@
     /* background cloud family (from index.html #bg) */
     --g1: #9fc596; --g2: #8fbfb4; --g3: #b3d2ac;
     --b1: #a2bdd8; --b2: #a9c3e2; --b3: #98bcd8;
-    /* warm core family */
-    --warm:      #e7b48d;
-    --warm-deep: #c28a63;
   }
   * { box-sizing: border-box; }
   html { -webkit-text-size-adjust: 100%; }
@@ -54,171 +54,118 @@
   @keyframes drift4 { from { transform: translate(4vw,4vh) scale(1.05); }  to { transform: translate(-26vw,-18vh) scale(1.2); } }
 
   /* ---------- page chrome ---------- */
-  .wrap { max-width: 1100px; margin: 0 auto; padding: 34px 20px 90px; }
+  .wrap { max-width: 900px; margin: 0 auto; padding: 34px 20px 90px; }
   header.page { text-align: center; margin-bottom: 8px; }
   header.page h1 { font-size: 26px; margin: 0 0 4px; color: var(--ink); font-weight: 800; letter-spacing: -.01em; }
-  header.page p { margin: 0 auto; max-width: 620px; color: var(--ink-soft); font-size: 15px; }
-  .note { max-width: 640px; margin: 14px auto 30px; background: rgba(255,255,255,.5); border: 1px solid var(--line);
+  header.page p { margin: 0 auto; max-width: 640px; color: var(--ink-soft); font-size: 15px; }
+  .note { max-width: 660px; margin: 14px auto 30px; background: rgba(255,255,255,.5); border: 1px solid var(--line);
           border-radius: 16px; padding: 12px 18px; font-size: 13.5px; color: var(--ink-soft); text-align: center; }
   .note b { color: var(--sage-deep); }
 
-  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 26px; align-items: start; }
+  /* ---------- HERO ---------- */
+  .hero { display: flex; flex-direction: column; align-items: center; margin: 6px auto 40px; }
+  .hero .tag { font-size: 12.5px; color: var(--sage-deep); font-weight: 700; letter-spacing: .04em;
+               text-transform: uppercase; margin-bottom: 4px; }
+  .hero h2 { font-size: 22px; margin: 0 0 20px; color: var(--ink); font-weight: 800; }
 
+  /* variants row */
+  .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 26px; align-items: start; }
   .card { background: rgba(255,255,255,.42); border: 1px solid var(--line); border-radius: 26px;
-          padding: 26px 22px 24px; box-shadow: 0 10px 40px rgba(90,60,25,.10), 0 2px 8px rgba(90,60,25,.05);
+          padding: 24px 20px 22px; box-shadow: 0 10px 40px rgba(90,60,25,.10), 0 2px 8px rgba(90,60,25,.05);
           text-align: center; }
-  .card h2 { font-size: 19px; margin: 0 0 2px; color: var(--ink); font-weight: 800; }
-  .card .tag { font-size: 12.5px; color: var(--sage-deep); font-weight: 700; letter-spacing: .03em;
-               text-transform: uppercase; margin-bottom: 18px; }
+  .card h3 { font-size: 17px; margin: 0 0 2px; color: var(--ink); font-weight: 800; }
+  .card .tag { font-size: 12px; color: var(--sage-deep); font-weight: 700; letter-spacing: .03em;
+               text-transform: uppercase; margin-bottom: 14px; }
 
   /* ---------- shared orb stage ---------- */
-  .stage { position: relative; width: 220px; height: 220px; margin: 4px auto 6px;
+  .stage { position: relative; margin: 4px auto 6px;
            display: flex; align-items: center; justify-content: center; cursor: pointer;
            -webkit-tap-highlight-color: transparent; }
-  .orb { position: relative; width: 176px; height: 176px; border-radius: 50%; }
+  .stage.big  { width: 300px; height: 300px; }
+  .stage.med  { width: 220px; height: 220px; }
+  .orb { position: relative; border-radius: 50%; will-change: transform; }
+  .stage.big .orb { width: 240px; height: 240px; }
+  .stage.med .orb { width: 176px; height: 176px; }
+
+  /* the living-color orb: canvas fills a clean circle; soft warm halo behind */
+  .orbIW { overflow: visible; }
+  .orbIW canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; display: block;
+                  box-shadow: 0 14px 40px rgba(120,70,40,.20); }
+  .orbIW .halo { position: absolute; inset: -26px; border-radius: 50%; z-index: -1; will-change: transform, opacity;
+                 background: radial-gradient(circle, rgba(199,123,89,.30) 0%, rgba(159,197,150,.16) 46%, rgba(159,197,150,0) 72%);
+                 filter: blur(8px); }
 
   /* ---------- state buttons ---------- */
-  .states { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin: 16px 0 20px; }
+  .states { display: flex; flex-wrap: wrap; justify-content: center; gap: 7px; margin: 18px 0 10px; }
   .states button { font-family: inherit; font-size: 12.5px; font-weight: 700; color: var(--sage-deep);
                    background: var(--cloud); border: 1.5px solid var(--line); border-radius: 999px;
                    padding: 7px 14px; cursor: pointer; transition: all .15s ease; -webkit-tap-highlight-color: transparent; }
   .states button:hover { border-color: var(--sage); }
   .states button[aria-pressed="true"] { background: var(--sage); border-color: var(--sage); color: #fff; }
-  .state-label { font-size: 12.5px; color: var(--ink-soft); min-height: 18px; margin-top: -8px; }
+  .state-label { font-size: 12.5px; color: var(--ink-soft); min-height: 18px; }
   .state-label b { color: var(--clay-deep); }
 
   /* ---------- mini home preview (the real front door in miniature) ---------- */
-  .home { margin-top: 20px; border-top: 1px dashed var(--line); padding-top: 20px; }
+  .home { margin-top: 22px; border-top: 1px dashed var(--line); padding-top: 22px; width: 100%; max-width: 360px; }
   .home .mini-orb-wrap { display: flex; flex-direction: column; align-items: center; gap: 10px; }
-  .home .prompt { font-size: 14px; color: var(--ink); font-weight: 700; }
+  .home .prompt { font-size: 15px; color: var(--ink); font-weight: 700; }
   .home .typelink { font-size: 13px; color: var(--sage-deep); text-decoration: underline; text-underline-offset: 3px; }
   .home .caption { font-size: 11.5px; color: var(--ink-soft); margin-top: 4px; }
+  .stage.mini { width: 104px; height: 104px; cursor: default; }
+  .stage.mini .orb { width: 92px; height: 92px; }
+  .stage.mini .halo { inset: -14px; }
 
   /* =========================================================================
-     TREATMENT A — "Inner Weather"  (internal color drift, the sky in a lens)
-     The background clouds, concentrated + clipped into the circle.
+     STATE MOTION — the CANVAS carries the color life; CSS transforms add the
+     breath/pulse body movement. Both read data-state on the .stage.
+     idle -> slow inviting breath   listening -> draw inward + ripple
+     thinking -> quiet settle       speaking -> livelier talking pulses
      ========================================================================= */
-  .orbA { overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,.35) inset, 0 14px 40px rgba(90,60,25,.16); }
-  .orbA .glass { position: absolute; inset: 0; border-radius: 50%; overflow: hidden;
-                 background: radial-gradient(120% 120% at 50% 40%, #eef4ee 0%, #dfeae6 60%, #cfdfe0 100%); }
-  .orbA .wblob { position: absolute; border-radius: 50%; filter: blur(16px); opacity: .8; will-change: transform; }
-  .orbA .wa { width: 130px; height: 130px; left: -18px; top: -8px;  background: var(--g1); animation: wdriftA 14s ease-in-out infinite alternate; }
-  .orbA .wb { width: 120px; height: 120px; right: -20px; top: 4px;  background: var(--b1); animation: wdriftB 17s ease-in-out infinite alternate; animation-delay: -5s; }
-  .orbA .wc { width: 140px; height: 140px; left: 10px;  bottom: -26px; background: var(--g2); animation: wdriftC 15s ease-in-out infinite alternate; animation-delay: -3s; }
-  .orbA .wd { width: 100px; height: 100px; right: 6px;  bottom: -6px; background: var(--b3); animation: wdriftD 19s ease-in-out infinite alternate; animation-delay: -8s; }
-  /* warm core inside, glows through the cool weather */
-  .orbA .core { position: absolute; inset: 0; border-radius: 50%;
-                background: radial-gradient(circle at 50% 54%, rgba(231,180,141,.9) 0%, rgba(231,180,141,.35) 26%, rgba(231,180,141,0) 52%);
-                mix-blend-mode: screen; will-change: transform, opacity; }
-  /* soft outer halo shared feel */
-  .orbA .halo { position: absolute; inset: -22px; border-radius: 50%; z-index: -1;
-                background: radial-gradient(circle, rgba(194,138,99,.28) 0%, rgba(159,197,150,.14) 45%, rgba(159,197,150,0) 70%);
-                filter: blur(6px); will-change: transform, opacity; }
-  @keyframes wdriftA { from { transform: translate(0,0) scale(1); }        to { transform: translate(34px,26px) scale(1.15); } }
-  @keyframes wdriftB { from { transform: translate(0,0) scale(1.08); }     to { transform: translate(-30px,22px) scale(1); } }
-  @keyframes wdriftC { from { transform: translate(0,0) scale(1); }        to { transform: translate(24px,-30px) scale(1.12); } }
-  @keyframes wdriftD { from { transform: translate(0,0) scale(1.05); }     to { transform: translate(-26px,-18px) scale(1.16); } }
-
-  /* =========================================================================
-     TREATMENT B — "Breath"  (layered breathing glow / aura)
-     Warm luminous core + soft halo that expands & contracts like breathing.
-     ========================================================================= */
-  .orbB .aura { position: absolute; inset: -30px; border-radius: 50%; z-index: -1; will-change: transform, opacity;
-                background: radial-gradient(circle, rgba(194,138,99,.34) 0%, rgba(163,189,216,.16) 46%, rgba(163,189,216,0) 72%);
-                filter: blur(4px); }
-  .orbB .ring { position: absolute; inset: 0; border-radius: 50%; will-change: transform, opacity;
-                background: radial-gradient(circle at 50% 50%, rgba(255,255,255,.0) 54%, rgba(159,197,150,.30) 66%, rgba(159,197,150,0) 78%); }
-  .orbB .body { position: absolute; inset: 0; border-radius: 50%; will-change: transform;
-                background:
-                  radial-gradient(circle at 42% 36%, #ffe9d4 0%, rgba(255,233,212,0) 40%),
-                  radial-gradient(circle at 58% 66%, var(--warm) 0%, var(--warm-deep) 42%, #93a97e 78%, #6f8f8a 100%);
-                box-shadow: 0 0 46px rgba(194,138,99,.5), inset 0 0 40px rgba(255,238,220,.4); }
-  .orbB .sheen { position: absolute; inset: 0; border-radius: 50%;
-                 background: radial-gradient(circle at 40% 30%, rgba(255,255,255,.55) 0%, rgba(255,255,255,0) 34%); }
-
-  /* =========================================================================
-     TREATMENT C — "Lantern"  (liquid / slow lava-like morph, canvas)
-     Warm plasma slowly folding through green->blue, drawn on a light canvas.
-     ========================================================================= */
-  .orbC { overflow: hidden; box-shadow: 0 0 0 1px rgba(255,255,255,.35) inset, 0 14px 40px rgba(90,60,25,.16); }
-  .orbC canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; display: block; }
-  .orbC .halo { position: absolute; inset: -22px; border-radius: 50%; z-index: -1;
-                background: radial-gradient(circle, rgba(194,138,99,.28) 0%, rgba(143,191,180,.14) 46%, rgba(143,191,180,0) 72%);
-                filter: blur(6px); will-change: transform, opacity; }
-
-  /* =========================================================================
-     STATE ANIMATIONS  — driven by data-state on the .stage
-     idle -> slow breathing bob   listening -> inward ripple
-     thinking -> slow settle pulse   speaking -> warm outward pulses
-     Applied to the .orb (transform) and select inner layers.
-     ========================================================================= */
-  .orb { animation: idleBob 6.5s ease-in-out infinite; will-change: transform; }
-  @keyframes idleBob {
+  .stage[data-state="idle"]      .orb { animation: idleBreath 5.4s ease-in-out infinite; }
+  .stage[data-state="listening"] .orb { animation: listenRipple 2.6s ease-in-out infinite; }
+  .stage[data-state="thinking"]  .orb { animation: thinkSettle 3.0s ease-in-out infinite; }
+  .stage[data-state="speaking"]  .orb { animation: speakPulse 1.35s ease-in-out infinite; }
+  @keyframes idleBreath {
     0%,100% { transform: translateY(0) scale(1); }
-    50%     { transform: translateY(-6px) scale(1.015); }
+    50%     { transform: translateY(-4px) scale(1.028); }
   }
   @keyframes listenRipple {
     0%,100% { transform: scale(1); }
-    30%     { transform: scale(.955); }
-    60%     { transform: scale(1.008); }
+    28%     { transform: scale(.952); }
+    62%     { transform: scale(1.012); }
   }
-  @keyframes thinkPulse {
-    0%,100% { transform: scale(.99); }
-    50%     { transform: scale(1.012); }
+  @keyframes thinkSettle {
+    0%,100% { transform: scale(.988); }
+    50%     { transform: scale(1.014); }
   }
   @keyframes speakPulse {
     0%   { transform: scale(1); }
-    22%  { transform: scale(1.05); }
-    45%  { transform: scale(.99); }
-    68%  { transform: scale(1.035); }
+    20%  { transform: scale(1.058); }
+    44%  { transform: scale(.992); }
+    66%  { transform: scale(1.04); }
     100% { transform: scale(1); }
   }
-  /* state overrides */
-  .stage[data-state="listening"] .orb { animation: listenRipple 2.6s ease-in-out infinite; }
-  .stage[data-state="thinking"]  .orb { animation: thinkPulse 2.2s ease-in-out infinite; }
-  .stage[data-state="speaking"]  .orb { animation: speakPulse 1.5s ease-in-out infinite; }
 
-  /* halos/auras respond to state too (breath + brightness) */
-  .stage .orbA .halo, .stage .orbB .aura, .stage .orbC .halo { animation: haloBreath 6.5s ease-in-out infinite; }
-  @keyframes haloBreath { 0%,100% { transform: scale(1); opacity: .85; } 50% { transform: scale(1.08); opacity: 1; } }
-  .stage[data-state="listening"] .orbA .halo,
-  .stage[data-state="listening"] .orbB .aura,
-  .stage[data-state="listening"] .orbC .halo { animation: haloListen 2.6s ease-in-out infinite; }
-  @keyframes haloListen { 0%,100% { transform: scale(1); opacity: .9; } 40% { transform: scale(.9); opacity: .7; } }
-  .stage[data-state="speaking"] .orbA .halo,
-  .stage[data-state="speaking"] .orbB .aura,
-  .stage[data-state="speaking"] .orbC .halo { animation: haloSpeak 1.5s ease-in-out infinite; }
-  @keyframes haloSpeak { 0%,100% { transform: scale(1); opacity: .85; } 22% { transform: scale(1.16); opacity: 1; } 68% { transform: scale(1.1); opacity: .95; } }
+  /* halo breathes/brightens with state */
+  .stage .halo { animation: haloBreath 5.4s ease-in-out infinite; }
+  @keyframes haloBreath { 0%,100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.1); opacity: 1; } }
+  .stage[data-state="listening"] .halo { animation: haloListen 2.6s ease-in-out infinite; }
+  @keyframes haloListen { 0%,100% { transform: scale(1); opacity: .92; } 40% { transform: scale(.9); opacity: .72; } }
+  .stage[data-state="speaking"] .halo { animation: haloSpeak 1.35s ease-in-out infinite; }
+  @keyframes haloSpeak { 0%,100% { transform: scale(1); opacity: .9; } 20% { transform: scale(1.18); opacity: 1; } 66% { transform: scale(1.12); opacity: .96; } }
 
-  /* Treatment B specific: breathing core + speaking ring flashes */
-  .stage[data-state="idle"] .orbB .body      { animation: bBreath 6.5s ease-in-out infinite; }
-  .stage[data-state="thinking"] .orbB .body  { animation: bBreath 2.4s ease-in-out infinite; }
-  @keyframes bBreath { 0%,100% { filter: brightness(1); } 50% { filter: brightness(1.1); } }
-  .orbB .ring { opacity: 0; }
-  .stage[data-state="speaking"] .orbB .ring { animation: ringOut 1.5s ease-out infinite; }
-  @keyframes ringOut { 0% { opacity: .8; transform: scale(.9); } 100% { opacity: 0; transform: scale(1.28); } }
-  .stage[data-state="listening"] .orbB .body { animation: bDim 2.6s ease-in-out infinite; }
-  @keyframes bDim { 0%,100% { filter: brightness(1); } 40% { filter: brightness(.9) saturate(1.1); } }
-
-  /* Treatment A core brightens/steadies per state */
-  .stage[data-state="speaking"] .orbA .core { animation: coreFlare 1.5s ease-in-out infinite; }
-  @keyframes coreFlare { 0%,100% { opacity: 1; transform: scale(1); } 30% { opacity: 1; transform: scale(1.12); } 60% { opacity: .92; transform: scale(1.04); } }
-  .stage[data-state="listening"] .orbA .core { animation: coreHush 2.6s ease-in-out infinite; }
-  @keyframes coreHush { 0%,100% { opacity: 1; } 40% { opacity: .78; } }
-
-  /* mini home orb (small, always idle, non-interactive) */
-  .mini-orb { width: 84px; height: 84px; animation: idleBob 6.5s ease-in-out infinite; }
-  .mini-orb .halo, .mini-orb .aura { inset: -12px !important; }
+  /* mini home orb: always idle, gentle */
+  .stage.mini .orb { animation: idleBreath 5.4s ease-in-out infinite; }
 
   /* =========================================================================
-     REDUCED MOTION — calm near-still: kill drift/bob, keep a gentle static glow
+     REDUCED MOTION — calm near-still WARM color (still no white). The canvas
+     draws a single blended frame; CSS breathing/drift is disabled.
      ========================================================================= */
   @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation-duration: .001ms !important; animation-iteration-count: 1 !important;
                              transition-duration: .001ms !important; }
     #bg .cloud { animation: none !important; }
-    .orb, .mini-orb, .halo, .aura, .core, .ring, .body, .wblob { animation: none !important; }
-    /* leave the warm gradient glow standing, just still */
+    .orb, .halo { animation: none !important; }
     .rm-badge { display: inline-block; }
   }
   .rm-badge { display: none; font-size: 11.5px; color: var(--clay-deep); font-weight: 700;
@@ -237,99 +184,70 @@
 
 <div class="wrap">
   <header class="page">
-    <h1>Della &middot; presence explorations</h1>
-    <p>Three ways her presence could live on the home screen &mdash; an abstract orb of the same warm, drifting light as the app itself. Tap an orb (or the buttons) to see how she reacts as you talk.</p>
+    <h1>Della &middot; Inner Weather</h1>
+    <p>Her presence on the home screen &mdash; a warm living nebula in a sphere. The app's green&rarr;blue light and a terracotta-clay heart blend and bleed into each other, drifting and pulsing so she reads alive and inviting. Tap the orb (or the buttons) to see how she reacts as you talk.</p>
   </header>
 
   <div class="note">
-    <b>Exploration, not production.</b> No real voice is wired &mdash; the state buttons simulate the flow: Idle &rarr; Listening &rarr; Thinking &rarr; Speaking.
-    <span class="rm-badge">Reduced-motion on: showing the calm still-glow variant.</span>
+    <b>Exploration, not production.</b> No real voice is wired &mdash; the buttons simulate the flow: Idle &rarr; Listening &rarr; Thinking &rarr; Speaking. Below the hero: two liveliness variants so you can dial the amount of movement.
+    <span class="rm-badge">Reduced-motion on: showing the calm still-color variant (still warm, still no white).</span>
   </div>
 
+  <!-- ============== HERO: revised Inner Weather ============== -->
+  <div class="hero">
+    <div class="tag">the direction &middot; revised</div>
+    <h2>Inner Weather</h2>
+    <div class="stage big" data-state="idle" data-life="alive" role="button" tabindex="0" aria-label="Inner Weather orb, tap to cycle state">
+      <div class="orb orbIW">
+        <div class="halo"></div>
+        <canvas width="240" height="240"></canvas>
+      </div>
+    </div>
+    <div class="states"></div>
+    <div class="state-label"></div>
+
+    <div class="home">
+      <div class="mini-orb-wrap">
+        <div class="stage mini" data-state="idle" data-life="alive" aria-hidden="true">
+          <div class="orb orbIW">
+            <div class="halo"></div>
+            <canvas width="92" height="92"></canvas>
+          </div>
+        </div>
+        <div class="prompt">Tap to talk with Della</div>
+        <a class="typelink" href="#" onclick="return false">or type with Della instead</a>
+        <div class="caption">home front door</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============== LIVELINESS VARIANTS ============== -->
   <div class="grid">
 
-    <!-- ============== TREATMENT A ============== -->
     <div class="card">
-      <h2>A &middot; Inner Weather</h2>
-      <div class="tag">the sky, seen through a lens</div>
-      <div class="stage" data-state="idle" data-orb="A" role="button" tabindex="0" aria-label="Inner Weather orb, tap to cycle state">
-        <div class="orb orbA">
-          <div class="halo"></div>
-          <div class="glass">
-            <div class="wblob wa"></div><div class="wblob wb"></div>
-            <div class="wblob wc"></div><div class="wblob wd"></div>
-          </div>
-          <div class="core"></div>
-        </div>
-      </div>
-      <div class="states"></div>
-      <div class="state-label"></div>
-
-      <div class="home">
-        <div class="mini-orb-wrap">
-          <div class="orb orbA mini-orb">
-            <div class="halo"></div>
-            <div class="glass"><div class="wblob wa"></div><div class="wblob wb"></div><div class="wblob wc"></div><div class="wblob wd"></div></div>
-            <div class="core"></div>
-          </div>
-          <div class="prompt">Tap to talk with Della</div>
-          <a class="typelink" href="#" onclick="return false">or type with Della instead</a>
-          <div class="caption">home front door</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============== TREATMENT B ============== -->
-    <div class="card">
-      <h2>B &middot; Breath</h2>
-      <div class="tag">a warm core that breathes</div>
-      <div class="stage" data-state="idle" data-orb="B" role="button" tabindex="0" aria-label="Breath orb, tap to cycle state">
-        <div class="orb orbB">
-          <div class="aura"></div>
-          <div class="ring"></div>
-          <div class="body"></div>
-          <div class="sheen"></div>
-        </div>
-      </div>
-      <div class="states"></div>
-      <div class="state-label"></div>
-
-      <div class="home">
-        <div class="mini-orb-wrap">
-          <div class="orb orbB mini-orb">
-            <div class="aura"></div><div class="ring"></div><div class="body"></div><div class="sheen"></div>
-          </div>
-          <div class="prompt">Tap to talk with Della</div>
-          <a class="typelink" href="#" onclick="return false">or type with Della instead</a>
-          <div class="caption">home front door</div>
-        </div>
-      </div>
-    </div>
-
-    <!-- ============== TREATMENT C ============== -->
-    <div class="card">
-      <h2>C &middot; Lantern</h2>
-      <div class="tag">slow liquid light</div>
-      <div class="stage" data-state="idle" data-orb="C" role="button" tabindex="0" aria-label="Lantern orb, tap to cycle state">
-        <div class="orb orbC">
+      <h3>Alive</h3>
+      <div class="tag">calm, living warmth</div>
+      <div class="stage med" data-state="idle" data-life="alive" role="button" tabindex="0" aria-label="Inner Weather (Alive), tap to cycle state">
+        <div class="orb orbIW">
           <div class="halo"></div>
           <canvas width="176" height="176"></canvas>
         </div>
       </div>
       <div class="states"></div>
       <div class="state-label"></div>
+    </div>
 
-      <div class="home">
-        <div class="mini-orb-wrap">
-          <div class="orb orbC mini-orb">
-            <div class="halo"></div>
-            <canvas width="84" height="84"></canvas>
-          </div>
-          <div class="prompt">Tap to talk with Della</div>
-          <a class="typelink" href="#" onclick="return false">or type with Della instead</a>
-          <div class="caption">home front door</div>
+    <div class="card">
+      <h3>More energetic</h3>
+      <div class="tag">the same soul, more motion</div>
+      <div class="stage med" data-state="idle" data-life="energetic" role="button" tabindex="0" aria-label="Inner Weather (More energetic), tap to cycle state">
+        <div class="orb orbIW">
+          <div class="halo"></div>
+          <canvas width="176" height="176"></canvas>
         </div>
       </div>
+      <div class="states"></div>
+      <div class="state-label"></div>
     </div>
 
   </div>
@@ -344,17 +262,18 @@
   "use strict";
   var STATES = ["idle", "listening", "thinking", "speaking"];
   var LABELS = {
-    idle:      "<b>Idle</b> &mdash; calm, breathing, inviting a tap",
+    idle:      "<b>Idle</b> &mdash; a slow, warm breath, inviting a tap",
     listening: "<b>Listening</b> &mdash; drawing inward, a gentle ripple as she hears you",
-    thinking:  "<b>Thinking</b> &mdash; a quiet settle",
-    speaking:  "<b>Speaking</b> &mdash; warm outward pulses, a talking rhythm"
+    thinking:  "<b>Thinking</b> &mdash; the color settles, a quiet gather",
+    speaking:  "<b>Speaking</b> &mdash; warm, lively pulses in a talking rhythm"
   };
 
-  // Build state buttons + label for each stage
-  document.querySelectorAll(".stage").forEach(function (stage) {
-    var card = stage.closest(".card");
-    var btnRow = card.querySelector(".states");
-    var label = card.querySelector(".state-label");
+  // ---- state buttons + label wiring (mini orbs are non-interactive) ----
+  document.querySelectorAll(".stage:not(.mini)").forEach(function (stage) {
+    // find the sibling .states / .state-label (hero uses .hero, cards use .card)
+    var scope = stage.closest(".card") || stage.closest(".hero");
+    var btnRow = scope.querySelector(".states");
+    var label = scope.querySelector(".state-label");
 
     function setState(s) {
       stage.setAttribute("data-state", s);
@@ -369,11 +288,10 @@
       b.type = "button";
       b.dataset.s = s;
       b.textContent = s.charAt(0).toUpperCase() + s.slice(1);
-      b.addEventListener("click", function () { setState(s); });
+      b.addEventListener("click", function (e) { e.stopPropagation(); setState(s); });
       btnRow.appendChild(b);
     });
 
-    // Tap the orb itself to advance to the next state (simulates a voice turn)
     function advance() {
       var cur = stage.getAttribute("data-state");
       var next = STATES[(STATES.indexOf(cur) + 1) % STATES.length];
@@ -387,98 +305,143 @@
     setState("idle");
   });
 
-  // ---------- Treatment C: liquid "Lantern" canvas ----------
-  // Lightweight metaball-ish plasma: a few slow-moving warm/cool radial blobs
-  // composited additively. Respects reduced-motion (draws one still frame).
   var reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 
-  document.querySelectorAll(".orbC canvas").forEach(function (canvas) {
+  /* =========================================================================
+     THE LIVING NEBULA — Inner Weather, on canvas
+     A handful of soft radial "pigments" drift and fold on lissajous paths and
+     BLEND via normal alpha (source-over) so green/teal/blue mix into each other
+     around a warm terracotta-clay heart. No white anywhere: base wash, pigments
+     and center bloom are all COLOR. A slow shared breath swells the whole orb so
+     it reads alive. State changes speed, warm intensity, and pull-to-center.
+     ========================================================================= */
+
+  // Pigment palette — cool app family + warm clay heart.
+  //   col = saturated core of the pigment,  edge = same hue fading to transparent
+  function makePigments() {
+    return [
+      // warm terracotta-clay HEART — biased to center, larger, the anchor
+      { col:[199,123,89],  edge:[168,96,70],  a:0.62, ox: 0.00, oy: 0.08, rx: 0.66, ry: 0.10, sp: 0.22, ph: 0.0, warm:true },
+      { col:[220,150,110], edge:[190,120,84], a:0.48, ox: 0.10, oy: -0.06, rx: 0.50, ry: 0.14, sp: 0.30, ph: 1.6, warm:true },
+      // green
+      { col:[159,197,150], edge:[123,148,112], a:0.50, ox:-0.34, oy: 0.16, rx: 0.58, ry: 0.20, sp: 0.26, ph: 2.4 },
+      { col:[143,191,180], edge:[110,158,148], a:0.48, ox: 0.30, oy: 0.24, rx: 0.54, ry: 0.18, sp: 0.24, ph: 3.6 }, // teal
+      // blue
+      { col:[162,189,216], edge:[120,152,196], a:0.46, ox:-0.20, oy:-0.28, rx: 0.52, ry: 0.22, sp: 0.29, ph: 4.7 },
+      { col:[179,210,172], edge:[140,178,132], a:0.40, ox: 0.24, oy:-0.22, rx: 0.48, ry: 0.20, sp: 0.20, ph: 5.9 }  // light green
+    ];
+  }
+
+  // per-state feel. speed = drift+pulse rate, warm = clay intensity,
+  // pull = how much pigments gather toward center, breath = body-color pulse depth.
+  function stateFactors(state, life) {
+    var f;
+    if (state === "listening")      f = { speed: 0.6,  warm: 0.9,  pull: 0.34, breath: 0.05 };
+    else if (state === "thinking")  f = { speed: 0.7,  warm: 1.0,  pull: 0.20, breath: 0.06 };
+    else if (state === "speaking")  f = { speed: 1.7,  warm: 1.22, pull: -0.06, breath: 0.14 };
+    else                            f = { speed: 1.0,  warm: 1.02, pull: 0.06, breath: 0.09 }; // idle
+    if (life === "energetic") { f.speed *= 1.55; f.breath *= 1.35; f.warm *= 1.04; }
+    return f;
+  }
+
+  document.querySelectorAll(".orbIW canvas").forEach(function (canvas) {
     var ctx = canvas.getContext("2d");
     var W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2, R = W / 2;
-    var isMini = canvas.parentElement.classList.contains("mini-orb");
-
-    // blobs: warm ones bias to center, cool ones drift the rim (green->blue)
-    var blobs = [
-      { r: R * 0.64, hue: "warm", a: 0.72, ox: 0.00, oy: 0.06, sp: 0.20, ph: 0.0 },
-      { r: R * 0.50, hue: "warm2", a: 0.58, ox: 0.14, oy: -0.10, sp: 0.31, ph: 1.7 },
-      { r: R * 0.58, hue: "green", a: 0.62, ox: -0.30, oy: 0.18, sp: 0.26, ph: 3.1 },
-      { r: R * 0.54, hue: "teal",  a: 0.58, ox: 0.28, oy: 0.22, sp: 0.23, ph: 4.4 },
-      { r: R * 0.50, hue: "blue",  a: 0.56, ox: -0.18, oy: -0.24, sp: 0.29, ph: 5.6 }
-    ];
-    function colorFor(hue, inner) {
-      switch (hue) {
-        case "warm":  return inner ? "rgba(240,182,138," : "rgba(226,171,124,";
-        case "warm2": return inner ? "rgba(236,166,120," : "rgba(201,131,90,";
-        case "green": return inner ? "rgba(159,197,150," : "rgba(127,138,104,";
-        case "teal":  return inner ? "rgba(143,191,180," : "rgba(120,160,150,";
-        case "blue":  return inner ? "rgba(162,189,216," : "rgba(120,150,190,";
-      }
-      return "rgba(200,200,200,";
-    }
-
-    // state affects speed + warm brightness; read from the stage each frame
     var stage = canvas.closest(".stage");
-    function stateFactors() {
-      var s = stage ? stage.getAttribute("data-state") : "idle";
-      if (s === "listening") return { speed: 0.55, warm: 0.82, jitter: 0.0 };
-      if (s === "thinking")  return { speed: 0.7,  warm: 0.95, jitter: 0.0 };
-      if (s === "speaking")  return { speed: 1.45, warm: 1.18, jitter: 0.02 };
-      return { speed: 1.0, warm: 1.0, jitter: 0.0 }; // idle
-    }
+    var isMini = stage.classList.contains("mini");
+    var isHero = stage.classList.contains("big");
+    var life = stage.getAttribute("data-life") || "alive";
+    var pig = makePigments();
+    var state = "idle";
 
-    function draw(t) {
-      ctx.clearRect(0, 0, W, H);
-      // base wash so it never reads empty
-      var base = ctx.createRadialGradient(cx, cy * 0.9, 4, cx, cy, R);
-      base.addColorStop(0, "rgba(224,233,226,1)");
-      base.addColorStop(1, "rgba(196,214,214,1)");
+    function rgba(c, a) { return "rgba(" + c[0] + "," + c[1] + "," + c[2] + "," + a.toFixed(3) + ")"; }
+
+    function draw(t, sf) {
+      var time = t * 0.001;
+      // slow universal breath (heartbeat/lungs) — one shared phase so the whole
+      // orb swells together; depth from state.
+      var breath = Math.sin(time * (state === "speaking" ? 2.4 : 1.05) * (life === "energetic" ? 1.3 : 1));
+      var breathAmt = 1 + breath * sf.breath;
+
+      // ---- base wash: a soft green->blue COLOR field (never white) ----
+      ctx.globalCompositeOperation = "source-over";
+      var base = ctx.createRadialGradient(cx, cy * 0.86, R * 0.05, cx, cy, R);
+      base.addColorStop(0.0, "rgba(150,190,168,1)");   // warm-leaning green center
+      base.addColorStop(0.55, "rgba(150,186,182,1)");  // green-teal
+      base.addColorStop(1.0, "rgba(150,172,196,1)");   // blue rim
       ctx.fillStyle = base;
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
-      var f = stateFactors();
-      // Normal alpha blending (source-over) so overlapping hues MIX toward a
-      // mid liquid tone instead of summing to white the way "lighter" does.
-      for (var i = 0; i < blobs.length; i++) {
-        var b = blobs[i];
-        var tt = t * 0.001 * b.sp * f.speed + b.ph;
-        var bx = cx + Math.cos(tt) * b.ox * R * 1.4 + Math.sin(tt * 0.7) * R * 0.10;
-        var by = cy + Math.sin(tt * 1.1) * b.oy * R * 1.4 + Math.cos(tt * 0.6) * R * 0.10;
-        var warmBoost = (b.hue.indexOf("warm") === 0) ? f.warm : 1;
-        var g = ctx.createRadialGradient(bx, by, 0, bx, by, b.r);
-        g.addColorStop(0, colorFor(b.hue, true) + Math.min(0.85, b.a * warmBoost).toFixed(3) + ")");
-        g.addColorStop(1, colorFor(b.hue, false) + "0)");
+      // clip to circle so pigments stay inside a clean sphere
+      ctx.save();
+      ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.clip();
+
+      // ---- pigments drift + fold on lissajous paths, gather toward center by pull ----
+      for (var i = 0; i < pig.length; i++) {
+        var p = pig[i];
+        var tt = time * p.sp * sf.speed + p.ph;
+        var orbit = 1 - sf.pull * (p.warm ? 0.4 : 1); // pull shrinks the orbit
+        var bx = cx + Math.cos(tt) * p.ox * R * 1.3 * orbit + Math.sin(tt * 0.7) * R * 0.09;
+        var by = cy + Math.sin(tt * 1.15) * p.oy * R * 1.3 * orbit + Math.cos(tt * 0.6) * R * 0.09;
+        // pigment radius folds a little over time (living, not rigid) + breath
+        var rad = (p.rx + Math.sin(tt * 1.3 + i) * p.ry) * R * breathAmt;
+        var alpha = p.warm ? Math.min(0.8, p.a * sf.warm) : p.a;
+        var g = ctx.createRadialGradient(bx, by, 0, bx, by, rad);
+        g.addColorStop(0.0, rgba(p.col, alpha));
+        g.addColorStop(0.6, rgba(p.edge, alpha * 0.5));
+        g.addColorStop(1.0, rgba(p.edge, 0));
         ctx.fillStyle = g;
-        ctx.beginPath(); ctx.arc(bx, by, b.r, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath(); ctx.arc(bx, by, rad, 0, Math.PI * 2); ctx.fill();
       }
 
-      // gentle warm center bloom (screen) -> keeps it a WARM presence, not white
-      var wb = ctx.createRadialGradient(cx, cy * 1.04, 0, cx, cy, R * 0.60);
-      wb.addColorStop(0, "rgba(230,170,128," + (0.30 * f.warm).toFixed(3) + ")");
-      wb.addColorStop(1, "rgba(230,170,128,0)");
-      ctx.globalCompositeOperation = "screen";
+      // ---- warm clay center bloom: keeps the heart terracotta, glowing through
+      //      the cool weather. Drawn in warm COLOR (no white). Breathes + follows
+      //      state warmth, and wanders gently so it never sits perfectly still. ----
+      var hx = cx + Math.sin(time * 0.9 + 1.3) * R * 0.05;
+      var hy = cy + R * 0.04 + Math.cos(time * 0.8) * R * 0.04;
+      var heartR = R * (0.62 + breath * sf.breath * 0.5);
+      var heartA = Math.min(0.7, 0.40 * sf.warm + breath * 0.06);
+      var wb = ctx.createRadialGradient(hx, hy, 0, hx, hy, heartR);
+      wb.addColorStop(0.0, rgba([203,120,84], heartA));
+      wb.addColorStop(0.45, rgba([196,116,82], heartA * 0.55));
+      wb.addColorStop(1.0, rgba([196,116,82], 0));
       ctx.fillStyle = wb;
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
-      // soft top-left sheen for the glossy-sphere read
-      var sh = ctx.createRadialGradient(cx - R * 0.28, cy - R * 0.34, 0, cx - R * 0.28, cy - R * 0.34, R * 0.7);
-      sh.addColorStop(0, "rgba(255,255,255,0.28)");
-      sh.addColorStop(1, "rgba(255,255,255,0)");
-      ctx.fillStyle = sh;
+      // ---- colored rim vignette for a spherical read (NOT a white sheen) ----
+      var vg = ctx.createRadialGradient(cx, cy * 0.9, R * 0.55, cx, cy, R);
+      vg.addColorStop(0, "rgba(52,56,47,0)");
+      vg.addColorStop(1, "rgba(52,56,47,0.20)");
+      ctx.fillStyle = vg;
       ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
-      ctx.globalCompositeOperation = "source-over";
+
+      ctx.restore();
     }
 
+    // pull current state fresh each frame (cheap)
+    function currentSF() { state = stage.getAttribute("data-state") || "idle"; return stateFactors(state, life); }
+
     if (reduce) {
-      draw(2200); // one calm still frame
+      draw(1600, { speed: 1, warm: 1.02, pull: 0.06, breath: 0 }); // one calm, warm still frame
       return;
     }
-    // full-size orbs animate; mini orbs animate slower to save battery
-    var last = 0, minInterval = isMini ? 66 : 33; // ~15fps mini, ~30fps main
+
+    // throttle: mini + variant cards lighter than the hero
+    var minInterval = isMini ? 66 : (isHero ? 33 : 40); // ~15fps mini, ~30fps hero, ~25fps cards
+    var last = 0, running = true;
+
     function loop(now) {
-      if (now - last >= minInterval) { draw(now); last = now; }
+      if (!running) return;
+      if (now - last >= minInterval) { draw(now, currentSF()); last = now; }
       requestAnimationFrame(loop);
     }
     requestAnimationFrame(loop);
+
+    // pause when tab hidden — save battery
+    document.addEventListener("visibilitychange", function () {
+      if (document.hidden) { running = false; }
+      else if (!running) { running = true; last = 0; requestAnimationFrame(loop); }
+    });
   });
 })();
 </script>
