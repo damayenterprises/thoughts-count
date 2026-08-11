@@ -148,6 +148,9 @@ async function previewForPerson(supa, userId, person, source) {
       relationship_hint: person.relationship_hint || "",
       birthday: person.birthday || null,
       source_kind: person.source_kind || "other",
+      // TC-109: carry the detected email/phone so confirm persists them into `identifiers`, arming
+      // strong-key dedup — a later import of the same contact resolves to an UPDATE, not a duplicate.
+      identifiers: Array.isArray(person.identifiers) ? person.identifiers : [],
     },
   });
 

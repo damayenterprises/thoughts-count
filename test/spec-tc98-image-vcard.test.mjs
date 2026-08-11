@@ -27,13 +27,19 @@ t("name falls back to N when FN absent (First Last order)", () => {
   assert.equal(people[0].name, "Bill Smith");
 });
 
-t("BDAY full date → YYYY-MM-DD; partial/no-year → null", () => {
+t("BDAY full date → YYYY-MM-DD; year-less → sentinel-year recurring (TC-112)", () => {
   const a = parseVCard("BEGIN:VCARD\nFN:A\nBDAY:1990-06-15\nEND:VCARD").people[0];
   assert.equal(a.birthday, "1990-06-15");
   const b = parseVCard("BEGIN:VCARD\nFN:B\nBDAY:19900615\nEND:VCARD").people[0];
   assert.equal(b.birthday, "1990-06-15");
+  // TC-112: a year-less vCard BDAY (--MM-DD / --MMDD) is kept as a RECURRING birthday under the
+  // sentinel year (never displayed) so it seeds a yearly key_date. We still never GUESS a real year.
   const c = parseVCard("BEGIN:VCARD\nFN:C\nBDAY:--06-15\nEND:VCARD").people[0];
-  assert.equal(c.birthday, null); // never guess a year
+  assert.equal(c.birthday, "0004-06-15");
+  const d = parseVCard("BEGIN:VCARD\nFN:D\nBDAY:--0615\nEND:VCARD").people[0];
+  assert.equal(d.birthday, "0004-06-15");
+  const e = parseVCard("BEGIN:VCARD\nFN:E\nBDAY:garbage\nEND:VCARD").people[0];
+  assert.equal(e.birthday, null);
 });
 
 t("ORG/TITLE/NOTE become notes", () => {

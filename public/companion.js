@@ -858,7 +858,7 @@ function renderHome(people, opts = {}) {
   const importMsg = modalBody().querySelector("#np_import_msg");
   const setImportMsg = (t, bad) => { if (!importMsg) return; importMsg.className = "k-msg" + (bad ? " bad" : ""); importMsg.textContent = t || ""; };
 
-  const onConfirmed = async (res, { relationship, relChanged, isNew } = {}) => {
+  const onConfirmed = async (res, { relationship, relChanged, isNew, birthday } = {}) => {
     // Persist the edited "who they are to you" — the server createPerson/resolve sets name only and
     // ignores relationship, so the client honors it here. New person: write whatever they entered.
     // Existing person (update card): write ONLY when the user actually set/changed the field, so we
@@ -868,8 +868,27 @@ function renderHome(people, opts = {}) {
       try { await sb.from("people").update({ relationship }).eq("id", res.personId).eq("user_id", user.id); }
       catch (e) { console.error("set relationship on person", e); }
     }
+    // TC-112: the confirm card returns a birthday only when the user added/edited one the extraction
+    // didn't already seed. Write it as a labeled RECURRING "Birthday" key_date (recurs from the parse:
+    // a year-less birthday recurs yearly; a full date with a year does not). Deduped on label+date so
+    // re-confirming can't pile up duplicates.
+    if (res && res.ok && res.personId && birthday && birthday.event_date) {
+      try {
+        const { data: existing } = await sb.from("key_dates")
+          .select("id").eq("person_id", res.personId).eq("label", "Birthday").eq("event_date", birthday.event_date);
+        if (!existing || !existing.length) {
+          await addKeyDate(res.personId, { label: "Birthday", kind: "birthday", event_date: birthday.event_date, recurs: !!birthday.recurs, lead_days: 7 });
+        }
+      } catch (e) { console.error("set birthday key_date", e); }
+    }
     renderHome(await loadPeople(), { highlightId: res?.personId });
   };
+
+  // TC-114: a NEW import action (a new paste / a new screenshot) REPLACES the previous un-confirmed
+  // preview card(s) — starting a fresh add without confirming the last one must not stack cards.
+  // Call this ONCE at the start of each separate user action, before rendering that action's batch;
+  // a single result with MULTIPLE people still renders one card per person (that batch is intentional).
+  const clearImportCards = () => { if (importOut) importOut.innerHTML = ""; };
 
   const renderPreviews = (result) => {
     const previews = (result && result.previews) || [];
@@ -879,28 +898,61 @@ function renderHome(people, opts = {}) {
     for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
   };
 
+  // TC-113: route an image (from the file picker OR a clipboard/drag-drop paste) through the SAME
+  // image extractor + confirm card. Clears any prior un-confirmed card first (TC-114).
+  const importImageFile = async (file, busyEl) => {
+    if (!file) return;
+    clearImportCards();
+    setImportMsg("Reading…");
+    if (busyEl) busyEl.disabled = true;
+    try { renderPreviews(await captureFromFile(sb, file)); }
+    catch (e) { setImportMsg(e.message || "We couldn't read that file.", true); }
+    if (busyEl) busyEl.disabled = false;
+  };
+
   const photoBtn = modalBody().querySelector("#np_photo_btn");
   const photoFile = modalBody().querySelector("#np_photo_file");
   if (photoBtn && photoFile) {
     photoBtn.onclick = () => photoFile.click();
     photoFile.onchange = async () => {
       const file = photoFile.files && photoFile.files[0];
-      if (!file) return;
-      setImportMsg("Reading…");
-      photoBtn.disabled = true;
-      try { renderPreviews(await captureFromFile(sb, file)); }
-      catch (e) { setImportMsg(e.message || "We couldn't read that file.", true); }
-      photoBtn.disabled = false; photoFile.value = "";
+      await importImageFile(file, photoBtn);
+      photoFile.value = "";
     };
   }
 
   const pasteEl = modalBody().querySelector("#np_paste");
   const pasteGo = modalBody().querySelector("#np_paste_go");
   if (pasteEl) mountInlineMic(pasteEl, { mode: "dictation", ariaLabel: "Say something about them" });
+
+  // TC-113: catch a screenshot pasted (Ctrl/Cmd-V) or dragged INTO the paste box. If the clipboard
+  // carries an image → route the bytes to the image extractor (same as the file picker). If it's
+  // text → let the normal text-paste behavior stand (the textarea fills; "Read it →" reads it).
+  const imageFromDataTransfer = (dt) => {
+    if (!dt) return null;
+    const items = dt.items ? Array.from(dt.items) : [];
+    for (const it of items) { if (it.kind === "file" && it.type && it.type.startsWith("image/")) { const f = it.getAsFile(); if (f) return f; } }
+    const files = dt.files ? Array.from(dt.files) : [];
+    for (const f of files) { if (f.type && f.type.startsWith("image/")) return f; }
+    return null;
+  };
+  if (pasteEl) {
+    pasteEl.addEventListener("paste", (e) => {
+      const img = imageFromDataTransfer(e.clipboardData);
+      if (img) { e.preventDefault(); importImageFile(img, pasteGo); } // image → image path; else text-paste stands
+    });
+    pasteEl.addEventListener("dragover", (e) => { if (imageFromDataTransfer(e.dataTransfer)) e.preventDefault(); });
+    pasteEl.addEventListener("drop", (e) => {
+      const img = imageFromDataTransfer(e.dataTransfer);
+      if (img) { e.preventDefault(); importImageFile(img, pasteGo); }
+    });
+  }
+
   if (pasteGo && pasteEl) {
     pasteGo.onclick = async () => {
       const text = (pasteEl.value || "").trim();
       if (!text) { pasteEl.focus(); return; }
+      clearImportCards(); // TC-114: a new "Read it →" replaces the prior un-confirmed card
       setImportMsg("Reading…"); pasteGo.disabled = true;
       try {
         // The LIVE capture-extract in preview mode → the SAME confirm card. Its captures already

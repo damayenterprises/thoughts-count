@@ -51,7 +51,7 @@ function voiceAvailable() {
   } catch (e) { return false; }
 }
 
-// For dictation we also need the global toggleMic; for capture we need the matching helper.
+// For dictation we need a global dictation recorder; for capture we need the matching helper.
 function modeReady(mode, personId) {
   if (!voiceAvailable()) return false;
   if (mode === "capture") {
@@ -59,7 +59,10 @@ function modeReady(mode, personId) {
       ? typeof window.tcVoiceNote === "function"
       : typeof window.tcVoiceRemember === "function";
   }
-  return typeof window.toggleMic === "function";
+  // TC-111: dictation prefers the hands-free VAD path (dictateHandsFree — same auto-stop-on-pause +
+  // listening feedback as the main Della conversation); toggleMic is the legacy tap-to-stop fallback
+  // so a build predating dictateHandsFree still gets a working mic.
+  return typeof window.dictateHandsFree === "function" || typeof window.toggleMic === "function";
 }
 
 // Mount an inline mic on an existing <input>/<textarea>. Returns { destroy }.
@@ -105,9 +108,11 @@ export function mountInlineMic(field, opts = {}) {
         else window.tcVoiceRemember(onSaved || (() => {}));
       };
     } else {
-      // dictation: reuse the in-place recorder. It updates the button state via data-state
-      // (setMic on this button is null-safe — no .mic-label here) and fires an input event.
-      btn.onclick = () => window.toggleMic(btn, field);
+      // dictation: TC-111 — route through the hands-free VAD recorder so talking to add someone
+      // feels identical to talking to Della (auto-stop on a natural pause + the listening pulse).
+      // It updates the button state via data-state (setMic is null-safe here) and fires an input
+      // event. Falls back to the legacy tap-to-stop toggleMic only if dictateHandsFree is absent.
+      btn.onclick = () => (window.dictateHandsFree || window.toggleMic)(btn, field);
       if (typeof onTranscript === "function") {
         field.addEventListener("input", () => onTranscript(field.value), false);
       }

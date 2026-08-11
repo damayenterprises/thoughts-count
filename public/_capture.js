@@ -14,6 +14,7 @@
 // / salience. The server sends the plain-language evidence; we just render it.
 
 import { mountInlineMic, ensureInlineMicStyles } from "/_inline-mic.js";
+import { formatMonthDay, parseBirthdayInput } from "/_dates.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -405,7 +406,10 @@ function ensureImportStyles() {
 
 const factLine = (f) => {
   if (f.relation === "birthday" || (f.fact_class === "RECURRING" && /birthday/i.test(f.object || ""))) {
-    return f.event_date ? `Birthday · ${esc(f.event_date)}` : "Birthday";
+    // TC-112: show a warm "June 15" (year dropped for a year-less/recurring birthday), never a raw
+    // ISO string or a bogus sentinel year.
+    const md = formatMonthDay(f.event_date);
+    return md ? `Birthday · ${esc(md)}` : "Birthday";
   }
   const subj = f.subject && f.subject !== "self" ? `${esc(f.subject)}: ` : "";
   return subj + esc(f.object || "");
@@ -448,7 +452,11 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
 
   function draw() {
     const src = ({ dm: "a direct message", profile: "a profile", contact_card: "a contact card", text_thread: "a message" }[preview.source_kind]) || "what you shared";
-    const bday = (facts.find((f) => f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date)) || {}).event_date || preview.birthday || "";
+    // TC-112: pre-fill an editable month+day birthday. The extracted event_date may be full
+    // (YYYY-MM-DD) or year-less (sentinel year) — either way we show a warm "June 15" the user can
+    // edit or type fresh. preview.birthday holds a value the user kept across a name re-resolve.
+    const bdayRaw = (facts.find((f) => f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date)) || {}).event_date || preview.birthday || "";
+    const bday = /^\d{4}-\d{2}-\d{2}$/.test(bdayRaw) ? formatMonthDay(bdayRaw) : String(bdayRaw || "");
     const otherFacts = facts.filter((f) => !(f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date)));
     const isPick = state.kind === "pick";
     // On a "pick" card the candidate picks are the primary filled actions; the "add someone new"
@@ -463,7 +471,7 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
       <div class="tc-imp-eyebrow">Found from ${src} — check it over</div>
       <div class="tc-imp-field"><label>Name</label><input type="text" class="tc-imp-name" value="${esc(preview.personHint || state.personName || "")}" autocomplete="off" /></div>
       <div class="tc-imp-field"><label>Who they are to you</label><input type="text" class="tc-imp-rel" value="${esc(preview.relationshipHint || "")}" placeholder="e.g. a friend, someone I manage" autocomplete="off" /></div>
-      <div class="tc-imp-field"><label>Birthday (optional)</label><input type="date" class="tc-imp-bday" value="${esc(bday)}" /></div>
+      <div class="tc-imp-field"><label>Birthday (optional)</label><input type="text" class="tc-imp-bday" value="${esc(bday)}" placeholder="e.g. June 15 (year optional)" autocomplete="off" inputmode="text" /></div>
       <div class="tc-imp-who">${whoLine()}</div>
       ${cands}
       ${otherFacts.length ? `<ul class="tc-imp-facts">${otherFacts.map((f) => `<li>${factLine(f)}</li>`).join("")}</ul>` : ""}
@@ -499,8 +507,9 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
         } else {
           state.kind = "add"; state.personId = null; state.personName = null; state.candidates = [];
         }
-        // Preserve the user's typed relationship/birthday across the redraw.
-        const keepRel = relEl.value, keepBday = bdayEl.value;
+        // Preserve the user's typed relationship/birthday across the redraw (birthday kept as the
+        // text the user sees, e.g. "June 15" — draw() shows it back verbatim).
+        const keepRel = relEl.value, keepBday = bdayEl.value.trim();
         preview.personHint = nm; preview.relationshipHint = keepRel; if (keepBday) preview.birthday = keepBday;
         draw();
       } catch (e) { console.error("re-resolve name", e); }
@@ -509,6 +518,12 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
     // The relationship value at draw time — so the host can tell an intentional set/change from an
     // untouched prefill and never clobber an existing person's relationship with a stale value.
     const relInitial = relEl.value.trim();
+
+    // TC-112: the birthday the extraction already seeded as a fact (a key_date is written for it by
+    // captureResolve). We only ask the host to persist a birthday when the field carries one that the
+    // extraction did NOT already seed (user added or edited it) — so we never double-write.
+    const bdayFact = facts.find((f) => f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date));
+    const bdayExtracted = bdayFact?.event_date || null; // full or sentinel ISO, or null
 
     // Confirm → the SAME captureResolve the To-Review surface uses. For a brand-new person we pass
     // the edited name as newPersonName; for an update/pick we pass the chosen personId. An edited
@@ -529,10 +544,16 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
         card.remove();
         showToast(res.message || (res.personName ? `Saved to ${firstName(res.personName)}` : "Saved"), {});
         const relNow = relEl.value.trim();
+        // TC-112: parse the birthday field ("June 15" / "June 15, 1990" / "6/15" / ISO). If it
+        // resolves to a date the extraction did NOT already seed, hand it to the host to write as a
+        // recurring key_date. { event_date, recurs } or null.
+        const bdayNow = parseBirthdayInput(bdayEl.value);
+        const bdayChanged = (bdayNow?.event_date || null) !== bdayExtracted;
         if (onConfirmed) await onConfirmed(res || null, {
           relationship: relNow,
           relChanged: relNow !== relInitial,
           isNew: !(personId || state.personId),
+          birthday: bdayChanged ? bdayNow : null,
         });
       } catch (e) { setMsg(e.message, true); }
     };

@@ -18,6 +18,7 @@
 //     preview/confirm pipeline, so there is zero parallel resolve-or-write logic here.
 
 import { getEnv } from "./_email.mjs";
+import { BDAY_SENTINEL_YEAR } from "./_capture.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -56,7 +57,7 @@ const EXTRACTED_PERSON_ITEM = {
     },
     birthday: {
       type: "string",
-      description: "The person's birthday as YYYY-MM-DD ONLY if a full date is clearly visible (e.g. a contact-card birthday field). Otherwise null. Never infer a day/year.",
+      description: "The person's birthday if clearly visible (e.g. a contact-card birthday field): as YYYY-MM-DD when a full date with a year is shown, or as --MM-DD when only a month+day are shown (no year). Otherwise null. Never infer a day, month, or year.",
     },
     location_hint: {
       type: "string",
@@ -176,7 +177,9 @@ export function normalizeExtracted(input) {
           .map((i) => ({ type: i.type === "phone" ? "phone" : "email", value: String(i.value || "").trim() }))
           .filter((i) => i.value)
       : [];
-    const birthday = /^\d{4}-\d{2}-\d{2}$/.test(String(p.birthday || "").trim()) ? p.birthday.trim() : null;
+    // TC-112: accept a full birthday, or a year-less month+day (normBday maps "--MM-DD" to the
+    // sentinel year so it seeds a RECURRING yearly key_date without a bogus year).
+    const birthday = normBday(String(p.birthday || ""));
     const notes = Array.isArray(p.notes) ? p.notes.map((n) => String(n || "").trim()).filter(Boolean) : [];
     const source_kind = ["dm", "profile", "contact_card", "text_thread", "other"].includes(p.source_kind) ? p.source_kind : "other";
     people.push({
@@ -285,14 +288,20 @@ function nToName(v) {
   return [first, middle, last].filter(Boolean).join(" ").trim();
 }
 
-// Accept a full birthday only (YYYY-MM-DD or YYYYMMDD). Ignore partial/no-year forms (--MM-DD) —
-// we never guess a year, and downstream key-date seeding wants a real date.
+// Accept a full birthday (YYYY-MM-DD or YYYYMMDD) OR a year-less vCard birthday (--MM-DD / --MMDD,
+// RFC 6350 §4.3.4). TC-112: a year-less birthday is stored as a RECURRING key_date under a sentinel
+// year (BDAY_SENTINEL_YEAR) so it fires yearly and never shows a bogus year — we still never GUESS a
+// year; the sentinel is a non-displayed placeholder the rendering layer strips.
 function normBday(v) {
   const s = v.trim();
   let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
   m = s.match(/^(\d{4})(\d{2})(\d{2})$/);
   if (m) return `${m[1]}-${m[2]}-${m[3]}`;
+  m = s.match(/^--(\d{2})-?(\d{2})$/); // year-less: "--06-15" or "--0615"
+  if (m && Number(m[1]) >= 1 && Number(m[1]) <= 12 && Number(m[2]) >= 1 && Number(m[2]) <= 31) {
+    return `${BDAY_SENTINEL_YEAR}-${m[1]}-${m[2]}`;
+  }
   return null;
 }
 
