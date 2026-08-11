@@ -335,7 +335,7 @@ function openSignIn() {
       <h2 class="q-title">Keep the people who matter close</h2>
       <p class="q-help">Save the people you care about, their important dates, and your plans — and we'll gently remind you before each one. Just your email, no password.</p>
       <input type="email" id="tcEmail" placeholder="you@email.com" autocomplete="email" />
-      <div class="nav"><span></span><button class="cta" id="tcSendLink">Email me a sign-in link →</button></div>
+      <div class="nav" style="justify-content:center;"><button class="cta" id="tcSendLink">Email me a sign-in link →</button></div>
       <div class="k-msg" id="tcAuthMsg"></div>
       <div class="k-privacy">We use your email only for this — no password, no sharing, no spam.</div>
     </div>`;
