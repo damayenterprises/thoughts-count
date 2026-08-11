@@ -3157,7 +3157,7 @@ const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can n
 // 2026-08). Too low and her tail can leak in on speaker-out (feedback). To fix the clipped start,
 // lower this on David's phone (try 150) with BOTH headphone and speaker tests staying clean. Single
 // source of truth: both re-arm sites (cvSpeakDrained + cvSpeakThenListen) read this.
-const MIC_REARM_PAUSE_MS = 300;
+const MIC_REARM_PAUSE_MS = 200;
 // TC-88 speculative transcribe: once a qualifying silence has lasted this SHORT soft-pause (well
 // before the 2s end-of-turn) we fire a background /api/transcribe of the audio-so-far, so the
 // transcript is usually ready the instant the 2s confirms — no dead time after the pause.
