@@ -84,6 +84,11 @@ export default async (req) => {
           personId = await createPerson(supa, userId, name, body?.contactKind);
         }
 
+        // TC-109: persist any detected email/phone into `identifiers` so a later import of the same
+        // contact resolves by strong key (an UPDATE), not a duplicate. Idempotent on the table's
+        // unique (user_id, type, value). Best-effort — a failed identifier write never blocks the save.
+        await writeIdentifiers(supa, userId, personId, cap.parsed?.identifiers);
+
         const { writtenIds: factIds, supersededIds } = await writeFactsToPerson(supa, userId, personId, facts, cap.source || "typed", cap.raw_text || "");
         await supa.from("captures").update({
           status: "confirmed",
@@ -104,6 +109,33 @@ export default async (req) => {
     return json(500, { error: err.message || "We couldn't do that just now. Please try again." });
   }
 };
+
+// TC-109: write the confirmed person's email/phone identifiers so strong-key dedup can catch a
+// future re-import. Mirrors the identifiers schema (user_id, person_id, type, value) with its unique
+// (user_id, type, value) — we upsert with ignoreDuplicates so a value already tied to this (or
+// another) person never errors or moves. Values are stored as the extractor emitted them, matching
+// what resolvePerson()'s strongKeyMatch compares against. Best-effort; never throws to the caller.
+async function writeIdentifiers(supa, userId, personId, identifiers) {
+  const list = Array.isArray(identifiers) ? identifiers : [];
+  const rows = [];
+  const seen = new Set();
+  for (const id of list) {
+    const type = id?.type === "phone" ? "phone" : id?.type === "email" ? "email" : null;
+    const value = String(id?.value || "").trim();
+    if (!type || !value) continue;
+    const key = `${type} ${value.toLowerCase()}`;
+    if (seen.has(key)) continue;
+    seen.add(key);
+    rows.push({ user_id: userId, person_id: personId, type, value });
+  }
+  if (!rows.length) return;
+  try {
+    const { error } = await supa
+      .from("identifiers")
+      .upsert(rows, { onConflict: "user_id,type,value", ignoreDuplicates: true });
+    if (error) console.error("writeIdentifiers", error);
+  } catch (e) { console.error("writeIdentifiers", e); }
+}
 
 async function getPerson(supa, userId, personId) {
   const { data } = await supa.from("people").select("id, name").eq("user_id", userId).eq("id", personId).is("deleted_at", null).maybeSingle();

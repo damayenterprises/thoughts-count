@@ -130,6 +130,14 @@
   to = "/.netlify/functions/capture-resolve"
   status = 200
 
+# TC-98/TC-100 — add a person from a screenshot/photo (multimodal read) OR a shared .vcf. Reads the
+# media into the SAME ExtractedPerson shape, then funnels each person through the existing resolve/
+# preview/confirm pipeline (writes nothing until the user confirms via /api/capture/resolve).
+[[redirects]]
+  from = "/api/capture/image"
+  to = "/.netlify/functions/capture-image"
+  status = 200
+
 # --- TC-89 Voice name catch-&-correct: resolve a bare NAME against the roster (read-only, writes
 # nothing) — powers re-check-after-edit on the confirm card + the "say a name" existing-person door.
 [[redirects]]

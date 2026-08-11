@@ -496,8 +496,8 @@
   .tc-imic[data-multiline="true"] .tc-imic-btn { top: 6px; }
   .tc-imic-btn:hover { color: var(--sage-deep); background: var(--mist); }
   .tc-imic-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist); color: var(--sage-deep); }
-  .tc-imic-btn[data-state="active"] { color: var(--clay-deep); background: #f6e3da; }
-  .tc-imic-btn[data-state="active"]::after { content: ""; position: absolute; inset: 0; border-radius: 999px; border: 1.5px solid var(--clay); opacity: .6; animation: tc-imic-pulse 1.8s ease-out infinite; }
+  .tc-imic-btn[data-state="active"] { color: var(--sage-deep); background: #e8eede; }
+  .tc-imic-btn[data-state="active"]::after { content: ""; position: absolute; inset: 0; border-radius: 999px; border: 1.5px solid var(--sage); opacity: .6; animation: tc-imic-pulse 1.8s ease-out infinite; }
   @keyframes tc-imic-pulse { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(1.5); opacity: 0; } }
   .tc-imic-btn[data-state="thinking"] { color: var(--ink-soft); pointer-events: none; }
   .tc-imic-btn[data-state="error"] { color: var(--clay-deep); }
@@ -1173,6 +1173,81 @@ async function toggleMic(btn, ta){
   // Backstop: auto-stop a long recording so it stays short and transcribes cleanly.
   __rec.timer = setTimeout(() => { if (__rec.active) { micStatus('Got it — that was a long one, writing it down…'); stopRecordingIfAny(); } }, 60000);
 }
+
+// TC-111 — ONE voice everywhere: dictation into a field (Add-someone, the paste box, the note
+// fields) listens HANDS-FREE like Della — the SAME VAD (auto-stop on a natural pause) + listening
+// feedback the main conversation uses (beginConfirmRecording), reusing the shared micSession stream +
+// analyser (TC-90). No tap-to-stop toggle. A second tap while listening cancels (an escape hatch).
+// On the settled-silence stop we transcribe and APPEND to the field (never overwrite typed text).
+const __drec = { mr: null, chunks: [], active: false, timer: null, raf: null, spoke: false, spokeAt: 0, silenceStart: 0, aborted: false, btn: null };
+function stopDictateRecording(){ try { if (__drec.active && __drec.mr && __drec.mr.state === 'recording') __drec.mr.stop(); } catch(e){} }
+function cancelDictateRecording(){
+  __drec.aborted = true; __drec.active = false;
+  if (__drec.raf){ cancelAnimationFrame(__drec.raf); __drec.raf = null; }
+  if (__drec.timer){ clearTimeout(__drec.timer); __drec.timer = null; }
+  try { if (__drec.mr && __drec.mr.state === 'recording'){ __drec.mr.onstop = null; __drec.mr.stop(); } } catch(e){}
+  if (__drec.btn) setMic(__drec.btn, 'idle');
+  micStatus('');
+}
+async function dictateHandsFree(btn, ta){
+  if (__drec.active){ cancelDictateRecording(); return; } // tap while listening = cancel (escape hatch)
+  if (!micSession.supported()){ micStatus("Your browser can't record here — you can type instead."); return; }
+  // TC-90: reuse the ONE session mic stream (opens the OS prompt only on the first-ever use).
+  let stream;
+  try { stream = await micSession.acquireStream(); }
+  catch(e){ micStatus("We need microphone permission to hear you — you can type instead."); return; }
+  __drec.chunks = []; __drec.active = true; __drec.aborted = false; __drec.spoke = false; __drec.spokeAt = 0; __drec.silenceStart = 0; __drec.btn = btn;
+  // VAD: read the shared session analyser; end the turn shortly after speech settles into silence —
+  // identical patience knobs (CREC_*) to the main conversation so dictation FEELS the same as Della.
+  try {
+    const analyser = micSession.getAnalyser();
+    if (!analyser) throw new Error('no-analyser');
+    const buf = new Uint8Array(analyser.frequencyBinCount);
+    const loop = () => {
+      if (!__drec.active) return;
+      analyser.getByteTimeDomainData(buf);
+      let sum = 0; for (let i = 0; i < buf.length; i++){ const v = (buf[i] - 128) / 128; sum += v * v; }
+      const rms = Math.sqrt(sum / buf.length);
+      const now = performance.now();
+      if (rms > CREC_SPEECH_RMS){ __drec.spoke = true; if (!__drec.spokeAt) __drec.spokeAt = now; __drec.silenceStart = 0; }
+      else if (__drec.spoke && (now - __drec.spokeAt) > CREC_MIN_SPEECH_MS){
+        if (!__drec.silenceStart) __drec.silenceStart = now;
+        else if (now - __drec.silenceStart > END_OF_TURN_SILENCE_MS){ stopDictateRecording(); return; }
+      }
+      __drec.raf = requestAnimationFrame(loop);
+    };
+    loop();
+  } catch(e){ /* no analyser → the hard cap below is the sole turn-ender */ }
+  const mr = new MediaRecorder(stream); __drec.mr = mr; // fresh per-turn recorder on the shared stream
+  mr.ondataavailable = e => { if (e.data && e.data.size) __drec.chunks.push(e.data); };
+  mr.onstop = async () => {
+    __drec.active = false;
+    if (__drec.raf){ cancelAnimationFrame(__drec.raf); __drec.raf = null; }
+    if (__drec.timer){ clearTimeout(__drec.timer); __drec.timer = null; }
+    // TC-90: do NOT stop the shared stream's tracks — the next dictation reuses this live stream.
+    if (__drec.aborted){ return; }
+    const blob = new Blob(__drec.chunks, { type: mr.mimeType || 'audio/webm' });
+    if (!blob.size || !__drec.spoke){ setMic(btn, 'idle'); micStatus(''); return; } // silence → no-op
+    setMic(btn, 'thinking'); micStatus('Writing down what you said…');
+    try {
+      const b64 = await blobToBase64(blob);
+      const headers = { 'content-type': 'application/json' };
+      try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
+      const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }) });
+      const d = await r.json();
+      if (r.ok && d.text){
+        if (document.body.contains(ta)){ ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + d.text; ta.dispatchEvent(new Event('input')); ta.focus({ preventScroll: true }); }
+        micStatus('');
+      } else { micStatus((d && d.error) || "We couldn't catch that — try again or type it."); }
+    } catch(e){ micStatus("We couldn't catch that — try again or type it."); }
+    setMic(btn, 'idle');
+  };
+  try { mr.start(); } catch(e){ cancelDictateRecording(); return; }
+  setMic(btn, 'recording'); micStatus('Listening…');
+  // Hard-cap backstop so the mic can never hang if VAD never fires (same cap as the conversation).
+  __drec.timer = setTimeout(() => { if (__drec.active) stopDictateRecording(); }, CREC_MAX_MS);
+}
+window.dictateHandsFree = dictateHandsFree; // the inline-mic dictation surfaces route through this (TC-111)
 
 // ---- Home-screen voice front door (TC-51 Phase 2, slice 1: talk → plan) ----
 // Device-aware entry: shown when voice is allowed AND the device can actually record.

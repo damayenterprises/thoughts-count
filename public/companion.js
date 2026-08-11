@@ -6,7 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
-import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName } from "/_capture.js";
+import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName, captureFromFile, renderImportConfirm } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
@@ -709,10 +709,32 @@ function renderHome(people, opts = {}) {
       <div id="tcPeopleList"></div>
       <button class="cta ghost tc-addtoggle" id="tcAddToggle" style="width:100%;justify-content:center;margin-top:6px;">${plusSvg(16, "currentColor")}<span>Add someone</span></button>
       <div class="block tc-addwrap" id="tcAddForm" style="display:none;">
-        <h4>Add someone</h4>
+        <h4><span class="ic">${plusSvg(17, "var(--sage-deep)")}</span>Add someone</h4>
+
+        <!-- TC-98/TC-100/TC-101 — faster ways to add someone, all funnel through the same
+             extract → resolve → confirm pipeline as typing. UX fix: these fast doors LEAD the
+             Add-someone lane (top, no scroll) so a user discovers them before the manual form. -->
+        <div class="tc-add-more">
+          <!-- 1c/1d: a screenshot/photo of a DM/profile/contact card, or a shared .vcf -->
+          <button class="cta ghost" id="np_photo_btn" type="button" style="width:100%;justify-content:center;">Add from a screenshot or photo</button>
+          <input type="file" id="np_photo_file" accept="image/*,.vcf,text/vcard" style="display:none;" />
+          <p class="tc-help-sm" style="margin:6px 0 0;">A text, a DM, a profile, or a saved contact — we'll read who it's about and let you confirm.</p>
+
+          <!-- 1a: paste a bio / anything about them -->
+          <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note, or a screenshot — and we'll pull out who it's about" style="margin-top:12px;min-height:72px;"></textarea>
+          <div class="nav" style="justify-content:flex-end;"><button class="cta ghost" id="np_paste_go" type="button">Read it →</button></div>
+
+          <!-- confirm cards (tap-to-edit) render here -->
+          <div id="np_import_out"></div>
+          <div class="k-msg" id="np_import_msg"></div>
+        </div>
+
+        <!-- Manual "type it in yourself" fallback, presented below the fast doors. -->
+        <div style="border-top:1px solid var(--line);margin:16px 0 12px;"></div>
+        <p class="tc-help-sm" style="margin:0 0 10px;">Or type it in yourself:</p>
         <input type="text" id="np_name" placeholder="Their name" />
         <input type="text" id="np_rel" placeholder="Who they are to you (e.g. someone I manage)" style="margin-top:10px;" />
-        <textarea id="np_notes" placeholder="Anything worth remembering about them (optional)" style="margin-top:10px;min-height:64px;"></textarea>
+        <textarea id="np_notes" placeholder="Anything worth remembering about them (optional)" style="margin-top:10px;min-height:72px;"></textarea>
         <div class="nav"><button class="link-btn" id="np_cancel">Cancel</button><button class="cta" id="np_save">Add them →</button></div>
         <div class="k-msg" id="np_msg"></div>
       </div>
@@ -799,7 +821,9 @@ function renderHome(people, opts = {}) {
   // Add-someone: reveal the form only when asked, so browsing stays calm.
   const addForm = modalBody().querySelector("#tcAddForm");
   const addToggle = modalBody().querySelector("#tcAddToggle");
-  const showAdd = (on) => { addForm.style.display = on ? "" : "none"; addToggle.style.display = on ? "none" : ""; if (on) modalBody().querySelector("#np_name").focus(); };
+  // Don't auto-focus the manual name field: it now sits below the fast doors, and focusing it
+  // would scroll those doors out of view — the opposite of leading with them.
+  const showAdd = (on) => { addForm.style.display = on ? "" : "none"; addToggle.style.display = on ? "none" : ""; };
   addToggle.onclick = () => showAdd(true);
   // Voice on the add-someone fields = the inline mic inside each box (dictation → in-place
   // record/transcribe/append via window.toggleMic). Mounts no-op if voice isn't available.
@@ -825,6 +849,123 @@ function renderHome(people, opts = {}) {
       renderHome(await loadPeople());
     } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }
   };
+
+  // ── TC-98/TC-100/TC-101: import doors (screenshot/photo, .vcf, paste). Each returns previews that
+  //    render as tap-to-edit confirm cards; confirming routes through the SAME captureResolve. On a
+  //    NEW person we persist the edited relationship (server createPerson sets name only), then refresh
+  //    the home so the new/updated card appears — no reload. ──
+  const importOut = modalBody().querySelector("#np_import_out");
+  const importMsg = modalBody().querySelector("#np_import_msg");
+  const setImportMsg = (t, bad) => { if (!importMsg) return; importMsg.className = "k-msg" + (bad ? " bad" : ""); importMsg.textContent = t || ""; };
+
+  const onConfirmed = async (res, { relationship, relChanged, isNew, birthday } = {}) => {
+    // Persist the edited "who they are to you" — the server createPerson/resolve sets name only and
+    // ignores relationship, so the client honors it here. New person: write whatever they entered.
+    // Existing person (update card): write ONLY when the user actually set/changed the field, so we
+    // never overwrite an existing relationship with a blank or stale prefill.
+    const shouldWriteRel = res && res.ok && res.personId && (isNew ? !!relationship : (relChanged && !!relationship));
+    if (shouldWriteRel) {
+      try { await sb.from("people").update({ relationship }).eq("id", res.personId).eq("user_id", user.id); }
+      catch (e) { console.error("set relationship on person", e); }
+    }
+    // TC-112: the confirm card returns a birthday only when the user added/edited one the extraction
+    // didn't already seed. Write it as a labeled RECURRING "Birthday" key_date (recurs from the parse:
+    // a year-less birthday recurs yearly; a full date with a year does not). Deduped on label+date so
+    // re-confirming can't pile up duplicates.
+    if (res && res.ok && res.personId && birthday && birthday.event_date) {
+      try {
+        const { data: existing } = await sb.from("key_dates")
+          .select("id").eq("person_id", res.personId).eq("label", "Birthday").eq("event_date", birthday.event_date);
+        if (!existing || !existing.length) {
+          await addKeyDate(res.personId, { label: "Birthday", kind: "birthday", event_date: birthday.event_date, recurs: !!birthday.recurs, lead_days: 7 });
+        }
+      } catch (e) { console.error("set birthday key_date", e); }
+    }
+    renderHome(await loadPeople(), { highlightId: res?.personId });
+  };
+
+  // TC-114: a NEW import action (a new paste / a new screenshot) REPLACES the previous un-confirmed
+  // preview card(s) — starting a fresh add without confirming the last one must not stack cards.
+  // Call this ONCE at the start of each separate user action, before rendering that action's batch;
+  // a single result with MULTIPLE people still renders one card per person (that batch is intentional).
+  const clearImportCards = () => { if (importOut) importOut.innerHTML = ""; };
+
+  const renderPreviews = (result) => {
+    const previews = (result && result.previews) || [];
+    if (!previews.length) { setImportMsg(result?.message || "We couldn't find a person in that — try a clearer screenshot.", false); return; }
+    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person — confirm each below.", false);
+    else setImportMsg("");
+    for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
+  };
+
+  // TC-113: route an image (from the file picker OR a clipboard/drag-drop paste) through the SAME
+  // image extractor + confirm card. Clears any prior un-confirmed card first (TC-114).
+  const importImageFile = async (file, busyEl) => {
+    if (!file) return;
+    clearImportCards();
+    setImportMsg("Reading…");
+    if (busyEl) busyEl.disabled = true;
+    try { renderPreviews(await captureFromFile(sb, file)); }
+    catch (e) { setImportMsg(e.message || "We couldn't read that file.", true); }
+    if (busyEl) busyEl.disabled = false;
+  };
+
+  const photoBtn = modalBody().querySelector("#np_photo_btn");
+  const photoFile = modalBody().querySelector("#np_photo_file");
+  if (photoBtn && photoFile) {
+    photoBtn.onclick = () => photoFile.click();
+    photoFile.onchange = async () => {
+      const file = photoFile.files && photoFile.files[0];
+      await importImageFile(file, photoBtn);
+      photoFile.value = "";
+    };
+  }
+
+  const pasteEl = modalBody().querySelector("#np_paste");
+  const pasteGo = modalBody().querySelector("#np_paste_go");
+  if (pasteEl) mountInlineMic(pasteEl, { mode: "dictation", ariaLabel: "Say something about them" });
+
+  // TC-113: catch a screenshot pasted (Ctrl/Cmd-V) or dragged INTO the paste box. If the clipboard
+  // carries an image → route the bytes to the image extractor (same as the file picker). If it's
+  // text → let the normal text-paste behavior stand (the textarea fills; "Read it →" reads it).
+  const imageFromDataTransfer = (dt) => {
+    if (!dt) return null;
+    const items = dt.items ? Array.from(dt.items) : [];
+    for (const it of items) { if (it.kind === "file" && it.type && it.type.startsWith("image/")) { const f = it.getAsFile(); if (f) return f; } }
+    const files = dt.files ? Array.from(dt.files) : [];
+    for (const f of files) { if (f.type && f.type.startsWith("image/")) return f; }
+    return null;
+  };
+  if (pasteEl) {
+    pasteEl.addEventListener("paste", (e) => {
+      const img = imageFromDataTransfer(e.clipboardData);
+      if (img) { e.preventDefault(); importImageFile(img, pasteGo); } // image → image path; else text-paste stands
+    });
+    pasteEl.addEventListener("dragover", (e) => { if (imageFromDataTransfer(e.dataTransfer)) e.preventDefault(); });
+    pasteEl.addEventListener("drop", (e) => {
+      const img = imageFromDataTransfer(e.dataTransfer);
+      if (img) { e.preventDefault(); importImageFile(img, pasteGo); }
+    });
+  }
+
+  if (pasteGo && pasteEl) {
+    pasteGo.onclick = async () => {
+      const text = (pasteEl.value || "").trim();
+      if (!text) { pasteEl.focus(); return; }
+      clearImportCards(); // TC-114: a new "Read it →" replaces the prior un-confirmed card
+      setImportMsg("Reading…"); pasteGo.disabled = true;
+      try {
+        // The LIVE capture-extract in preview mode → the SAME confirm card. Its captures already
+        // carry {kind, captureId, personDetail, candidates, facts}; map person_hint→personHint so
+        // renderImportConfirm pre-fills the editable name.
+        const result = await captureExtract(sb, { rawText: text, source: "typed", preview: true });
+        const previews = (result.captures || []).map((c) => ({ ...c, personHint: c.personHint || c.personName || "", relationshipHint: "", source_kind: "text_thread" }));
+        if (!previews.length) { setImportMsg(result.message || "Nothing to add there yet.", false); }
+        else { setImportMsg(""); pasteEl.value = ""; for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") }); }
+      } catch (e) { setImportMsg(e.message || "We couldn't read that.", true); }
+      pasteGo.disabled = false;
+    };
+  }
 }
 
 function openAddDate(personId) {

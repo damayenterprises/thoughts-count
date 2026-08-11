@@ -27,6 +27,11 @@ import { insertFact } from "./_memory.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 
+// TC-112: a year-less birthday ("June 15") is stored as a RECURRING key_date under this sentinel
+// year — a leap year (so Feb 29 survives) far in the past so it is never mistaken for a real birth
+// year and never shown (recurring rows render month+day only). Mirrors public/_dates.js.
+export const BDAY_SENTINEL_YEAR = "0004";
+
 // Health episodes fade faster than life episodes (spec §3): ~21 days vs the _memory default
 // of 90. The extractor tags a health episode so insertFact gets the tighter window.
 const HEALTH_SURFACE_DAYS = 21;
@@ -78,7 +83,11 @@ const EXTRACT_SCHEMA = {
           },
           event_date: {
             type: "string",
-            description: "The real-world date in YYYY-MM-DD if one is clearly stated or unambiguous (a birthday, a closing date, \"moved in June 2026\" → null unless a day is given). Otherwise omit. Never invent a day.",
+            description: "The real-world date in YYYY-MM-DD if a FULL date INCLUDING the year is clearly stated or unambiguous (a closing date, a birthday WITH a year, \"moved in June 2026\" → null unless a day is given). Otherwise omit. Never invent a day OR a year. For a birthday given WITHOUT a year (\"her birthday is June 15\") use month_day instead, NOT this field.",
+          },
+          month_day: {
+            type: "string",
+            description: "For a RECURRING yearly date given with a month + day but NO year — most often a birthday (\"her birthday is June 15\") or a work anniversary without a year. Format MM-DD (e.g. \"06-15\"). Set fact_class to RECURRING and relation to \"birthday\" for a birthday. Omit if a full year is present (use event_date) or no day is given.",
           },
           suggested_gesture: {
             type: "string",
@@ -111,7 +120,8 @@ Rules:
 - A fact about someone's RELATIVE ("her mom", "his wife", "their son Eli") is a fact about the SAME named person, with the relative in the subject field. It must NEVER become its own person. Only a directly-named person is a person_hint.
 - For a replaceable, one-value-at-a-time attribute use a canonical single-valued relation (health_status, job, location, marital_status, birthday) so a later update can supersede it. For anything a person can have several of (hobby, allergy, interest, preference, food, pet) use a plain category relation — these accumulate and must never replace each other. Use "note" for a general observation.
 - Classify each fact's temporal behavior with fact_class. Mark health/medical episodes is_health:true.
-- Only set event_date when a real date (with a day, or an unambiguous yearly birthday/anniversary) is present. Never fabricate a day.
+- Only set event_date when a FULL date INCLUDING a year is present. Never fabricate a day or a year.
+- A birthday or anniversary given as a month + day with NO year ("her birthday is June 15") is a RECURRING yearly date: set month_day to "MM-DD" (e.g. "06-15"), fact_class RECURRING, relation "birthday" for a birthday. Do NOT put it in event_date and do NOT invent a year.
 - If nothing durable is being said, return an empty facts array.
 
 Always respond by calling the extract_memory tool.`;
@@ -167,13 +177,25 @@ function normalizeParsed(input, lockedPersonId) {
     const factClass = FACT_CLASSES.includes(f.fact_class) ? f.fact_class : "DURABLE";
     const subject = String(f.subject || "").trim() || "self";
     const personHint = lockedPersonId ? "" : String(f.person_hint || "").trim();
-    const eventDate = /^\d{4}-\d{2}-\d{2}$/.test(String(f.event_date || "").trim()) ? f.event_date.trim() : null;
+    let eventDate = /^\d{4}-\d{2}-\d{2}$/.test(String(f.event_date || "").trim()) ? f.event_date.trim() : null;
+    // TC-112: a year-less birthday/anniversary (month_day "MM-DD") becomes a RECURRING date under
+    // the sentinel year so it still seeds a yearly key_date. event_date wins if both are present.
+    let recurringMonthDay = false;
+    if (!eventDate) {
+      const md = /^(\d{2})-(\d{2})$/.exec(String(f.month_day || "").trim());
+      if (md && Number(md[1]) >= 1 && Number(md[1]) <= 12 && Number(md[2]) >= 1 && Number(md[2]) <= 31) {
+        eventDate = `${BDAY_SENTINEL_YEAR}-${md[1]}-${md[2]}`;
+        recurringMonthDay = true;
+      }
+    }
+    // A month-day-only date is inherently yearly → force RECURRING so it seeds a recurring key_date.
+    const factClassFinal = recurringMonthDay ? "RECURRING" : factClass;
     clean.push({
       person_hint: personHint,
       subject,
       relation,
       object,
-      fact_class: factClass,
+      fact_class: factClassFinal,
       is_health: !!f.is_health,
       event_date: eventDate,
       suggested_gesture: String(f.suggested_gesture || "").trim() || null,
@@ -218,7 +240,11 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
       eventDate: f.event_date || null,
       rawText,
       surfaceDays: surfaceDaysFor(f),
-      ...(seeds && f.event_date ? { keyDateLabel: f.object } : {}),
+      ...(seeds && f.event_date
+        ? f.relation === "birthday"
+          ? { keyDateLabel: "Birthday", keyDateKind: "birthday" }
+          : { keyDateLabel: f.object }
+        : {}),
     });
     if (fact?.id) writtenIds.push(fact.id);
     if (retired?.length) supersededIds.push(...retired);

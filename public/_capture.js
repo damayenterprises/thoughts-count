@@ -14,6 +14,7 @@
 // / salience. The server sends the plain-language evidence; we just render it.
 
 import { mountInlineMic, ensureInlineMicStyles } from "/_inline-mic.js";
+import { formatMonthDay, parseBirthdayInput } from "/_dates.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -50,6 +51,20 @@ export function captureResolve(sb, { captureId, action, personId = null, newPers
 // corrected name on a confirm card, and to lock onto a spoken existing person.
 export function resolveName(sb, name) {
   return post(sb, "/api/resolve-name", { name });
+}
+
+// TC-98/TC-100 — add a person from a SCREENSHOT/PHOTO (multimodal read) or a shared .vcf. Both
+// funnel through the same server endpoint, which reads the media into ExtractedPerson[] and returns
+// the SAME preview shape the typed/voice door emits (one preview per detected person). Writes
+// nothing — the user confirms each via captureResolve, exactly like To-Review.
+//   { previews: [ { kind:'add'|'update'|'pick', captureId, personId?, personName?, personDetail,
+//                   personHasDetail, personHint, relationshipHint, birthday, facts, candidates,
+//                   count, source_kind } ], ambiguousMultiPerson }
+export function captureImageB64(sb, { image, mime }) {
+  return post(sb, "/api/capture/image", { image, mime });
+}
+export function captureVcard(sb, { vcard }) {
+  return post(sb, "/api/capture/image", { vcard });
 }
 
 /* ---------------- reads (RLS-scoped anon) ---------------- */
@@ -303,4 +318,254 @@ export function mountToReview(container, sb, { people = [], contactKind = "perso
 
   refresh();
   return { refresh };
+}
+
+/* ---------------- Add from a screenshot / photo / .vcf (TC-98 / TC-100 / TC-101) ---------------- */
+
+// Client-side downscale: a phone photo can be many MB — well over the request-body ceiling. Draw it
+// onto a canvas capped at MAX_DIM on the long edge and re-encode as JPEG, so what we base64 stays
+// small AND still legible for the multimodal read. Screenshots (already small) pass through nearly
+// untouched. Returns { base64, mime }. Falls back to the original bytes if canvas isn't available.
+const MAX_IMAGE_DIM = 1600;
+const JPEG_QUALITY = 0.85;
+
+async function fileToDownscaledBase64(file) {
+  const rawB64 = await new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result || "").split(",")[1] || "");
+    fr.onerror = () => rej(new Error("We couldn't read that file."));
+    fr.readAsDataURL(file);
+  });
+  try {
+    const url = URL.createObjectURL(file);
+    const img = await new Promise((res, rej) => { const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = url; });
+    const w = img.naturalWidth || img.width, h = img.naturalHeight || img.height;
+    const scale = Math.min(1, MAX_IMAGE_DIM / Math.max(w, h || 1));
+    if (scale >= 1) { URL.revokeObjectURL(url); return { base64: rawB64, mime: file.type || "image/jpeg" }; }
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.round(w * scale); canvas.height = Math.round(h * scale);
+    canvas.getContext("2d").drawImage(img, 0, 0, canvas.width, canvas.height);
+    const dataUrl = canvas.toDataURL("image/jpeg", JPEG_QUALITY);
+    URL.revokeObjectURL(url);
+    return { base64: dataUrl.split(",")[1] || rawB64, mime: "image/jpeg" };
+  } catch (e) {
+    console.error("downscale failed, sending original", e);
+    return { base64: rawB64, mime: file.type || "image/jpeg" };
+  }
+}
+
+// Read a .vcf as text (small; no downscale).
+function fileToText(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onload = () => res(String(fr.result || ""));
+    fr.onerror = () => rej(new Error("We couldn't read that file."));
+    fr.readAsText(file);
+  });
+}
+
+const isVcard = (file) => /vcard/i.test(file.type || "") || /\.vcf$/i.test(file.name || "");
+
+// Send a picked FILE (image or .vcf) to the shared endpoint and return the previews. Downscales an
+// image first; parses a .vcf as text server-side. The caller renders each preview as a confirm card.
+export async function captureFromFile(sb, file) {
+  if (!file) return { previews: [] };
+  if (isVcard(file)) {
+    const vcard = await fileToText(file);
+    return captureVcard(sb, { vcard });
+  }
+  const { base64, mime } = await fileToDownscaledBase64(file);
+  return captureImageB64(sb, { image: base64, mime });
+}
+
+// Extra styles for the tap-to-edit confirm card (reuses the review-item shell + toast/flash above).
+function ensureImportStyles() {
+  ensureStyles();
+  if (document.getElementById("tcImportCss")) return;
+  const s = document.createElement("style");
+  s.id = "tcImportCss";
+  s.textContent = `
+  .tc-imp-card{border:1px solid var(--line);border-radius:18px;padding:14px;margin:12px 0;background:var(--cloud);}
+  .tc-imp-eyebrow{color:var(--ink-soft);font-size:.82rem;margin-bottom:8px;}
+  .tc-imp-field{margin-bottom:10px;}
+  .tc-imp-field label{display:block;color:var(--sage-deep);font-size:.8rem;margin-bottom:3px;}
+  .tc-imp-field input{width:100%;box-sizing:border-box;}
+  .tc-imp-who{color:var(--ink-soft);font-size:.88rem;margin:2px 0 10px;}
+  .tc-imp-facts{color:var(--ink);font-size:.9rem;margin:2px 0 10px;padding-left:16px;}
+  .tc-imp-facts li{margin:2px 0;}
+  .tc-imp-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin-top:4px;}
+  .tc-imp-cands{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px;}
+  /* Lighter candidate-picker idiom (sage-outline chips), so choosing an existing person reads
+     lighter than the distinct ghost "Add someone new →" action — no clay primary competing. */
+  .tc-imp-pick{appearance:none;background:transparent;border:1.5px solid var(--sage);color:var(--sage-deep);font:inherit;font-weight:600;font-size:.9rem;padding:8px 14px;border-radius:999px;cursor:pointer;transition:background .12s,border-color .12s,color .12s;}
+  .tc-imp-pick:hover,.tc-imp-pick:focus-visible{background:var(--mist);border-color:var(--sage-deep);outline:none;}
+  .tc-imp-pick:active,.tc-imp-pick.is-selected{background:var(--sage-deep);border-color:var(--sage-deep);color:#fff;}
+  `;
+  document.head.appendChild(s);
+}
+
+const factLine = (f) => {
+  if (f.relation === "birthday" || (f.fact_class === "RECURRING" && /birthday/i.test(f.object || ""))) {
+    // TC-112: show a warm "June 15" (year dropped for a year-less/recurring birthday), never a raw
+    // ISO string or a bogus sentinel year.
+    const md = formatMonthDay(f.event_date);
+    return md ? `Birthday · ${esc(md)}` : "Birthday";
+  }
+  const subj = f.subject && f.subject !== "self" ? `${esc(f.subject)}: ` : "";
+  return subj + esc(f.object || "");
+};
+
+// Render ONE preview (from captureFromFile) as a tap-to-EDIT confirm card. Each detected field —
+// name, relationship, birthday — is an editable input pre-filled from the extraction. Editing the
+// NAME re-runs resolveName so a spelling fix re-checks dedup BEFORE save (a corrected name that now
+// matches an existing person flips the card to "update them"). On confirm we call the SAME
+// captureResolve the To-Review surface uses; nothing new is invented here. `onConfirmed(result,
+// { relationship })` lets the host persist an edited relationship on a brand-new person (the server
+// createPerson sets name only) and refresh its cards. Returns nothing; renders into `container`.
+export function renderImportConfirm(container, sb, preview, { contactKind = "personal", onConfirmed = null, onDismiss = null } = {}) {
+  ensureImportStyles();
+  // A mutable copy of the resolution state so a name edit can flip add↔update↔pick.
+  let state = {
+    kind: preview.kind,
+    captureId: preview.captureId,
+    personId: preview.personId || null,
+    personName: preview.personName || null,
+    candidates: Array.isArray(preview.candidates) ? preview.candidates : [],
+    evidence: preview.evidence || "",
+  };
+  const facts = Array.isArray(preview.facts) ? preview.facts : [];
+
+  const card = document.createElement("div");
+  card.className = "tc-imp-card";
+  container.appendChild(card);
+
+  function whoLine() {
+    if (state.kind === "update" && state.personName) {
+      const d = preview.personHasDetail && preview.personDetail ? ` (${esc(preview.personDetail)})` : "";
+      return `Looks like <b>${esc(state.personName)}</b>${d} — already in your people. We'll add this to them.`;
+    }
+    if (state.kind === "pick" && state.candidates.length) {
+      return `There's more than one match — tap the right person, or keep the name to add someone new.`;
+    }
+    return `New to your people — we'll add them.`;
+  }
+
+  function draw() {
+    const src = ({ dm: "a direct message", profile: "a profile", contact_card: "a contact card", text_thread: "a message" }[preview.source_kind]) || "what you shared";
+    // TC-112: pre-fill an editable month+day birthday. The extracted event_date may be full
+    // (YYYY-MM-DD) or year-less (sentinel year) — either way we show a warm "June 15" the user can
+    // edit or type fresh. preview.birthday holds a value the user kept across a name re-resolve.
+    const bdayRaw = (facts.find((f) => f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date)) || {}).event_date || preview.birthday || "";
+    const bday = /^\d{4}-\d{2}-\d{2}$/.test(bdayRaw) ? formatMonthDay(bdayRaw) : String(bdayRaw || "");
+    const otherFacts = facts.filter((f) => !(f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date)));
+    const isPick = state.kind === "pick";
+    // On a "pick" card the candidate picks are the primary filled actions; the "add someone new"
+    // button (the confirm) is a fundamentally different action, so we de-emphasize it to a ghost
+    // secondary — matching how the To-Review surface separates candidate picks from other actions.
+    const cands = isPick
+      ? `<div class="tc-imp-cands">${state.candidates.map((c) => `<button class="cta tc-imp-pick" data-pid="${c.id}">${esc(c.name)}${c.location ? ` · ${esc(c.location)}` : ""}</button>`).join("")}</div>`
+      : "";
+    const confirmClass = isPick ? "cta ghost tc-imp-confirm tc-imp-addnew" : "cta tc-imp-confirm";
+    const confirmLabel = isPick ? "Add someone new →" : (state.kind === "update" ? "Add to them →" : "Add them →");
+    card.innerHTML = `
+      <div class="tc-imp-eyebrow">Found from ${src} — check it over</div>
+      <div class="tc-imp-field"><label>Name</label><input type="text" class="tc-imp-name" value="${esc(preview.personHint || state.personName || "")}" autocomplete="off" /></div>
+      <div class="tc-imp-field"><label>Who they are to you</label><input type="text" class="tc-imp-rel" value="${esc(preview.relationshipHint || "")}" placeholder="e.g. a friend, someone I manage" autocomplete="off" /></div>
+      <div class="tc-imp-field"><label>Birthday (optional)</label><input type="text" class="tc-imp-bday" value="${esc(bday)}" placeholder="e.g. June 15 (year optional)" autocomplete="off" inputmode="text" /></div>
+      <div class="tc-imp-who">${whoLine()}</div>
+      ${cands}
+      ${otherFacts.length ? `<ul class="tc-imp-facts">${otherFacts.map((f) => `<li>${factLine(f)}</li>`).join("")}</ul>` : ""}
+      <div class="tc-imp-acts">
+        <button class="link-btn tc-imp-discard">Not now</button>
+        <button class="${confirmClass}">${confirmLabel}</button>
+      </div>
+      <div class="k-msg tc-imp-msg"></div>`;
+    wire();
+  }
+
+  function wire() {
+    const nameEl = card.querySelector(".tc-imp-name");
+    const relEl = card.querySelector(".tc-imp-rel");
+    const bdayEl = card.querySelector(".tc-imp-bday");
+    const msg = card.querySelector(".tc-imp-msg");
+    const setMsg = (t, bad) => { msg.className = "k-msg tc-imp-msg" + (bad ? " bad" : ""); msg.textContent = t || ""; };
+
+    // Editing the NAME re-checks dedup: a corrected spelling that now matches an existing person
+    // flips this card to "update them" (never a silent duplicate). Runs on blur/change, best-effort.
+    let lastName = nameEl.value.trim();
+    nameEl.onchange = async () => {
+      const nm = nameEl.value.trim();
+      if (!nm || nm === lastName) return;
+      lastName = nm;
+      try {
+        const r = await resolveName(sb, nm);
+        if (r.kind === "match" && r.person) {
+          state.kind = "update"; state.personId = r.person.id; state.personName = r.person.name; state.candidates = [];
+          preview.personDetail = r.person.detail || ""; preview.personHasDetail = !!r.person.hasDetail;
+        } else if (r.kind === "ambiguous" && Array.isArray(r.candidates) && r.candidates.length) {
+          state.kind = "pick"; state.personId = null; state.personName = null; state.candidates = r.candidates;
+        } else {
+          state.kind = "add"; state.personId = null; state.personName = null; state.candidates = [];
+        }
+        // Preserve the user's typed relationship/birthday across the redraw (birthday kept as the
+        // text the user sees, e.g. "June 15" — draw() shows it back verbatim).
+        const keepRel = relEl.value, keepBday = bdayEl.value.trim();
+        preview.personHint = nm; preview.relationshipHint = keepRel; if (keepBday) preview.birthday = keepBday;
+        draw();
+      } catch (e) { console.error("re-resolve name", e); }
+    };
+
+    // The relationship value at draw time — so the host can tell an intentional set/change from an
+    // untouched prefill and never clobber an existing person's relationship with a stale value.
+    const relInitial = relEl.value.trim();
+
+    // TC-112: the birthday the extraction already seeded as a fact (a key_date is written for it by
+    // captureResolve). We only ask the host to persist a birthday when the field carries one that the
+    // extraction did NOT already seed (user added or edited it) — so we never double-write.
+    const bdayFact = facts.find((f) => f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date));
+    const bdayExtracted = bdayFact?.event_date || null; // full or sentinel ISO, or null
+
+    // Confirm → the SAME captureResolve the To-Review surface uses. For a brand-new person we pass
+    // the edited name as newPersonName; for an update/pick we pass the chosen personId. An edited
+    // relationship is applied by the host after confirm (server createPerson sets name only; on an
+    // update the server ignores relationship entirely) — the host honors it when the user changed it.
+    const doConfirm = async (personId) => {
+      const nm = nameEl.value.trim();
+      if (!nm && !personId) { setMsg("A name helps us make it personal.", true); nameEl.focus(); return; }
+      setMsg("Saving…");
+      try {
+        const res = await captureResolve(sb, {
+          captureId: state.captureId,
+          action: personId ? "reassign" : "confirm",
+          personId: personId || state.personId || null,
+          newPersonName: personId || state.personId ? null : nm,
+          contactKind,
+        });
+        card.remove();
+        showToast(res.message || (res.personName ? `Saved to ${firstName(res.personName)}` : "Saved"), {});
+        const relNow = relEl.value.trim();
+        // TC-112: parse the birthday field ("June 15" / "June 15, 1990" / "6/15" / ISO). If it
+        // resolves to a date the extraction did NOT already seed, hand it to the host to write as a
+        // recurring key_date. { event_date, recurs } or null.
+        const bdayNow = parseBirthdayInput(bdayEl.value);
+        const bdayChanged = (bdayNow?.event_date || null) !== bdayExtracted;
+        if (onConfirmed) await onConfirmed(res || null, {
+          relationship: relNow,
+          relChanged: relNow !== relInitial,
+          isNew: !(personId || state.personId),
+          birthday: bdayChanged ? bdayNow : null,
+        });
+      } catch (e) { setMsg(e.message, true); }
+    };
+
+    card.querySelector(".tc-imp-confirm").onclick = () => doConfirm(null);
+    card.querySelectorAll(".tc-imp-pick").forEach((b) => { b.onclick = () => doConfirm(b.dataset.pid); });
+    card.querySelector(".tc-imp-discard").onclick = async () => {
+      try { await captureResolve(sb, { captureId: state.captureId, action: "discard" }); } catch (e) { console.error(e); }
+      card.remove();
+      if (onDismiss) onDismiss();
+    };
+  }
+
+  draw();
 }
