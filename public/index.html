@@ -230,8 +230,12 @@
      (also .scrim, added to the DOM later) so a voice note tapped from inside People
      is visible, not hidden behind it. */
   #scrim { z-index: 70; }
-  .panel { background: var(--paper); width: 100%; max-width: 660px; border-radius: 26px; box-shadow: 0 24px 70px rgba(50,35,15,.3); overflow: hidden; margin: auto 0; }
-  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--line); background: var(--cloud); }
+  /* Slice 2 (orb-home): the conversation surface must feel like the SAME warm sanctuary world
+     as the home hero, NOT a clinical white card. A soft green→blue ambient gradient (the same
+     palette family as #bg) carries Della's world in with her; the panel-head brand is quiet. */
+  .panel { background: linear-gradient(168deg, #eef4ee 0%, #e7eeeb 46%, #e4ecf1 100%);
+           width: 100%; max-width: 660px; border-radius: 26px; box-shadow: 0 24px 70px rgba(50,35,15,.3); overflow: hidden; margin: auto 0; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid rgba(198,210,192,.5); background: transparent; }
   .panel-head .brand { font-size: 19px; }
   .close { background: none; border: none; font-size: 22px; color: var(--ink-soft); cursor: pointer; line-height: 1; padding: 4px 9px; border-radius: 10px; }
   .close:hover { background: var(--paper-2); }
@@ -757,15 +761,17 @@
   .tc-chat { display:flex; flex-direction:column; padding: 6px 20px 18px; }
   .tc-chat-log { display:flex; flex-direction:column; gap:12px; max-height:56vh; overflow-y:auto; padding: 12px 2px; scroll-behavior:smooth; }
   .tc-bubble { max-width: 84%; padding: 12px 15px; border-radius: 18px; font-size: 15.5px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
-  .tc-bubble.her { align-self:flex-start; background: var(--cloud, #f3efe7); color: var(--ink,#2e2a24); border-bottom-left-radius: 6px; }
+  /* Slice 2 (orb-home): supporting cast beneath HER. Warm, softly translucent bubbles/field that
+     sit ON the panel's warm sanctuary gradient — never a clinical white card. */
+  .tc-bubble.her { align-self:flex-start; background: rgba(255,255,255,.72); color: var(--ink,#2e2a24); border-bottom-left-radius: 6px; }
   .tc-bubble.me { align-self:flex-end; background: var(--clay,#c98a63); color:#fff; border-bottom-right-radius: 6px; }
-  .tc-typing { align-self:flex-start; display:inline-flex; gap:5px; padding:15px 16px; background:var(--cloud,#f3efe7); border-radius:18px; border-bottom-left-radius:6px; }
+  .tc-typing { align-self:flex-start; display:inline-flex; gap:5px; padding:15px 16px; background:rgba(255,255,255,.72); border-radius:18px; border-bottom-left-radius:6px; }
   .tc-typing i { width:7px; height:7px; border-radius:50%; background:#b9b1a2; animation: tc-blink 1.2s infinite both; }
   .tc-typing i:nth-child(2){ animation-delay:.18s } .tc-typing i:nth-child(3){ animation-delay:.36s }
   @keyframes tc-blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
   @media (prefers-reduced-motion: reduce){ .tc-typing i{ animation:none } }
   .tc-chat-inputrow { display:flex; gap:10px; align-items:flex-end; margin-top:14px; }
-  .tc-chat-input { flex:1; resize:none; border:1.5px solid var(--line,#e0d8c9); border-radius:16px; padding:12px 14px; font-family:inherit; font-size:15.5px; line-height:1.45; max-height:120px; background:#fff; color:var(--ink,#2e2a24); }
+  .tc-chat-input { flex:1; resize:none; border:1.5px solid rgba(198,210,192,.7); border-radius:16px; padding:12px 14px; font-family:inherit; font-size:15.5px; line-height:1.45; max-height:120px; background:rgba(255,255,255,.78); color:var(--ink,#2e2a24); }
   .tc-chat-input:focus { outline:none; border-color: var(--sage,#8a9a72); box-shadow: 0 0 0 3px rgba(138,154,114,.15); }
   .tc-send { flex:none; width:46px; height:46px; border-radius:50%; border:none; background:var(--clay,#c98a63); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition: background .18s ease; }
   .tc-send:hover:not(:disabled){ background:var(--clay-deep,#b0714b); }
@@ -780,51 +786,41 @@
   /* TC-82 Phase 2 (2a): the spoken-mode status + "Stop voice" control under the chat. */
   .tc-cv-voicerow { display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; margin-top:10px; }
 
-  /* TC-88 — a PROMINENT, calm full-width VOICE STATE BAR at the top of the conversation panel
-     (the eye's landing zone), promoted out of the crowded footer. The WHOLE strip washes color
-     with state: clay for her speaking, sage for your turn, a soft neutral for thinking. Distinguished
-     THREE ways at once — hue + motion direction (emitting vs receiving) + a text label — so it reads
-     at a glance and for color-blind users. Icons via CSS, no emoji. Calm, big-and-slow not flashy.
-     Reduced-motion → a steady static state (tint + label only), no animation. */
-  .tc-cv-statebar { display:flex; align-items:center; gap:14px; padding:13px 26px;
-    border-bottom:1px solid var(--line,#e0d8c9); background:var(--mist,#eef1e9);
-    transition:background .35s ease; overflow:hidden; }
+  /* Slice 2 (orb-home) — HER, big, at the top of the conversation. The old TC-88 "status dot"
+     is retired: the state indicator is now a PROMINENT living orb (a real /_orb.js canvas instance,
+     the same presence as the home hero) so it's clear she is HERE WITH YOU — you speak WITH HER,
+     not with the dialogue box. The orb is the focal point; the text label + aria-live mirror sit
+     beneath it for clarity + screen readers. A soft state-tint wash on the bar background keeps the
+     color-blind-friendly hue cue (clay speaking / sage your-turn / neutral thinking); the orb's own
+     color life reinforces it. Reduced-motion → steady tint + label (the engine paints one still,
+     warm frame and stops). */
+  .tc-cv-statebar { display:flex; flex-direction:column; align-items:center; gap:8px; padding:20px 26px 18px;
+    border-bottom:1px solid rgba(198,210,192,.5); background:transparent;
+    transition:background .5s ease; overflow:hidden; }
   .tc-cv-statebar[hidden] { display:none; }
-  .tc-cv-statebar .tc-cv-orb { position:relative; width:26px; height:26px; border-radius:50%; flex:0 0 auto; }
-  .tc-cv-statebar .tc-cv-orb::before { content:""; position:absolute; inset:0; border-radius:50%; }
-  .tc-cv-statebar .tc-cv-orb::after { content:""; position:absolute; inset:0; border-radius:50%; opacity:.55; }
+  /* the presence: a sizable orb (mirrors the hero .stage/.orbIW structure so /_orb.js mounts onto it) */
+  .tc-cv-orbstage { position:relative; width:132px; height:132px; display:flex; align-items:center; justify-content:center; border-radius:50%; }
+  .tc-cv-orbstage .orbIW { position:relative; width:120px; height:120px; border-radius:50%; overflow:visible; }
+  .tc-cv-orbstage .orbIW canvas { position:absolute; inset:0; width:100%; height:100%; border-radius:50%; display:block;
+                                   box-shadow:0 10px 30px rgba(120,70,40,.20); }
+  .tc-cv-orbstage .orbIW .halo { position:absolute; inset:-18px; border-radius:50%; z-index:-1; will-change:transform,opacity;
+    background:radial-gradient(circle, rgba(199,123,89,.30) 0%, rgba(159,197,150,.16) 46%, rgba(159,197,150,0) 72%); filter:blur(7px); }
+  /* CSS breath/pulse body per state (mirrors the hero), the canvas carries color */
+  .tc-cv-orbstage[data-state="idle"]      .orbIW { animation:orbIdleBreath 5.4s ease-in-out infinite; }
+  .tc-cv-orbstage[data-state="listening"] .orbIW { animation:orbListenRipple 2.6s ease-in-out infinite; }
+  .tc-cv-orbstage[data-state="thinking"]  .orbIW { animation:orbThinkSettle 3.0s ease-in-out infinite; }
+  .tc-cv-orbstage[data-state="speaking"]  .orbIW { animation:orbSpeakPulse 1.9s ease-in-out infinite; }
+  .tc-cv-orbstage .halo { animation:orbHaloBreath 5.4s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .tc-cv-orbstage .orbIW, .tc-cv-orbstage .halo { animation:none !important; } }
   .tc-cv-plabel { font-size:15px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
 
-  /* Speaking — warm clay wash. Orb breathes (emitting) with a soft outward sound-wave shimmer. */
-  .tc-cv-statebar[data-state="speaking"] { background:#f6e8de; }
-  .tc-cv-statebar[data-state="speaking"] .tc-cv-orb::before { background:var(--clay,#c28a63); animation:tcCvBreathe 1.6s ease-in-out infinite; }
-  .tc-cv-statebar[data-state="speaking"] .tc-cv-orb::after { box-shadow:0 0 0 3px var(--clay,#c28a63); animation:tcCvShimmer 1.7s ease-out infinite; }
-  .tc-cv-statebar[data-state="speaking"] .tc-cv-plabel { color:var(--clay-deep,#a97350); }
-
-  /* Listening (your turn) — sage wash. Orb pulses an OUTWARD mic-ripple (receiving), a motion that
-     reads DIFFERENTLY from Speaking's tight shimmer: it travels further out, like taking sound in. */
-  .tc-cv-statebar[data-state="listening"] { background:#e8eede; }
-  .tc-cv-statebar[data-state="listening"] .tc-cv-orb::before { background:var(--sage,#7d8a68); animation:tcCvBreathe 1.8s ease-in-out infinite; }
-  .tc-cv-statebar[data-state="listening"] .tc-cv-orb::after { box-shadow:0 0 0 2px var(--sage,#7d8a68); animation:tcCvRing 1.9s ease-out infinite; }
+  /* Soft full-width state tint on the bar background — the accessible hue cue kept from TC-88. */
+  .tc-cv-statebar[data-state="speaking"]  { background:linear-gradient(180deg, rgba(246,232,222,.55), rgba(246,232,222,0)); }
+  .tc-cv-statebar[data-state="speaking"]  .tc-cv-plabel { color:var(--clay-deep,#a97350); }
+  .tc-cv-statebar[data-state="listening"] { background:linear-gradient(180deg, rgba(232,238,222,.55), rgba(232,238,222,0)); }
   .tc-cv-statebar[data-state="listening"] .tc-cv-plabel { color:var(--sage-deep,#5f6c4c); }
-
-  /* Thinking — a subtle calm neutral mist, one slow single breath, no ripple. */
-  .tc-cv-statebar[data-state="thinking"] { background:var(--mist,#eef1e9); }
-  .tc-cv-statebar[data-state="thinking"] .tc-cv-orb::before { background:var(--ink-soft,#8a8577); animation:tcCvBreathe 2.1s ease-in-out infinite; }
-  .tc-cv-statebar[data-state="thinking"] .tc-cv-orb::after { opacity:0; }
-  .tc-cv-statebar[data-state="thinking"] .tc-cv-plabel { color:var(--ink-soft,#5f6b60); }
-
-  @keyframes tcCvBreathe { 0%,100% { transform:scale(.72); opacity:.85; } 50% { transform:scale(1); opacity:1; } }
-  /* Listening ripple travels far OUT (receiving). */
-  @keyframes tcCvRing { 0% { transform:scale(.7); opacity:.5; } 70% { opacity:0; } 100% { transform:scale(2.6); opacity:0; } }
-  /* Speaking shimmer stays close + soft (emitting a gentle sound wave), distinct from the ripple. */
-  @keyframes tcCvShimmer { 0% { transform:scale(.9); opacity:.5; } 60% { opacity:0; } 100% { transform:scale(1.7); opacity:0; } }
-  @media (prefers-reduced-motion: reduce) {
-    /* Drop shimmer/ripple/breathe; rely on the full-width TINT + LABEL (both static) to distinguish. */
-    .tc-cv-statebar .tc-cv-orb::before, .tc-cv-statebar .tc-cv-orb::after { animation:none !important; }
-    .tc-cv-statebar .tc-cv-orb::before { transform:scale(.9); opacity:1; }
-    .tc-cv-statebar .tc-cv-orb::after { opacity:0; } /* no expanding ring/shimmer; steady static state */
-  }
+  .tc-cv-statebar[data-state="thinking"]  { background:linear-gradient(180deg, rgba(223,234,225,.55), rgba(223,234,225,0)); }
+  .tc-cv-statebar[data-state="thinking"]  .tc-cv-plabel { color:var(--ink-soft,#5f6b60); }
 </style>
 
 <!-- ================= CONVERSATION MODAL ================= -->
@@ -838,12 +834,16 @@
       <button class="close" onclick="closeFlow()" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="progress"><div class="fill" id="progressFill"></div></div>
-    <!-- TC-88: the prominent full-width voice-state bar. Lives at the TOP of the panel (above the
-         scrolling chat log) so the founder always sees it. Shown only in VOICE mode when a state is
-         active; hidden in typed mode and when voice isn't active. The visually-hidden aria-live span
-         is the dedicated SR mirror (state announced once) — NOT on the churning bar itself. -->
+    <!-- Slice 2 (orb-home): HER, big, at the top of the conversation. Lives at the TOP of the panel
+         (above the scrolling chat log), so opening the conversation feels like the SAME living presence
+         from the home hero continuing — not a handoff to a status dot. #cvOrbStage is the mount point
+         for a /_orb.js instance (cvMountConverseOrb); the text label + visually-hidden aria-live mirror
+         sit beneath her for clarity + screen readers. Shown only in VOICE mode when a state is active;
+         hidden in typed mode. The SR span announces state once — NOT on the churning stage itself. -->
     <div class="tc-cv-statebar" id="cvStateBar" hidden>
-      <span class="tc-cv-orb" aria-hidden="true"></span>
+      <div class="tc-cv-orbstage" id="cvOrbStage" data-state="idle" data-life="energetic" aria-hidden="true">
+        <div class="orb orbIW"><div class="halo"></div><canvas width="120" height="120"></canvas></div>
+      </div>
       <span class="tc-cv-plabel" id="cvStateLabel"></span>
       <span id="cvVoiceCue" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;"></span>
     </div>
@@ -2026,6 +2026,10 @@ function cvRenderVoiceCue(){
   // panel (#cvStateBar), driven by cvVoiceCue(). Here we only place the "Stop voice" control in the
   // footer (alongside the make-plan link). The top bar starts hidden until a state goes active.
   const bar = document.getElementById('cvStateBar'); if (bar){ bar.hidden = true; bar.removeAttribute('data-state'); }
+  // Slice 2 (orb-home): mount HER — the prominent conversation presence orb — as voice mode arms,
+  // so she's already breathing at the top of the panel before the first "Speaking" state fires
+  // (the same living presence continuing from the home hero, not a status dot).
+  cvMountConverseOrb();
   const foot = document.getElementById('cvFoot'); if (!foot || foot.querySelector('#cvVoiceRow')) return;
   const row = document.createElement('div');
   row.id = 'cvVoiceRow'; row.className = 'tc-cv-voicerow';
@@ -2052,10 +2056,34 @@ function cvVoiceCue(state){
   }
   if (label) label.textContent = known ? LABELS[state] : '';
   if (sr) sr.textContent = known ? SR[state] : '';
-  // orb-home (broadcast, don't subscribe): drive the hero presence orb from the SAME voice
-  // cue that runs the TC-88 state bar. ''→idle; listening/thinking/speaking pass straight
-  // through. The orb reads data-state next frame (no event bus). Best-effort; never throws.
-  try { window.TCOrb && window.TCOrb.setState(known ? state : 'idle'); } catch(e){}
+  // orb-home (broadcast, don't subscribe): drive the presence orb from the SAME voice cue.
+  // ''→idle; listening/thinking/speaking pass straight through. Each orb reads its stage's
+  // data-state next frame (no event bus). Slice 2: while the conversation is open, the CONVERSATION
+  // orb is the visible her, so drive it; the hero orb is covered (its IntersectionObserver has
+  // paused it) but we mirror the state onto it too so it's already correct when the panel closes.
+  // Best-effort; never throws.
+  const nextState = known ? state : 'idle';
+  try { __cvOrb && __cvOrb.setState(nextState); } catch(e){}
+  try { window.TCOrb && window.TCOrb.setState(nextState); } catch(e){}
+}
+
+// Slice 2 (orb-home): the CONVERSATION presence orb — a real /_orb.js instance mounted onto
+// #cvOrbStage at the top of the panel. Mounted when voice mode arms, destroyed on stop/close so
+// there's no rAF leak. Reuses the Slice-1 engine (paint-one-frame-on-mount so she's never blank,
+// DPR backing-store scaling, warm tuning, energetic life). __cvOrb holds the live handle.
+let __cvOrb = null;
+function cvMountConverseOrb(){
+  try {
+    if (__cvOrb) return;                              // idempotent
+    const stage = document.getElementById('cvOrbStage');
+    if (!stage || typeof window.__tcMountOrb !== 'function') return;
+    stage.setAttribute('data-state', 'idle');
+    __cvOrb = window.__tcMountOrb(stage, { life: 'energetic' });
+  } catch(e){ __cvOrb = null; }
+}
+function cvDestroyConverseOrb(){
+  try { if (__cvOrb && __cvOrb.destroy) __cvOrb.destroy(); } catch(e){}
+  __cvOrb = null;
 }
 
 function cvAppend(role, text){
@@ -2562,6 +2590,9 @@ function cvStopVoice(){
   try { cancelSpeech(); } catch(e){}                        // stop current TTS mid-sentence
   try { abortConfirmRecording(); } catch(e){}               // stop any live recording
   cvVoiceCue('');
+  // Slice 2 (orb-home): tear down the conversation presence orb so no rAF loop leaks after voice
+  // ends (stop / close). cvVoiceCue('') just above already dropped her to idle + hid the bar.
+  cvDestroyConverseOrb();
   const row = document.getElementById('cvVoiceRow'); if (row) row.remove();
 }
 
@@ -4294,6 +4325,11 @@ function tcToastHide(){
   import { mountOrb } from '/_orb.js';
   const __orbStage = document.getElementById('homeOrbStage');
   if (__orbStage) { try { window.TCOrb = mountOrb(__orbStage, { life: 'energetic' }); } catch (e) {} }
+  // Slice 2: expose the engine to the non-module conversation code so it can mount a SECOND,
+  // prominent orb at the top of the conversation panel — Della continuing INTO the conversation,
+  // not a handoff to a status dot. cvMountConverseOrb / cvDestroyConverseOrb own its lifecycle;
+  // cvVoiceCue drives whichever orb is the active presence.
+  window.__tcMountOrb = mountOrb;
 </script>
 <script type="module" src="/companion.js"></script>
 <script type="module" src="/roster.js"></script>
