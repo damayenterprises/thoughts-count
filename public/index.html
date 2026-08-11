@@ -817,6 +817,86 @@ const STEPS = [
 
 const answers = {};   // raw free-text per step
 const picks = {};      // selected chips per step (kept separate from free text)
+// ---- Session-scoped mic manager (TC-90) ----
+// One microphone permission + ONE long-lived MediaStream + AudioContext + analyser per app
+// session, shared by every recorder (typed dictation, home "remember", and the converse voice
+// loop). Before TC-90 each entry point called getUserMedia() FRESH and track.stop()/AudioContext
+// .close() on every stop, so the OS re-prompted for the mic on every spoken turn AND (in a prior
+// reverted fix db34f5d/3ad7eb2) closing a per-turn AudioContext over a shared track silenced the
+// track — she went deaf after turn 1.
+//
+// THE INVARIANT THAT KEEPS HER HEARING ON TURN 2/3/4:
+//   acquireStream() returns the SAME MediaStream every call and NEVER stops its tracks.
+//   getAnalyser() returns the SAME analyser over ONE AudioContext that is NEVER .close()d
+//   mid-session. Per turn we only build/stop a fresh MediaRecorder on that shared stream and
+//   tear down only per-turn nodes (rAF loops). The tracks + context stay live, so the recorder
+//   for turn N+1 reads a still-open mic → capture keeps working with no second permission prompt.
+//   releaseAll() is the ONLY place tracks stop / the context closes; it runs on page teardown.
+const micSession = {
+  _stream: null,          // the ONE cached MediaStream (never track.stop()d until releaseAll)
+  _failed: false,         // permission denied / no device → remembered so we don't spam getUserMedia
+  _ctx: null,             // the ONE long-lived AudioContext (never .close()d until releaseAll)
+  _src: null,             // MediaStreamSource over _stream (built once)
+  _analyser: null,        // shared analyser (fftSize 512 / smoothing 0.8) — reused by every meter/VAD
+  supported(){
+    try { return !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && typeof MediaRecorder !== 'undefined'); } catch(e){ return false; }
+  },
+  // Lazily open the mic ONCE per session and cache the stream. Every later call returns the same
+  // stream — no second getUserMedia, so no second OS permission prompt. A denied/failed attempt is
+  // remembered (throws immediately thereafter) so we never re-hammer getUserMedia within a session.
+  async acquireStream(){
+    if (this._stream){
+      // Safety: if a track somehow ended (rare device/OS event), forget it so a future call can
+      // legitimately re-acquire rather than hand back a dead stream.
+      const live = this._stream.getTracks().some(t => t.readyState === 'live');
+      if (live) return this._stream;
+      this._teardownAudioGraph(); this._stream = null;
+    }
+    if (this._failed) throw new Error('mic-unavailable');
+    if (!this.supported()) { this._failed = true; throw new Error('mic-unsupported'); }
+    try {
+      this._stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      return this._stream;
+    } catch(e){ this._failed = true; throw e; }
+  },
+  // The ONE shared analyser. Built once over the cached stream; every turn's level meter + VAD read
+  // it. iOS suspends an AudioContext when the tab backgrounds — resume() on each hand-out so she
+  // hears again on return without rebuilding (and never closing) the context. Returns null if the
+  // graph can't be built, in which case callers degrade (ripple just breathes; VAD relies on the cap).
+  getAnalyser(){
+    try {
+      if (!this._stream) return null;
+      if (!this._ctx){
+        this._ctx = new (window.AudioContext || window.webkitAudioContext)();
+        this._src = this._ctx.createMediaStreamSource(this._stream);
+        this._analyser = this._ctx.createAnalyser();
+        this._analyser.fftSize = 512; this._analyser.smoothingTimeConstant = 0.8;
+        this._src.connect(this._analyser);
+      }
+      try { if (this._ctx.state === 'suspended' && this._ctx.resume) this._ctx.resume(); } catch(e){}
+      return this._analyser;
+    } catch(e){ return null; }
+  },
+  _teardownAudioGraph(){
+    try { if (this._src) this._src.disconnect(); } catch(e){}
+    try { if (this._ctx && this._ctx.close) this._ctx.close(); } catch(e){}
+    this._ctx = null; this._src = null; this._analyser = null;
+  },
+  // The ONLY place the mic actually releases. Wired to page teardown (pagehide/beforeunload) and
+  // sign-out — NOT to any per-turn or per-flow stop.
+  releaseAll(){
+    this._teardownAudioGraph();
+    try { this._stream && this._stream.getTracks().forEach(t => t.stop()); } catch(e){}
+    this._stream = null; this._failed = false;
+  }
+};
+window.micSession = micSession; // companion modules / sign-out teardown reuse this
+// Release the shared mic on real page teardown only (not per-turn). pagehide covers iOS bfcache.
+try {
+  window.addEventListener('pagehide', () => { try { micSession.releaseAll(); } catch(e){} });
+  window.addEventListener('beforeunload', () => { try { micSession.releaseAll(); } catch(e){} });
+} catch(e){}
+
 const __rec = { mr: null, chunks: [], active: false, stream: null }; // voice recorder state (TC-51)
 let idx = 0;
 let currentPlan = null;
@@ -1057,20 +1137,22 @@ function blobToBase64(blob){
 }
 async function toggleMic(btn, ta){
   if (__rec.active){ stopRecordingIfAny(); return; }
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined'){
+  if (!micSession.supported()){
     micStatus("Your browser can't record here — you can type instead."); return;
   }
+  // TC-90: reuse the ONE session mic stream (opens the OS prompt only on the first-ever use).
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  try { stream = await micSession.acquireStream(); }
   catch(e){ micStatus("We need microphone permission to hear you — you can type instead."); return; }
   __rec.stream = stream; __rec.chunks = []; __rec.active = true;
-  const mr = new MediaRecorder(stream);
+  const mr = new MediaRecorder(stream); // fresh per-turn recorder on the shared stream
   __rec.mr = mr;
   mr.ondataavailable = e => { if (e.data && e.data.size) __rec.chunks.push(e.data); };
   mr.onstop = async () => {
     __rec.active = false;
     if (__rec.timer){ clearTimeout(__rec.timer); __rec.timer = null; }
-    try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
+    // TC-90: DO NOT stop the shared stream's tracks — only this per-turn MediaRecorder is done.
+    // The mic stays live for the next dictation/turn (no re-prompt).
     const blob = new Blob(__rec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size){ setMic(btn, 'idle'); micStatus(''); return; }
     setMic(btn, 'thinking'); micStatus('Writing down what you said…');
@@ -1460,20 +1542,21 @@ function toProcessing(){
 }
 async function beginHomeRecording(onText){
   const routeText = onText || renderHomeReflect; // where the transcript goes (home reflect, or a locked person)
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined'){
+  if (!micSession.supported()){
     renderHomeError("Your browser can't record here — you can type instead."); return;
   }
+  // TC-90: reuse the ONE session mic stream (no second permission prompt on later turns).
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  try { stream = await micSession.acquireStream(); }
   catch(e){ renderHomeError("We need microphone permission to hear you — you can type instead."); return; }
   __hrec.stream = stream; __hrec.chunks = []; __hrec.active = true;
-  startLevelMeter(stream);
-  const mr = new MediaRecorder(stream); __hrec.mr = mr;
+  startLevelMeter(); // taps the shared analyser
+  const mr = new MediaRecorder(stream); __hrec.mr = mr; // fresh per-turn recorder on the shared stream
   mr.ondataavailable = e => { if (e.data && e.data.size) __hrec.chunks.push(e.data); };
   mr.onstop = async () => {
     __hrec.active = false; if (__hrec.timer){ clearTimeout(__hrec.timer); __hrec.timer = null; }
     stopLevelMeter();
-    try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
+    // TC-90: leave the shared stream/context alive — only this per-turn recorder is done.
     const blob = new Blob(__hrec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size){ renderHomeError("I didn't quite catch that."); return; }
     toProcessing(); // ensure the settle state shows even on auto-stop paths
@@ -1491,19 +1574,20 @@ async function beginHomeRecording(onText){
   __hrec.timer = setTimeout(() => { if (__hrec.active){ toProcessing(); stopHomeRecording(); } }, 60000);
 }
 function stopHomeRecording(){ try { if (__hrec.active && __hrec.mr && __hrec.mr.state === 'recording') __hrec.mr.stop(); } catch(e){} }
-function cancelHomeRecording(){ __hrec.active = false; stopLevelMeter(); try { if (__hrec.mr && __hrec.mr.state === 'recording'){ __hrec.mr.onstop = null; __hrec.mr.stop(); } } catch(e){} try { __hrec.stream && __hrec.stream.getTracks().forEach(t => t.stop()); } catch(e){} if (__hrec.timer){ clearTimeout(__hrec.timer); __hrec.timer = null; } }
+// TC-90: cancel stops only this per-turn recorder + rAF loop — the shared stream/context stay
+// live (released only on page teardown/sign-out via micSession.releaseAll).
+function cancelHomeRecording(){ __hrec.active = false; stopLevelMeter(); try { if (__hrec.mr && __hrec.mr.state === 'recording'){ __hrec.mr.onstop = null; __hrec.mr.stop(); } } catch(e){} if (__hrec.timer){ clearTimeout(__hrec.timer); __hrec.timer = null; } }
 // Live mic loudness → drives the listening ripple's --level (calm swell, not a jumpy
-// waveform). Taps the existing stream (no second permission). Degrades gracefully.
-function startLevelMeter(stream){
+// waveform). TC-90: reads the ONE shared session analyser (no second AudioContext, never closed
+// mid-session). Degrades gracefully — if the shared analyser is unavailable the ripple just breathes.
+function startLevelMeter(){
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const src = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser();
-    analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.8;
-    src.connect(analyser);
+    const analyser = micSession.getAnalyser();
+    if (!analyser) return;
     const buf = new Uint8Array(analyser.frequencyBinCount);
     let smooth = 0;
     const loop = () => {
+      if (!__hrec.active) return; // stop cleanly if the turn ended
       analyser.getByteTimeDomainData(buf);
       let sum = 0; for (let i = 0; i < buf.length; i++){ const v = (buf[i] - 128) / 128; sum += v * v; }
       const rms = Math.sqrt(sum / buf.length);
@@ -1514,12 +1598,11 @@ function startLevelMeter(stream){
       __hrec._raf = requestAnimationFrame(loop);
     };
     loop();
-    __hrec._audioCtx = ctx;
   } catch(e){ /* no analyser → the ripple just breathes on its own */ }
 }
+// TC-90: tear down ONLY the per-turn rAF loop; the shared AudioContext is never closed here.
 function stopLevelMeter(){
   try { if (__hrec._raf){ cancelAnimationFrame(__hrec._raf); __hrec._raf = null; } } catch(e){}
-  try { if (__hrec._audioCtx){ __hrec._audioCtx.close(); __hrec._audioCtx = null; } } catch(e){}
 }
 function renderHomeReflect(text){
   const t = String(text || '').trim();
@@ -2855,7 +2938,7 @@ const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can n
 // before the 2s end-of-turn) we fire a background /api/transcribe of the audio-so-far, so the
 // transcript is usually ready the instant the 2s confirms — no dead time after the pause.
 const CREC_SOFT_PAUSE_MS = 700;
-const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null, raf: null, audioCtx: null, spoke: false, spokeAt: 0, silenceStart: 0, aborted: false,
+const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null, raf: null, /* TC-90: no per-turn audioCtx — VAD reads micSession's shared analyser */ spoke: false, spokeAt: 0, silenceStart: 0, aborted: false,
   gen: 0,            // bumped every begin/abort; a late speculative from an old gen no-ops
   specFired: false,  // fired a speculative for the CURRENT silence window? (re-armed on resume)
   specPromise: null, // Promise<string> of the latest speculative transcript ('' on any failure)
@@ -2870,9 +2953,11 @@ function crecShouldSpeculate(s, now){
     && (now - s.spokeAt) > CREC_MIN_SPEECH_MS
     && (now - s.silenceStart) >= CREC_SOFT_PAUSE_MS);
 }
+// TC-90: tear down ONLY the per-turn VAD rAF loop. The AudioContext/analyser are the shared
+// session graph (micSession) and MUST NOT be closed here — closing it mid-session silences the
+// shared track and she goes deaf on turn 2 (the exact prior regression db34f5d/3ad7eb2).
 function stopConfirmMeter(){
   try { if (__crec.raf){ cancelAnimationFrame(__crec.raf); __crec.raf = null; } } catch(e){}
-  try { if (__crec.audioCtx){ __crec.audioCtx.close(); __crec.audioCtx = null; } } catch(e){}
 }
 function stopConfirmRecording(){ try { if (__crec.active && __crec.mr && __crec.mr.state === 'recording') __crec.mr.stop(); } catch(e){} }
 // Transcribe one audio Blob via /api/transcribe → the recognized text, or '' on any failure.
@@ -2913,28 +2998,32 @@ function abortConfirmRecording(){
   __crec.specCtrl = null; __crec.specPromise = null; __crec.specFired = false;
   stopConfirmMeter();
   try { if (__crec.mr && __crec.mr.state === 'recording'){ __crec.mr.onstop = null; __crec.mr.stop(); } } catch(e){}
-  try { __crec.stream && __crec.stream.getTracks().forEach(t => t.stop()); } catch(e){}
+  // TC-90: do NOT stop the shared stream's tracks — the converse voice loop re-opens the mic for
+  // the next turn on this same stream. releaseAll() (page teardown / sign-out) is the only stopper.
   if (__crec.timer){ clearTimeout(__crec.timer); __crec.timer = null; }
 }
 // Record a short spoken answer and hand the transcript (or '' if nothing usable) to onText.
 // Returns false if the browser can't record or permission is denied → caller falls to tap.
 async function beginConfirmRecording(onText){
-  if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia || typeof MediaRecorder === 'undefined') return false;
+  if (!micSession.supported()) return false;
+  // TC-90: reuse the ONE session mic stream. The converse voice loop calls this once PER SPOKEN
+  // TURN; before TC-90 each call re-ran getUserMedia (OS re-prompt) and closed a per-turn
+  // AudioContext (deafness). Now turn N+1 gets the same still-live stream + shared analyser.
   let stream;
-  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  try { stream = await micSession.acquireStream(); }
   catch(e){ return false; }
-  // A tap (or navigation) may have resolved the card while the mic was opening — if so,
-  // don't bring a live recorder up behind it. Release the stream and bow out.
-  if (!__confirmActive){ try { stream.getTracks().forEach(t => t.stop()); } catch(e){} return false; }
+  // A tap (or navigation) may have resolved the card while the mic was opening — if so, don't bring
+  // a live recorder up behind it. Bow out WITHOUT stopping the shared stream (a later turn reuses it).
+  if (!__confirmActive){ return false; }
   __crec.stream = stream; __crec.chunks = []; __crec.active = true; __crec.spoke = false; __crec.spokeAt = 0; __crec.silenceStart = 0; __crec.aborted = false;
   // TC-88 speculative-transcribe state: fresh generation, no speculative yet.
   const gen = ++__crec.gen; __crec.specFired = false; __crec.specPromise = null; __crec.specCtrl = null;
   // VAD: watch mic loudness; end shortly after speech stops.
+  // TC-90: read the ONE shared session analyser (built once, never closed). If it's unavailable the
+  // catch/else path leaves the hard cap (CREC_MAX_MS) as the sole turn-ender — same as before.
   try {
-    const ctx = new (window.AudioContext || window.webkitAudioContext)();
-    const src = ctx.createMediaStreamSource(stream);
-    const analyser = ctx.createAnalyser(); analyser.fftSize = 512; analyser.smoothingTimeConstant = 0.8;
-    src.connect(analyser);
+    const analyser = micSession.getAnalyser();
+    if (!analyser) throw new Error('no-analyser');
     const buf = new Uint8Array(analyser.frequencyBinCount);
     const loop = () => {
       if (!__crec.active) return;
@@ -2959,9 +3048,9 @@ async function beginConfirmRecording(onText){
       }
       __crec.raf = requestAnimationFrame(loop);
     };
-    loop(); __crec.audioCtx = ctx;
+    loop(); // TC-90: no __crec.audioCtx — the analyser belongs to the shared session graph
   } catch(e){ /* no analyser → the hard cap below ends it */ }
-  const mr = new MediaRecorder(stream); __crec.mr = mr;
+  const mr = new MediaRecorder(stream); __crec.mr = mr; // fresh per-turn recorder on the shared stream
   mr.ondataavailable = e => { if (e.data && e.data.size) __crec.chunks.push(e.data); };
   mr.onstop = async () => {
     __crec.active = false; stopConfirmMeter();
@@ -2976,7 +3065,8 @@ async function beginConfirmRecording(onText){
     // would drop the tail. Capture the signal now, before any await, and only in that settled-
     // silence case do we use the speculative; otherwise fall through to the full-blob transcribe.
     const endedOnSilence = !!__crec.silenceStart;
-    try { stream.getTracks().forEach(t => t.stop()); } catch(e){}
+    // TC-90: DO NOT stop the shared stream's tracks — the next turn (cvVoiceListen re-invokes this)
+    // reuses this same live stream + analyser. Only this per-turn MediaRecorder has ended.
     if (__crec.aborted || myGen !== __crec.gen) return; // user tapped or navigated away → ignore this recording
     const blob = new Blob(__crec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size || !__crec.spoke){ onText(''); return; } // silence → no-op, tap remains

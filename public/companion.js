@@ -212,6 +212,9 @@ async function boot() {
     // TC-81: any sign-out (button, expiry, other tab) clears the device-local recovered plan.
     if (evt === "SIGNED_OUT") {
       try { window.tcClearLastPlan && window.tcClearLastPlan(); window.tcRefreshLastPlanAffordance && window.tcRefreshLastPlanAffordance(); } catch (e) {}
+      // TC-90: privacy — release the shared session mic (stop tracks + close AudioContext) on a
+      // shared-device sign-out so the next person doesn't inherit a live mic. Re-acquires on demand.
+      try { window.micSession && window.micSession.releaseAll(); } catch (e) {}
     }
     // On a genuine magic-link return, close the sign-in modal and land on the MAIN
     // page (TC-92). We no longer force-open "Your People" on login — the top-bar
