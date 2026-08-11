@@ -2440,7 +2440,7 @@ async function cvFallbackReply(force){
 // line only if she didn't provide one (defensive; the model is prompted to always include it).
 function cvClosingLine(ans){
   const c = ans && typeof ans.closing === 'string' ? ans.closing.trim() : '';
-  return c || "Let me put this together.";
+  return c || "Let me take it from here.";
 }
 
 // The ready handoff, shared by the stream + fallback paths. Identical behavior to cvTurn's ready
