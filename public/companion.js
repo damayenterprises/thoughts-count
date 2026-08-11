@@ -721,7 +721,7 @@ function renderHome(people, opts = {}) {
           <p class="tc-help-sm" style="margin:6px 0 0;">A text, a DM, a profile, or a saved contact — we'll read who it's about and let you confirm.</p>
 
           <!-- 1a: paste a bio / anything about them -->
-          <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note — and we'll pull out who it's about" style="margin-top:12px;min-height:72px;"></textarea>
+          <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note, or a screenshot — and we'll pull out who it's about" style="margin-top:12px;min-height:72px;"></textarea>
           <div class="nav" style="justify-content:flex-end;"><button class="cta ghost" id="np_paste_go" type="button">Read it →</button></div>
 
           <!-- confirm cards (tap-to-edit) render here -->

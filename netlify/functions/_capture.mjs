@@ -240,7 +240,11 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
       eventDate: f.event_date || null,
       rawText,
       surfaceDays: surfaceDaysFor(f),
-      ...(seeds && f.event_date ? { keyDateLabel: f.object } : {}),
+      ...(seeds && f.event_date
+        ? f.relation === "birthday"
+          ? { keyDateLabel: "Birthday", keyDateKind: "birthday" }
+          : { keyDateLabel: f.object }
+        : {}),
     });
     if (fact?.id) writtenIds.push(fact.id);
     if (retired?.length) supersededIds.push(...retired);
