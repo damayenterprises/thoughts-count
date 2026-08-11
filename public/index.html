@@ -167,10 +167,17 @@
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0 30px; }
 
   /* ---------- hero ---------- */
-  .hero { text-align: center; padding: 60px 0 52px; }
-  .hero h1 { font-size: clamp(32px, 5vw, 54px); line-height: 1.12; font-weight: 500; margin: 0 auto 18px; max-width: 15ch; }
+  /* orb-home FIX 4a: tightened vertical rhythm so Della's orb is at least half-visible on
+     first paint (she greets the user on landing instead of sitting below the fold). */
+  .hero { text-align: center; padding: 34px 0 40px; }
+  /* orb-home Task A: on TALL DESKTOP viewports the orb sat a touch low in the greeting zone.
+     Lift the whole hero (and Della's orb with it) by trimming the hero's top padding so she
+     greets higher in the fold. Scoped to wide AND tall screens only — mobile/short viewports
+     keep the base 34px rhythm above (untouched). */
+  @media (min-width: 760px) and (min-height: 760px) { .hero { padding-top: 16px; } }
+  .hero h1 { font-size: clamp(30px, 4.6vw, 50px); line-height: 1.1; font-weight: 500; margin: 0 auto 12px; max-width: 15ch; }
   .hero h1 em { font-style: italic; color: var(--clay-deep); }
-  .hero p.lead { font-size: clamp(17px, 2.1vw, 20px); color: var(--ink-soft); max-width: 40ch; margin: 0 auto 30px; }
+  .hero p.lead { font-size: clamp(16px, 2vw, 19px); color: var(--ink-soft); max-width: 40ch; margin: 0 auto 16px; }
   .cta { display: inline-flex; align-items: center; gap: 10px; background: var(--clay); color: #fff; border: none; padding: 15px 34px; border-radius: 999px; font-size: 16.5px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow); transition: transform .14s ease, background .2s ease; font-family: inherit; }
   .cta:hover { background: var(--clay-deep); transform: translateY(-1px); }
   .cta.sage { background: var(--sage); }
@@ -202,7 +209,7 @@
   .moments .chip:hover { border-color: var(--sage); color: var(--ink); transform: translateY(-1px); }
 
   /* ---------- what you get (hero) ---------- */
-  .gets { margin: -14px auto 26px; font-size: 14.5px; color: var(--ink-soft); max-width: 46ch; line-height: 1.7; }
+  .gets { margin: -4px auto 16px; font-size: 14.5px; color: var(--ink-soft); max-width: 46ch; line-height: 1.6; }
   .gets b { color: var(--sage-deep); font-weight: 700; }
 
   /* ---------- a real example ---------- */
@@ -228,8 +235,12 @@
      (also .scrim, added to the DOM later) so a voice note tapped from inside People
      is visible, not hidden behind it. */
   #scrim { z-index: 70; }
-  .panel { background: var(--paper); width: 100%; max-width: 660px; border-radius: 26px; box-shadow: 0 24px 70px rgba(50,35,15,.3); overflow: hidden; margin: auto 0; }
-  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--line); background: var(--cloud); }
+  /* Slice 2 (orb-home): the conversation surface must feel like the SAME warm sanctuary world
+     as the home hero, NOT a clinical white card. A soft green→blue ambient gradient (the same
+     palette family as #bg) carries Della's world in with her; the panel-head brand is quiet. */
+  .panel { background: linear-gradient(168deg, #eef4ee 0%, #e7eeeb 46%, #e4ecf1 100%);
+           width: 100%; max-width: 660px; border-radius: 26px; box-shadow: 0 24px 70px rgba(50,35,15,.3); overflow: hidden; margin: auto 0; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid rgba(198,210,192,.5); background: transparent; }
   .panel-head .brand { font-size: 19px; }
   .close { background: none; border: none; font-size: 22px; color: var(--ink-soft); cursor: pointer; line-height: 1; padding: 4px 9px; border-radius: 10px; }
   .close:hover { background: var(--paper-2); }
@@ -413,6 +424,46 @@
   .hero-start-label { font-family: 'Fraunces', serif; font-style: italic; font-size: 15px; color: var(--ink-soft); margin-bottom: 12px; }
   .hero-actions { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
   .hero-actions .cta { justify-content: center; }
+
+  /* ---------- orb-home: Della's presence orb as the hero front door ----------
+     The orb (canvas nebula, engine in /_orb.js) is the centerpiece + the mic. The
+     .stage is the tap target; CSS transforms carry the body breath/pulse per data-state,
+     the canvas carries the color life. Palette/motion mirror public/orb.html (approved). */
+  .hero-orb-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 4px auto 2px; }
+  .hero-orb-wrap .stage { position: relative; width: 240px; height: 240px; display: flex; align-items: center; justify-content: center;
+                          cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; outline: none; }
+  .hero-orb-wrap .stage:focus-visible { box-shadow: 0 0 0 3px var(--cloud), 0 0 0 6px var(--sage); }
+  .hero-orb-wrap .orb { position: relative; width: 200px; height: 200px; border-radius: 50%; will-change: transform; }
+  .hero-orb-wrap .orbIW { overflow: visible; }
+  .hero-orb-wrap .orbIW canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; display: block;
+                                 box-shadow: 0 14px 40px rgba(120,70,40,.20); }
+  .hero-orb-wrap .orbIW .halo { position: absolute; inset: -24px; border-radius: 50%; z-index: -1; will-change: transform, opacity;
+                                background: radial-gradient(circle, rgba(199,123,89,.30) 0%, rgba(159,197,150,.16) 46%, rgba(159,197,150,0) 72%);
+                                filter: blur(8px); }
+  .hero-orb-prompt { font-size: 17px; color: var(--ink); font-weight: 700; }
+  .hero-typelink { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--sage-deep);
+                   cursor: pointer; padding: 4px 8px; text-decoration: underline; text-underline-offset: 3px; opacity: .95; transition: opacity .15s ease; }
+  .hero-typelink:hover { opacity: 1; }
+
+  /* state motion — the CANVAS carries color; CSS transforms add the breath/pulse body.
+     Both read data-state on the .stage (mirrors the approved prototype's motion). */
+  .hero-orb-wrap .stage[data-state="idle"]      .orb { animation: orbIdleBreath 5.4s ease-in-out infinite; }
+  .hero-orb-wrap .stage[data-state="listening"] .orb { animation: orbListenRipple 2.6s ease-in-out infinite; }
+  .hero-orb-wrap .stage[data-state="thinking"]  .orb { animation: orbThinkSettle 3.0s ease-in-out infinite; }
+  .hero-orb-wrap .stage[data-state="speaking"]  .orb { animation: orbSpeakPulse 1.9s ease-in-out infinite; }
+  @keyframes orbIdleBreath  { 0%,100% { transform: translateY(0) scale(1); }    50% { transform: translateY(-4px) scale(1.028); } }
+  @keyframes orbListenRipple{ 0%,100% { transform: scale(1); } 28% { transform: scale(.952); } 62% { transform: scale(1.012); } }
+  @keyframes orbThinkSettle { 0%,100% { transform: scale(.988); } 50% { transform: scale(1.014); } }
+  @keyframes orbSpeakPulse  { 0% { transform: scale(1); } 24% { transform: scale(1.03); } 48% { transform: scale(.996); } 70% { transform: scale(1.022); } 100% { transform: scale(1); } }
+  .hero-orb-wrap .halo { animation: orbHaloBreath 5.4s ease-in-out infinite; }
+  @keyframes orbHaloBreath { 0%,100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.1); opacity: 1; } }
+  .hero-orb-wrap .stage[data-state="listening"] .halo { animation: orbHaloListen 2.6s ease-in-out infinite; }
+  @keyframes orbHaloListen { 0%,100% { transform: scale(1); opacity: .92; } 40% { transform: scale(.9); opacity: .72; } }
+  .hero-orb-wrap .stage[data-state="speaking"] .halo { animation: orbHaloSpeak 1.9s ease-in-out infinite; }
+  @keyframes orbHaloSpeak { 0%,100% { transform: scale(1); opacity: .9; } 24% { transform: scale(1.1); opacity: .98; } 70% { transform: scale(1.06); opacity: .94; } }
+  /* reduced motion: the canvas already draws one calm warm still frame; kill the CSS body/halo pulse. */
+  @media (prefers-reduced-motion: reduce) { .hero-orb-wrap .orb, .hero-orb-wrap .halo { animation: none !important; } }
+
   /* TC-81: quiet inline "View your last plan" recovery affordance. */
   .tc-lastplan { margin: 16px auto 0; display: none; }
   .tc-lastplan.show { display: block; }
@@ -424,8 +475,7 @@
   .tc-toast .tc-toast-x { flex: 0 0 auto; background: none; border: none; color: rgba(255,255,255,.92); cursor: pointer; padding: 4px; line-height: 0; border-radius: 8px; }
   .tc-toast .tc-toast-x:hover { color: #fff; }
   @media (prefers-reduced-motion: reduce) { .tc-toast { transition: opacity .28s ease; transform: translateX(-50%); } .tc-toast.show { transform: translateX(-50%); } }
-  #homeMicBtn svg { animation: tc-mic-nudge 5.5s ease-in-out infinite; transform-origin: center; }
-  @keyframes tc-mic-nudge { 0%, 88%, 100% { transform: scale(1); opacity: 1; } 94% { transform: scale(1.12); opacity: .85; } }
+  /* (orb-home: #homeMicBtn retired — the hero orb is now the mic; its nudge keyframes removed.) */
   .tc-listen { --level: 0; position: relative; width: 132px; height: 132px; margin: 8px auto 4px; display: grid; place-items: center; }
   .tc-listen-core { position: relative; z-index: 2; width: 64px; height: 64px; border-radius: 50%; background: var(--sage); box-shadow: 0 6px 18px rgba(95,108,76,.28); display: grid; place-items: center; animation: tc-breathe 3.6s ease-in-out infinite; transform: scale(calc(1 + var(--level) * 0.14)); transition: transform .12s ease-out; }
   .tc-listen-ripple { position: absolute; border-radius: 50%; border: 1.5px solid var(--sage); opacity: 0; width: 64px; height: 64px; animation: tc-ripple 3.6s ease-out infinite; }
@@ -437,7 +487,7 @@
   .tc-listen.settling .tc-listen-ripple { animation: none; opacity: 0; transition: opacity .5s ease; }
   .tc-listen.settling .tc-listen-core { transform: scale(1); transition: transform .5s ease; }
   @keyframes tc-ripple { 0% { transform: scale(1); opacity: .45; } 70% { opacity: .12; } 100% { transform: scale(calc(2.1 + var(--level) * 1.3)); opacity: 0; } }
-  @media (prefers-reduced-motion: reduce) { #homeMicBtn svg, .tc-listen-core, .tc-listen-ripple { animation: none !important; } }
+  @media (prefers-reduced-motion: reduce) { .tc-listen-core, .tc-listen-ripple { animation: none !important; } }
 
   /* TC-63: hands-free confirm cue — a calm "say yes, or tap" line shown under an
      add/update confirm card while we listen for a spoken answer. Tap always works. */
@@ -604,9 +654,21 @@
     <p class="gets">You'll get: <b>what to say</b> · <b>what to do</b> · <b>what to send</b> · <b>how to keep showing up</b></p>
     <div class="hero-start">
       <div class="hero-start-label">I want to show up for someone…</div>
-      <div class="hero-actions">
-        <button type="button" class="cta" id="homeTypeBtn" onclick="openConverse()"></button>
-        <button type="button" class="cta sage" id="homeMicBtn" style="display:none;"></button>
+      <!-- TC-90/orb-home: Della's presence orb IS the front door. The orb is the mic —
+           tap / Enter / Space starts the hands-free spoken conversation (or, mic-less,
+           opens the typed one). The old two-button hero-actions (#homeMicBtn "Say it out
+           loud" + #homeTypeBtn "Type it out") were retired; #homeTypeBtn survives, demoted
+           to the small "or type instead" link below so its openConverse() wiring still binds. -->
+      <div class="hero-orb-wrap">
+        <div class="stage" id="homeOrbStage" data-state="idle" data-life="energetic"
+             role="button" tabindex="0" aria-label="Talk it through — tap to start">
+          <div class="orb orbIW">
+            <div class="halo"></div>
+            <canvas width="240" height="240"></canvas>
+          </div>
+        </div>
+        <div class="hero-orb-prompt" id="homeOrbPrompt">Tap to talk</div>
+        <button type="button" class="hero-typelink" id="homeTypeBtn" onclick="openConverse()">or type instead</button>
       </div>
       <!-- TC-81: quiet recovery link — shown only when a valid, unexpired plan is stored on this device. -->
       <div class="tc-lastplan" id="lastPlanAffordance">
@@ -704,15 +766,17 @@
   .tc-chat { display:flex; flex-direction:column; padding: 6px 20px 18px; }
   .tc-chat-log { display:flex; flex-direction:column; gap:12px; max-height:56vh; overflow-y:auto; padding: 12px 2px; scroll-behavior:smooth; }
   .tc-bubble { max-width: 84%; padding: 12px 15px; border-radius: 18px; font-size: 15.5px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
-  .tc-bubble.her { align-self:flex-start; background: var(--cloud, #f3efe7); color: var(--ink,#2e2a24); border-bottom-left-radius: 6px; }
+  /* Slice 2 (orb-home): supporting cast beneath HER. Warm, softly translucent bubbles/field that
+     sit ON the panel's warm sanctuary gradient — never a clinical white card. */
+  .tc-bubble.her { align-self:flex-start; background: rgba(255,255,255,.72); color: var(--ink,#2e2a24); border-bottom-left-radius: 6px; }
   .tc-bubble.me { align-self:flex-end; background: var(--clay,#c98a63); color:#fff; border-bottom-right-radius: 6px; }
-  .tc-typing { align-self:flex-start; display:inline-flex; gap:5px; padding:15px 16px; background:var(--cloud,#f3efe7); border-radius:18px; border-bottom-left-radius:6px; }
+  .tc-typing { align-self:flex-start; display:inline-flex; gap:5px; padding:15px 16px; background:rgba(255,255,255,.72); border-radius:18px; border-bottom-left-radius:6px; }
   .tc-typing i { width:7px; height:7px; border-radius:50%; background:#b9b1a2; animation: tc-blink 1.2s infinite both; }
   .tc-typing i:nth-child(2){ animation-delay:.18s } .tc-typing i:nth-child(3){ animation-delay:.36s }
   @keyframes tc-blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
   @media (prefers-reduced-motion: reduce){ .tc-typing i{ animation:none } }
   .tc-chat-inputrow { display:flex; gap:10px; align-items:flex-end; margin-top:14px; }
-  .tc-chat-input { flex:1; resize:none; border:1.5px solid var(--line,#e0d8c9); border-radius:16px; padding:12px 14px; font-family:inherit; font-size:15.5px; line-height:1.45; max-height:120px; background:#fff; color:var(--ink,#2e2a24); }
+  .tc-chat-input { flex:1; resize:none; border:1.5px solid rgba(198,210,192,.7); border-radius:16px; padding:12px 14px; font-family:inherit; font-size:15.5px; line-height:1.45; max-height:120px; background:rgba(255,255,255,.78); color:var(--ink,#2e2a24); }
   .tc-chat-input:focus { outline:none; border-color: var(--sage,#8a9a72); box-shadow: 0 0 0 3px rgba(138,154,114,.15); }
   .tc-send { flex:none; width:46px; height:46px; border-radius:50%; border:none; background:var(--clay,#c98a63); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition: background .18s ease; }
   .tc-send:hover:not(:disabled){ background:var(--clay-deep,#b0714b); }
@@ -727,51 +791,44 @@
   /* TC-82 Phase 2 (2a): the spoken-mode status + "Stop voice" control under the chat. */
   .tc-cv-voicerow { display:flex; align-items:center; justify-content:center; gap:16px; flex-wrap:wrap; margin-top:10px; }
 
-  /* TC-88 — a PROMINENT, calm full-width VOICE STATE BAR at the top of the conversation panel
-     (the eye's landing zone), promoted out of the crowded footer. The WHOLE strip washes color
-     with state: clay for her speaking, sage for your turn, a soft neutral for thinking. Distinguished
-     THREE ways at once — hue + motion direction (emitting vs receiving) + a text label — so it reads
-     at a glance and for color-blind users. Icons via CSS, no emoji. Calm, big-and-slow not flashy.
-     Reduced-motion → a steady static state (tint + label only), no animation. */
-  .tc-cv-statebar { display:flex; align-items:center; gap:14px; padding:13px 26px;
-    border-bottom:1px solid var(--line,#e0d8c9); background:var(--mist,#eef1e9);
-    transition:background .35s ease; overflow:hidden; }
+  /* Slice 2 (orb-home) — HER, big, at the top of the conversation. The old TC-88 "status dot"
+     is retired: the state indicator is now a PROMINENT living orb (a real /_orb.js canvas instance,
+     the same presence as the home hero) so it's clear she is HERE WITH YOU — you speak WITH HER,
+     not with the dialogue box. The orb is the focal point; the text label + aria-live mirror sit
+     beneath it for clarity + screen readers. A soft state-tint wash on the bar background keeps the
+     color-blind-friendly hue cue (clay speaking / sage your-turn / neutral thinking); the orb's own
+     color life reinforces it. Reduced-motion → steady tint + label (the engine paints one still,
+     warm frame and stops). */
+  .tc-cv-statebar { display:flex; flex-direction:column; align-items:center; gap:8px; padding:20px 26px 18px;
+    border-bottom:1px solid rgba(198,210,192,.5); background:transparent;
+    transition:background .5s ease; overflow:hidden; }
   .tc-cv-statebar[hidden] { display:none; }
-  .tc-cv-statebar .tc-cv-orb { position:relative; width:26px; height:26px; border-radius:50%; flex:0 0 auto; }
-  .tc-cv-statebar .tc-cv-orb::before { content:""; position:absolute; inset:0; border-radius:50%; }
-  .tc-cv-statebar .tc-cv-orb::after { content:""; position:absolute; inset:0; border-radius:50%; opacity:.55; }
-  .tc-cv-plabel { font-size:15px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
+  /* the presence: a sizable orb (mirrors the hero .stage/.orbIW structure so /_orb.js mounts onto it) */
+  .tc-cv-orbstage { position:relative; width:132px; height:132px; display:flex; align-items:center; justify-content:center; border-radius:50%; }
+  .tc-cv-orbstage .orbIW { position:relative; width:120px; height:120px; border-radius:50%; overflow:visible; }
+  .tc-cv-orbstage .orbIW canvas { position:absolute; inset:0; width:100%; height:100%; border-radius:50%; display:block;
+                                   box-shadow:0 10px 30px rgba(120,70,40,.20); }
+  .tc-cv-orbstage .orbIW .halo { position:absolute; inset:-18px; border-radius:50%; z-index:-1; will-change:transform,opacity;
+    background:radial-gradient(circle, rgba(199,123,89,.30) 0%, rgba(159,197,150,.16) 46%, rgba(159,197,150,0) 72%); filter:blur(7px); }
+  /* CSS breath/pulse body per state (mirrors the hero), the canvas carries color */
+  .tc-cv-orbstage[data-state="idle"]      .orbIW { animation:orbIdleBreath 5.4s ease-in-out infinite; }
+  .tc-cv-orbstage[data-state="listening"] .orbIW { animation:orbListenRipple 2.6s ease-in-out infinite; }
+  .tc-cv-orbstage[data-state="thinking"]  .orbIW { animation:orbThinkSettle 3.0s ease-in-out infinite; }
+  .tc-cv-orbstage[data-state="speaking"]  .orbIW { animation:orbSpeakPulse 1.9s ease-in-out infinite; }
+  .tc-cv-orbstage .halo { animation:orbHaloBreath 5.4s ease-in-out infinite; }
+  @media (prefers-reduced-motion: reduce) { .tc-cv-orbstage .orbIW, .tc-cv-orbstage .halo { animation:none !important; } }
+  /* Slice 2 refinement: her NAME, carried across the seam from the home "talk with Della".
+     Quiet + serif (the brand voice), subordinate to the orb, sitting just above the state label. */
+  .tc-cv-name { font-family:'Fraunces', serif; font-size:16px; font-weight:500; color:var(--ink,#34382f); line-height:1.2; margin-top:2px; }
+  .tc-cv-plabel { font-size:14px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
 
-  /* Speaking — warm clay wash. Orb breathes (emitting) with a soft outward sound-wave shimmer. */
-  .tc-cv-statebar[data-state="speaking"] { background:#f6e8de; }
-  .tc-cv-statebar[data-state="speaking"] .tc-cv-orb::before { background:var(--clay,#c28a63); animation:tcCvBreathe 1.6s ease-in-out infinite; }
-  .tc-cv-statebar[data-state="speaking"] .tc-cv-orb::after { box-shadow:0 0 0 3px var(--clay,#c28a63); animation:tcCvShimmer 1.7s ease-out infinite; }
-  .tc-cv-statebar[data-state="speaking"] .tc-cv-plabel { color:var(--clay-deep,#a97350); }
-
-  /* Listening (your turn) — sage wash. Orb pulses an OUTWARD mic-ripple (receiving), a motion that
-     reads DIFFERENTLY from Speaking's tight shimmer: it travels further out, like taking sound in. */
-  .tc-cv-statebar[data-state="listening"] { background:#e8eede; }
-  .tc-cv-statebar[data-state="listening"] .tc-cv-orb::before { background:var(--sage,#7d8a68); animation:tcCvBreathe 1.8s ease-in-out infinite; }
-  .tc-cv-statebar[data-state="listening"] .tc-cv-orb::after { box-shadow:0 0 0 2px var(--sage,#7d8a68); animation:tcCvRing 1.9s ease-out infinite; }
+  /* Soft full-width state tint on the bar background — the accessible hue cue kept from TC-88. */
+  .tc-cv-statebar[data-state="speaking"]  { background:linear-gradient(180deg, rgba(246,232,222,.55), rgba(246,232,222,0)); }
+  .tc-cv-statebar[data-state="speaking"]  .tc-cv-plabel { color:var(--clay-deep,#a97350); }
+  .tc-cv-statebar[data-state="listening"] { background:linear-gradient(180deg, rgba(232,238,222,.55), rgba(232,238,222,0)); }
   .tc-cv-statebar[data-state="listening"] .tc-cv-plabel { color:var(--sage-deep,#5f6c4c); }
-
-  /* Thinking — a subtle calm neutral mist, one slow single breath, no ripple. */
-  .tc-cv-statebar[data-state="thinking"] { background:var(--mist,#eef1e9); }
-  .tc-cv-statebar[data-state="thinking"] .tc-cv-orb::before { background:var(--ink-soft,#8a8577); animation:tcCvBreathe 2.1s ease-in-out infinite; }
-  .tc-cv-statebar[data-state="thinking"] .tc-cv-orb::after { opacity:0; }
-  .tc-cv-statebar[data-state="thinking"] .tc-cv-plabel { color:var(--ink-soft,#5f6b60); }
-
-  @keyframes tcCvBreathe { 0%,100% { transform:scale(.72); opacity:.85; } 50% { transform:scale(1); opacity:1; } }
-  /* Listening ripple travels far OUT (receiving). */
-  @keyframes tcCvRing { 0% { transform:scale(.7); opacity:.5; } 70% { opacity:0; } 100% { transform:scale(2.6); opacity:0; } }
-  /* Speaking shimmer stays close + soft (emitting a gentle sound wave), distinct from the ripple. */
-  @keyframes tcCvShimmer { 0% { transform:scale(.9); opacity:.5; } 60% { opacity:0; } 100% { transform:scale(1.7); opacity:0; } }
-  @media (prefers-reduced-motion: reduce) {
-    /* Drop shimmer/ripple/breathe; rely on the full-width TINT + LABEL (both static) to distinguish. */
-    .tc-cv-statebar .tc-cv-orb::before, .tc-cv-statebar .tc-cv-orb::after { animation:none !important; }
-    .tc-cv-statebar .tc-cv-orb::before { transform:scale(.9); opacity:1; }
-    .tc-cv-statebar .tc-cv-orb::after { opacity:0; } /* no expanding ring/shimmer; steady static state */
-  }
+  .tc-cv-statebar[data-state="thinking"]  { background:linear-gradient(180deg, rgba(223,234,225,.55), rgba(223,234,225,0)); }
+  .tc-cv-statebar[data-state="thinking"]  .tc-cv-plabel { color:var(--ink-soft,#5f6b60); }
 </style>
 
 <!-- ================= CONVERSATION MODAL ================= -->
@@ -785,12 +842,20 @@
       <button class="close" onclick="closeFlow()" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="progress"><div class="fill" id="progressFill"></div></div>
-    <!-- TC-88: the prominent full-width voice-state bar. Lives at the TOP of the panel (above the
-         scrolling chat log) so the founder always sees it. Shown only in VOICE mode when a state is
-         active; hidden in typed mode and when voice isn't active. The visually-hidden aria-live span
-         is the dedicated SR mirror (state announced once) — NOT on the churning bar itself. -->
+    <!-- Slice 2 (orb-home): HER, big, at the top of the conversation. Lives at the TOP of the panel
+         (above the scrolling chat log), so opening the conversation feels like the SAME living presence
+         from the home hero continuing — not a handoff to a status dot. #cvOrbStage is the mount point
+         for a /_orb.js instance (cvMountConverseOrb); the text label + visually-hidden aria-live mirror
+         sit beneath her for clarity + screen readers. Shown only in VOICE mode when a state is active;
+         hidden in typed mode. The SR span announces state once — NOT on the churning stage itself. -->
     <div class="tc-cv-statebar" id="cvStateBar" hidden>
-      <span class="tc-cv-orb" aria-hidden="true"></span>
+      <div class="tc-cv-orbstage" id="cvOrbStage" data-state="idle" data-life="energetic" aria-hidden="true">
+        <div class="orb orbIW"><div class="halo"></div><canvas width="120" height="120"></canvas></div>
+      </div>
+      <!-- Slice 2 refinement (UX+Design nice-to-have): carry HER NAME across the seam. The home says
+           "Tap to talk with Della"; naming her quietly here too keeps it the PERSON continuing into the
+           conversation, not a state machine. Quiet by design — subordinate to the orb, above the state. -->
+      <span class="tc-cv-name">Della</span>
       <span class="tc-cv-plabel" id="cvStateLabel"></span>
       <span id="cvVoiceCue" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;"></span>
     </div>
@@ -1288,33 +1353,57 @@ function bubbleSvg(size, stroke, accent){
     <line x1="9" y1="13.5" x2="13.5" y2="13.5" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
   </svg>`;
 }
-// The typed method button (always available). The mic method is added by setupHomeVoice.
-function renderTypeBtn(){
-  const t = document.getElementById('homeTypeBtn');
-  if (t) t.innerHTML = bubbleSvg(18, 'currentColor', '#c28a63') + '<span class="mic-label">Type it out</span>';
-}
-renderTypeBtn();
+// orb-home: the hero orb IS the front door + the mic. There's no longer a "Say it out loud"
+// button (retired) — the orb's tap / Enter / Space starts the hands-free spoken conversation,
+// exactly like the old #homeMicBtn did (same startHomeVoiceConverse → unlockSpeech + warm +
+// openConverse voice:true). The "or type instead" link keeps id #homeTypeBtn + its inline
+// openConverse() handler, so all existing wiring that looks up that id still binds.
+//
+// Mic-less / desktop degrade: when voice isn't allowed OR no mic is present, the orb still
+// renders as a presence, but a tap opens the TYPED conversation and the prompt reads "Tap to
+// type" so we never promise a mic that isn't there.
 async function setupHomeVoice(){
-  const mic = document.getElementById('homeMicBtn'); if (!mic) return;
-  const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
-  if (!voiceAllowedClient() || !canRecord){ mic.style.display = 'none'; return; }
-  let hasMic = true;
-  try { if (navigator.mediaDevices.enumerateDevices){ const ds = await navigator.mediaDevices.enumerateDevices(); const ins = ds.filter(d => d.kind === 'audioinput'); if (ds.length && ins.length === 0) hasMic = false; } } catch(e){}
-  const isPhone = (window.matchMedia && matchMedia('(pointer:coarse)').matches) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
-  if (!hasMic && !isPhone){ mic.style.display = 'none'; return; } // computer, no mic → typing only
-  mic.style.display = '';
-  // TC-82 Phase 2 (2a): the home mic now opens the MULTI-TURN spoken advisor conversation
-  // (was: one-shot record→transcribe→reflect→plan). It reuses the same chat surface as
-  // "Talk it through," just orchestrated hands-free. Priming + warming still happen in the tap.
-  mic.onclick = startHomeVoiceConverse;
-  mic.innerHTML = micSvg(19, 'currentColor', '#c28a63') + '<span class="mic-label">Say it out loud</span>';
-  // TC-70: stable, consistent CTAs — "Type it out" is always the primary (terracotta,
-  // lower-friction no-mic path) and comes first; "Talk it through" is the sage secondary
-  // that comes second. Order no longer swaps by device, so the hero reads the same every
-  // load (source order already places Type before Talk — no `order` overrides needed).
+  const stage  = document.getElementById('homeOrbStage'); if (!stage) return;
+  const prompt = document.getElementById('homeOrbPrompt');
+
+  // Decide whether the orb can drive voice on this device (mirrors the old mic-button gate).
+  let voiceReady = voiceAllowedClient();
+  if (voiceReady){
+    const canRecord = !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+    if (!canRecord){ voiceReady = false; }
+    else {
+      let hasMic = true;
+      try { if (navigator.mediaDevices.enumerateDevices){ const ds = await navigator.mediaDevices.enumerateDevices(); const ins = ds.filter(d => d.kind === 'audioinput'); if (ds.length && ins.length === 0) hasMic = false; } } catch(e){}
+      const isPhone = (window.matchMedia && matchMedia('(pointer:coarse)').matches) || /Mobi|Android|iPhone|iPad/i.test(navigator.userAgent);
+      if (!hasMic && !isPhone){ voiceReady = false; } // computer, no mic → typing only
+    }
+  }
+
+  // The orb's action. Voice path primes iOS audio + warms the voice fns WITHIN this tap (as the
+  // old mic button did) then opens the hands-free spoken conversation; typed path just opens chat.
+  function orbAction(){
+    if (voiceReady) startHomeVoiceConverse();
+    else openConverse();
+  }
+  stage.__orbAction = orbAction; // so a later voice-gate change can rebind cleanly
+  stage.onclick = orbAction;
+  stage.onkeydown = function(e){
+    if (e.key === 'Enter' || e.key === ' ' || e.key === 'Spacebar'){ e.preventDefault(); orbAction(); }
+  };
+
+  // Prompt copy + a11y label reflect the actual action; the name is single-sourced
+  // (window.__HER_NAME, set by companion.js from /api/public-config → _persona HER_NAME).
+  // Before the name has arrived we show a clean "Tap to talk" / "Tap to type" (no "with her"),
+  // then re-render on the 'tc-her-name' event once it's known.
+  const her = window.__HER_NAME || '';
+  const withHer = her ? (' with ' + her) : '';
+  if (prompt) prompt.textContent = (voiceReady ? 'Tap to talk' : 'Tap to type') + withHer;
+  stage.setAttribute('aria-label', 'Talk it through' + withHer + (voiceReady ? ' — tap to start' : ' — tap to type'));
 }
 window.addEventListener('tc-voice-gate-ready', setupHomeVoice);
 setupHomeVoice();
+// If the name arrives from /api/public-config after first paint, refresh the prompt/label.
+window.addEventListener('tc-her-name', setupHomeVoice);
 
 // Cold-start warming (TC-67): the moment the user taps into a voice flow, spin up the two voice
 // functions so they're hot by the time we actually call them (a few seconds later, after the user
@@ -1949,6 +2038,10 @@ function cvRenderVoiceCue(){
   // panel (#cvStateBar), driven by cvVoiceCue(). Here we only place the "Stop voice" control in the
   // footer (alongside the make-plan link). The top bar starts hidden until a state goes active.
   const bar = document.getElementById('cvStateBar'); if (bar){ bar.hidden = true; bar.removeAttribute('data-state'); }
+  // Slice 2 (orb-home): mount HER — the prominent conversation presence orb — as voice mode arms,
+  // so she's already breathing at the top of the panel before the first "Speaking" state fires
+  // (the same living presence continuing from the home hero, not a status dot).
+  cvMountConverseOrb();
   const foot = document.getElementById('cvFoot'); if (!foot || foot.querySelector('#cvVoiceRow')) return;
   const row = document.createElement('div');
   row.id = 'cvVoiceRow'; row.className = 'tc-cv-voicerow';
@@ -1975,6 +2068,34 @@ function cvVoiceCue(state){
   }
   if (label) label.textContent = known ? LABELS[state] : '';
   if (sr) sr.textContent = known ? SR[state] : '';
+  // orb-home (broadcast, don't subscribe): drive the presence orb from the SAME voice cue.
+  // ''→idle; listening/thinking/speaking pass straight through. Each orb reads its stage's
+  // data-state next frame (no event bus). Slice 2: while the conversation is open, the CONVERSATION
+  // orb is the visible her, so drive it; the hero orb is covered (its IntersectionObserver has
+  // paused it) but we mirror the state onto it too so it's already correct when the panel closes.
+  // Best-effort; never throws.
+  const nextState = known ? state : 'idle';
+  try { __cvOrb && __cvOrb.setState(nextState); } catch(e){}
+  try { window.TCOrb && window.TCOrb.setState(nextState); } catch(e){}
+}
+
+// Slice 2 (orb-home): the CONVERSATION presence orb — a real /_orb.js instance mounted onto
+// #cvOrbStage at the top of the panel. Mounted when voice mode arms, destroyed on stop/close so
+// there's no rAF leak. Reuses the Slice-1 engine (paint-one-frame-on-mount so she's never blank,
+// DPR backing-store scaling, warm tuning, energetic life). __cvOrb holds the live handle.
+let __cvOrb = null;
+function cvMountConverseOrb(){
+  try {
+    if (__cvOrb) return;                              // idempotent
+    const stage = document.getElementById('cvOrbStage');
+    if (!stage || typeof window.__tcMountOrb !== 'function') return;
+    stage.setAttribute('data-state', 'idle');
+    __cvOrb = window.__tcMountOrb(stage, { life: 'energetic' });
+  } catch(e){ __cvOrb = null; }
+}
+function cvDestroyConverseOrb(){
+  try { if (__cvOrb && __cvOrb.destroy) __cvOrb.destroy(); } catch(e){}
+  __cvOrb = null;
 }
 
 function cvAppend(role, text){
@@ -2170,7 +2291,7 @@ function cvSpeakDrained(sp){
   setTimeout(() => {
     if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
     cvVoiceListen();
-  }, 300);
+  }, MIC_REARM_PAUSE_MS);
 }
 
 // TC-93: converse request headers — always JSON, plus the signed-in user's Authorization token
@@ -2313,6 +2434,15 @@ async function cvFallbackReply(force){
   cvSpeakThenListen(oops, false);
 }
 
+// Her warm spoken send-off at the handoff. She now composes a situational closing line server-side
+// (ready.closing) — e.g. "This is really helpful. Let me pull something together for you." — so she
+// signs off like a person instead of the old fixed "Let me put this together." Fall back to that
+// line only if she didn't provide one (defensive; the model is prompted to always include it).
+function cvClosingLine(ans){
+  const c = ans && typeof ans.closing === 'string' ? ans.closing.trim() : '';
+  return c || "Let me take it from here.";
+}
+
 // The ready handoff, shared by the stream + fallback paths. Identical behavior to cvTurn's ready
 // branch: distill → generate() (unchanged) → remember-from-conversation, with a short spoken line.
 function cvHandleReady(ans){
@@ -2323,14 +2453,16 @@ function cvHandleReady(ans){
   __cvStreamGen++;         // invalidate any pending speak-queue callback
   cvVoiceCue('thinking');
   // TC-88: cancel any pre-generated sentence TTS still in flight + revoke its URLs before the
-  // handoff line, so nothing orphaned keeps generating or plays over "Let me put this together."
+  // handoff line, so nothing orphaned keeps generating or plays over her closing send-off.
   if (__cvSpeak){
     try { if (__cvSpeak.ctrl) __cvSpeak.ctrl.abort(); } catch(e){}
     try { (__cvSpeak.urls || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); } catch(e){}
     __cvSpeak.queue = []; __cvSpeak.playing = false; __cvSpeak = null;
   }
   try { cancelSpeech(); } catch(e){} // clear any queued sentence audio before the handoff line
-  speakPrompt("Let me put this together.", () => {});
+  const closing = cvClosingLine(ans);
+  cvAppend('her', closing); // show her send-off in the log too, so text tracks her voice
+  speakPrompt(closing, () => {});
   generate();
   rememberFromConversation();
 }
@@ -2379,7 +2511,7 @@ function cvSpeakThenListen(text, isOpener){
   const toSpeak = speakSafeText(text, 400);
   const afterSpeak = () => {
     if (!__cvVoiceActive) return; // interrupted during playback → do not open the mic
-    setTimeout(() => { if (__cvVoiceActive) cvVoiceListen(); }, 300);
+    setTimeout(() => { if (__cvVoiceActive) cvVoiceListen(); }, MIC_REARM_PAUSE_MS);
   };
   // TC-88 PROBLEM 2 — the FIRST utterance (her opener) sounded slow/slurred/"drunk", then fine
   // after. Root cause: on a cold, just-unlocked <audio>, chunk-splitting the opener made a tiny
@@ -2481,6 +2613,9 @@ function cvStopVoice(){
   try { cancelSpeech(); } catch(e){}                        // stop current TTS mid-sentence
   try { abortConfirmRecording(); } catch(e){}               // stop any live recording
   cvVoiceCue('');
+  // Slice 2 (orb-home): tear down the conversation presence orb so no rAF loop leaks after voice
+  // ends (stop / close). cvVoiceCue('') just above already dropped her to idle + hid the bar.
+  cvDestroyConverseOrb();
   const row = document.getElementById('cvVoiceRow'); if (row) row.remove();
 }
 
@@ -2518,13 +2653,17 @@ async function cvTurn(force){
     for (const k in answers) delete answers[k];
     Object.assign(answers, d.answers);
     try { window.tcTrack && tcTrack('converse_ready', { turns: __cv.messages.length }); } catch(e){}
-    // Voice mode: speak a brief handoff line, then generate() exactly as the typed flow does.
+    // Her warm situational send-off (server-composed ready.closing) — show it as her last bubble so
+    // the conversation closes like a person before the plan builds.
+    const closing = cvClosingLine(d.answers);
+    cvAppend('her', closing);
+    // Voice mode: speak her closing send-off, then generate() exactly as the typed flow does.
     // (We do NOT read the plan aloud — that's TC-67, out of scope.) End the spoken loop first so
     // the mic never reopens over the plan. If speak fails, onDone still fires → generate() runs.
     if (__cv.voice && __cvVoiceActive){
       __cvVoiceActive = false; // stop the listen loop; let this one utterance play out
       cvVoiceCue('thinking');
-      speakPrompt("Let me put this together.", () => {});
+      speakPrompt(closing, () => {});
     }
     generate();
     // TC-66 Phase 3b: the conversation wrapped up — persist what the user shared back to the
@@ -3009,6 +3148,16 @@ const END_OF_TURN_SILENCE_MS = 2000;       // continuous silence AFTER speech th
 const CREC_MIN_SPEECH_MS = 400;            // grace: ignore silence until they've spoken this long,
                                            // so a beat right after they start doesn't end the turn
 const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can never hang
+// The anti-feedback pause AFTER her audio's 'ended' fires, before the mic re-arms for the user's
+// reply. 'ended' already guarantees her clip finished playing; this is a small extra margin so a
+// physical audio TAIL on speaker-out can't leak into the recording and false-capture her own voice.
+// TUNING KNOB (device-only-verifiable): too high and it clips the START of a snappy reply — the user
+// starts answering (esp. at the "anything else?" wrap-up, where an immediate "no, that's it" / "oh,
+// one more thing" is natural) before the mic is live, and loses the first word (David's symptom,
+// 2026-08). Too low and her tail can leak in on speaker-out (feedback). To fix the clipped start,
+// lower this on David's phone (try 150) with BOTH headphone and speaker tests staying clean. Single
+// source of truth: both re-arm sites (cvSpeakDrained + cvSpeakThenListen) read this.
+const MIC_REARM_PAUSE_MS = 200;
 // TC-88 speculative transcribe: once a qualifying silence has lasted this SHORT soft-pause (well
 // before the 2s end-of-turn) we fire a background /api/transcribe of the audio-so-far, so the
 // transcript is usually ready the instant the 2s confirms — no dead time after the pause.
@@ -4206,6 +4355,18 @@ function tcToastHide(){
   // The single inline-mic factory (assigns window.mountInlineMic for the classic intake script
   // above; ES modules import it directly from /_inline-mic.js).
   import '/_inline-mic.js';
+
+  // orb-home: mount Della's presence orb onto the hero stage and expose it as window.TCOrb.
+  // cvVoiceCue() broadcasts state changes to window.TCOrb.setState(); the canvas engine lives
+  // in /_orb.js (Inner Weather, energetic; pauses off-screen/hidden; reduced-motion still frame).
+  import { mountOrb } from '/_orb.js';
+  const __orbStage = document.getElementById('homeOrbStage');
+  if (__orbStage) { try { window.TCOrb = mountOrb(__orbStage, { life: 'energetic' }); } catch (e) {} }
+  // Slice 2: expose the engine to the non-module conversation code so it can mount a SECOND,
+  // prominent orb at the top of the conversation panel — Della continuing INTO the conversation,
+  // not a handoff to a status dot. cvMountConverseOrb / cvDestroyConverseOrb own its lifecycle;
+  // cvVoiceCue drives whichever orb is the active presence.
+  window.__tcMountOrb = mountOrb;
 </script>
 <script type="module" src="/companion.js"></script>
 <script type="module" src="/roster.js"></script>

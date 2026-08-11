@@ -190,6 +190,12 @@ boot();
 async function boot() {
   let cfg;
   try { cfg = await (await fetch("/api/public-config", { cache: "no-store" })).json(); } catch { return; }
+  // orb-home: single-source HER_NAME (from _persona.mjs via public-config) to the hero orb.
+  // Set this BEFORE any early return so the name shows even when Supabase isn't configured.
+  if (cfg && cfg.herName) {
+    window.__HER_NAME = cfg.herName;
+    try { window.dispatchEvent(new Event("tc-her-name")); } catch (e) {}
+  }
   if (!cfg || !cfg.enabled) return;
   voiceAudience = cfg.voiceAudience || "everyone";
 

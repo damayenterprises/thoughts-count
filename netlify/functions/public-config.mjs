@@ -7,6 +7,7 @@
 // stays dormant and the core plan flow keeps working.
 
 import { getEnv } from "./_email.mjs";
+import { HER_NAME } from "./_persona.mjs";
 
 export default async () => {
   const url = getEnv("SUPABASE_URL") || "";
@@ -15,7 +16,9 @@ export default async () => {
   // Voice front-door audience gate (TC-60): who sees voice — everyone / signedin / members.
   // Set to "everyone" now for open testing; flip to "members" when Pro (TC-40) is ready.
   const voiceAudience = normalizeAudience(getEnv("VOICE_AUDIENCE"));
-  return new Response(JSON.stringify({ enabled, supabaseUrl: url, supabaseAnonKey: anon, voiceAudience }), {
+  // Her name, single-sourced from _persona.mjs (HER_NAME = "Della"). The home hero shows
+  // it on screen (David approved 2026-08-10); a rename stays a one-line change server-side.
+  return new Response(JSON.stringify({ enabled, supabaseUrl: url, supabaseAnonKey: anon, voiceAudience, herName: HER_NAME }), {
     headers: { "content-type": "application/json", "cache-control": "no-store" },
   });
 };
