@@ -8,6 +8,7 @@ import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
 import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName, captureFromFile, renderImportConfirm } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
+import { pickCheckback as pickCheckbackPure, classifyValenceLite, planValence, readOutcome } from "/_checkback.js";
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
 let reviewOpen = false; // keep the To-Review panel open across confirms
@@ -31,71 +32,18 @@ const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 /* ============================================================================
  * TC-117 — Della circles back "how did that go?" (client selector + helpers)
  * ============================================================================
- * All of TC-117's restraint lives HERE, next to the plan data and the Supabase
- * reads. The server (converse.mjs checkbackBlock) only ever receives an advisory
- * ctx.checkback and shapes prose from it — it never decides WHEN, and never writes.
- *
- * SIGNAL IS A PURE BYPRODUCT (Council G3): the fire rate and eligibility below are
- * tuned for how the check-back FEELS to the user ONLY. They must NEVER be changed to
- * increase the volume of the plan_outcome signal. Any future change to CHECKBACK_RATE_A
- * or the eligibility windows must be justified by user-experience quality, never by
- * "we need more outcome data."
+ * The DETERMINISTIC selection logic lives in the pure, unit-tested module
+ * /_checkback.js (imported at the top). This section holds the IMPURE parts that
+ * belong next to the plan data + Supabase reads: the localStorage session throttle,
+ * the plan_checkins read, and the post-conversation emit. The server (converse.mjs
+ * checkbackBlock) only ever receives an advisory ctx.checkback and shapes prose from
+ * it — it never decides WHEN, and never writes.
  *
  * DORMANT-SAFE: reads of the not-yet-migrated plan_checkins table and the not-yet-
  * migrated saved_plans.valence column both degrade gracefully (treated as "no check-back
  * this turn / no stored valence"), so the whole feature is a no-op until David applies
  * migrations 008/009.
  */
-
-// Tunable constants (David can adjust these without a code hunt).
-const MIN_ELAPSED_DAYS = 10;         // a plan must be old enough that an outcome can exist
-const MAX_ELAPSED_DAYS = 120;        // don't resurrect ancient history
-const GRIEF_FRESH_DAYS = 21;         // fresh grief → total silence, no check-back of any kind
-const PER_PERSON_COOLDOWN_DAYS = 30; // don't circle back on the same person too soon
-const CHECKBACK_RATE_A = 0.25;       // START at the low end; tune UP only on real reactions (NOT for signal)
-const MECH_B_RATE = 0.05;            // Mechanism B is rarer still, and only when A didn't fire
-
-// Client mirror of _analytics.mjs's valence keyword sets. KEEP IN SYNC with
-// netlify/functions/_analytics.mjs (HARD / CELEBRATION / GRATITUDE). A tiny client copy
-// avoids a server round-trip at save time; the shared comment is the sync contract.
-const CB_HARD = ["died", "death", "passed", "loss", "lost", "funeral", "grief", "grieving", "cancer", "diagnos", "sick", "illness", "hospice", "surgery", "hospital", "divorce", "breakup", "broke up", "split", "laid off", "layoff", "fired", "job loss", "unemploy", "miscarriage", "hard week", "hard time", "struggl", "depress", "anxiet", "burnout", "injur"];
-const CB_CELEBRATION = ["baby", "born", "birth", "pregn", "expecting", "wedding", "engag", "married", "marry", "promot", "new job", "new role", "graduat", "retire", "anniversar", "birthday", "housewarm", "congrat", "award", "milestone", "first day"];
-const CB_GRATITUDE = ["thank", "grateful", "apprecia", "just because", "thinking of you", "miss you"];
-
-// Client mirror of classifyValence(). Returns celebration | hard_time | gratitude | other |
-// unspecified. Conservative: any HARD keyword wins first, so the grief guard errs safe.
-function classifyValenceLite(text) {
-  const s = String(text || "").toLowerCase();
-  if (!s.trim()) return "unspecified";
-  if (CB_HARD.some((k) => s.includes(k))) return "hard_time";
-  if (CB_CELEBRATION.some((k) => s.includes(k))) return "celebration";
-  if (CB_GRATITUDE.some((k) => s.includes(k))) return "gratitude";
-  return "other";
-}
-
-// The stored valence for a plan when migration 009 is applied; otherwise re-derive it live
-// (lossy but never crashes). Conservative fallback keeps the grief guard safe pre-migration.
-function planValence(plan) {
-  const stored = plan && typeof plan.valence === "string" ? plan.valence.trim() : "";
-  if (stored) return stored;
-  return classifyValenceLite((plan && (plan.occasion || plan.plan_title)) || "");
-}
-
-// Days between an ISO/date string and now (floored). NaN-safe → returns Infinity so an
-// unparseable date is treated as "too old to check back on" (never eligible).
-function daysSince(iso) {
-  const t = Date.parse(iso);
-  if (!Number.isFinite(t)) return Infinity;
-  return Math.floor((Date.now() - t) / 86400000);
-}
-
-// A coarse, human "when" phrase for a plan's age — advisory prompt sugar only.
-function whenPhraseFor(days) {
-  if (days <= 14) return "a couple weeks ago";
-  if (days <= 45) return "last month";
-  if (days <= 75) return "a couple months ago";
-  return "a while back";
-}
 
 /* ---- per-SESSION global throttle (UX blocking finding) --------------------
  * At most ONE check-back — Mechanism A or B, combined — across a whole session/day,
@@ -143,91 +91,12 @@ async function loadCheckins() {
   } catch (e) { return empty; }
 }
 
-/* ---- the selector -----------------------------------------------------------
- * pickCheckback(person, opts) → at most ONE of:
- *   { mechanism:"A", plan_id, occasion, valence, grief_care_only, when_phrase } | { mechanism:"B" } | null
- * opts: { checkins:{askedPlanIds,lastAskedForPlan}, rng?:()=>number } (rng injectable for tests). */
+/* ---- the selector (thin wrapper over the pure /_checkback.js module) --------
+ * The deterministic logic lives in /_checkback.js (unit-tested offline). Here we just feed
+ * it the impure inputs: the localStorage session throttle result. Returns at most ONE of
+ * { mechanism:"A", ... } | { mechanism:"B" } | null. */
 function pickCheckback(person, opts = {}) {
-  try {
-    // Session throttle first — cheapest gate, and it caps A+B combined across the day.
-    if (checkbackUsedThisSession()) return null;
-    const rng = typeof opts.rng === "function" ? opts.rng : Math.random;
-    const checkins = opts.checkins || { askedPlanIds: new Set(), lastAskedForPlan: new Map() };
-    const askedPlanIds = checkins.askedPlanIds instanceof Set ? checkins.askedPlanIds : new Set();
-    const lastAskedForPlan = checkins.lastAskedForPlan instanceof Map ? checkins.lastAskedForPlan : new Map();
-
-    const plans = Array.isArray(person && person.saved_plans) ? person.saved_plans : [];
-
-    // Per-person cooldown: if ANY plan for this person was asked within the window, skip A.
-    const cutoffMs = Date.now() - PER_PERSON_COOLDOWN_DAYS * 86400000;
-    let inCooldown = false;
-    for (const p of plans) {
-      const ms = p && p.id ? lastAskedForPlan.get(p.id) : undefined;
-      if (Number.isFinite(ms) && ms >= cutoffMs) { inCooldown = true; break; }
-    }
-
-    // Build the eligible set for Mechanism A.
-    const eligible = [];
-    if (!inCooldown) {
-      for (const p of plans) {
-        if (!p || !p.id) continue;
-        if (askedPlanIds.has(p.id)) continue;                 // already asked, never re-ask
-        const age = daysSince(p.created_at);
-        if (age < MIN_ELAPSED_DAYS || age > MAX_ELAPSED_DAYS) continue;
-        const valence = planValence(p);
-        const isHard = valence === "hard_time";
-        // Grief gate (uses stored valence via planValence). Fresh grief → total silence.
-        if (isHard && age < GRIEF_FRESH_DAYS) continue;
-        eligible.push({
-          plan_id: p.id,
-          occasion: String(p.occasion || p.plan_title || "").trim(),
-          valence,
-          grief_care_only: isHard, // aged hard-time → care-only shape, zero outcome signal
-          when_phrase: whenPhraseFor(age),
-          _age: age,
-        });
-      }
-    }
-
-    // Mechanism A: pick the MOST-RECENT eligible plan, then gate on the conservative fire rate.
-    if (eligible.length) {
-      eligible.sort((a, b) => a._age - b._age); // youngest (smallest age) first = most recent
-      if (rng() < CHECKBACK_RATE_A) {
-        const pick = eligible[0];
-        return {
-          mechanism: "A",
-          plan_id: pick.plan_id,
-          occasion: pick.occasion,
-          valence: pick.valence,
-          grief_care_only: pick.grief_care_only,
-          when_phrase: pick.when_phrase,
-        };
-      }
-    }
-
-    // Mechanism B: only considered when A did NOT fire, rarer still, prompt-only (no signal).
-    // Offered for any saved person (its honesty doesn't depend on a specific past plan); the
-    // prompt itself judges whether the moment is caring/human enough to actually use it.
-    if (rng() < MECH_B_RATE) return { mechanism: "B" };
-
-    return null;
-  } catch (e) { return null; } // fail-open: any error → no check-back (byte-identical to today)
-}
-
-/* ---- coarse outcome word-read (Mechanism A non-grief only) ------------------
- * Phase-1 client-side read of how the user described how it went. NEVER surfaced to the
- * user — a SILENT aggregate only. Phase 2 may replace this with a model-emitted field.
- * Returns "went_well" | "fell_flat" | "unclear". */
-const CB_POSITIVE = ["loved", "love", "cried", "happy", "thrilled", "great", "perfect", "wonderful", "amazing", "meant a lot", "so glad", "touched", "smiled", "laughed", "went well", "hit", "beautiful", "grateful", "appreciated", "best", "made their", "made her", "made his", "lit up"];
-const CB_NEGATIVE = ["didn't", "did not", "never", "awkward", "fell through", "fell flat", "flat", "flopped", "canceled", "cancelled", "too late", "missed", "forgot", "no response", "ignored", "worse", "wrong", "regret", "backfired", "upset", "hurt"];
-function readOutcome(text) {
-  const s = String(text || "").toLowerCase();
-  if (!s.trim()) return "unclear";
-  const neg = CB_NEGATIVE.some((k) => s.includes(k));
-  const pos = CB_POSITIVE.some((k) => s.includes(k));
-  if (pos && !neg) return "went_well";
-  if (neg && !pos) return "fell_flat";
-  return "unclear"; // mixed, or nothing recognizable
+  return pickCheckbackPure(person, { ...opts, sessionUsed: checkbackUsedThisSession() });
 }
 
 /* ---- post-conversation emit (Task 8) ---------------------------------------
