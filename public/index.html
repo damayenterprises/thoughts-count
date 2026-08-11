@@ -170,6 +170,11 @@
   /* orb-home FIX 4a: tightened vertical rhythm so Della's orb is at least half-visible on
      first paint (she greets the user on landing instead of sitting below the fold). */
   .hero { text-align: center; padding: 34px 0 40px; }
+  /* orb-home Task A: on TALL DESKTOP viewports the orb sat a touch low in the greeting zone.
+     Lift the whole hero (and Della's orb with it) by trimming the hero's top padding so she
+     greets higher in the fold. Scoped to wide AND tall screens only — mobile/short viewports
+     keep the base 34px rhythm above (untouched). */
+  @media (min-width: 760px) and (min-height: 760px) { .hero { padding-top: 16px; } }
   .hero h1 { font-size: clamp(30px, 4.6vw, 50px); line-height: 1.1; font-weight: 500; margin: 0 auto 12px; max-width: 15ch; }
   .hero h1 em { font-style: italic; color: var(--clay-deep); }
   .hero p.lead { font-size: clamp(16px, 2vw, 19px); color: var(--ink-soft); max-width: 40ch; margin: 0 auto 16px; }
@@ -2429,6 +2434,15 @@ async function cvFallbackReply(force){
   cvSpeakThenListen(oops, false);
 }
 
+// Her warm spoken send-off at the handoff. She now composes a situational closing line server-side
+// (ready.closing) — e.g. "This is really helpful. Let me pull something together for you." — so she
+// signs off like a person instead of the old fixed "Let me put this together." Fall back to that
+// line only if she didn't provide one (defensive; the model is prompted to always include it).
+function cvClosingLine(ans){
+  const c = ans && typeof ans.closing === 'string' ? ans.closing.trim() : '';
+  return c || "Let me put this together.";
+}
+
 // The ready handoff, shared by the stream + fallback paths. Identical behavior to cvTurn's ready
 // branch: distill → generate() (unchanged) → remember-from-conversation, with a short spoken line.
 function cvHandleReady(ans){
@@ -2439,14 +2453,16 @@ function cvHandleReady(ans){
   __cvStreamGen++;         // invalidate any pending speak-queue callback
   cvVoiceCue('thinking');
   // TC-88: cancel any pre-generated sentence TTS still in flight + revoke its URLs before the
-  // handoff line, so nothing orphaned keeps generating or plays over "Let me put this together."
+  // handoff line, so nothing orphaned keeps generating or plays over her closing send-off.
   if (__cvSpeak){
     try { if (__cvSpeak.ctrl) __cvSpeak.ctrl.abort(); } catch(e){}
     try { (__cvSpeak.urls || []).forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); } catch(e){}
     __cvSpeak.queue = []; __cvSpeak.playing = false; __cvSpeak = null;
   }
   try { cancelSpeech(); } catch(e){} // clear any queued sentence audio before the handoff line
-  speakPrompt("Let me put this together.", () => {});
+  const closing = cvClosingLine(ans);
+  cvAppend('her', closing); // show her send-off in the log too, so text tracks her voice
+  speakPrompt(closing, () => {});
   generate();
   rememberFromConversation();
 }
@@ -2637,13 +2653,17 @@ async function cvTurn(force){
     for (const k in answers) delete answers[k];
     Object.assign(answers, d.answers);
     try { window.tcTrack && tcTrack('converse_ready', { turns: __cv.messages.length }); } catch(e){}
-    // Voice mode: speak a brief handoff line, then generate() exactly as the typed flow does.
+    // Her warm situational send-off (server-composed ready.closing) — show it as her last bubble so
+    // the conversation closes like a person before the plan builds.
+    const closing = cvClosingLine(d.answers);
+    cvAppend('her', closing);
+    // Voice mode: speak her closing send-off, then generate() exactly as the typed flow does.
     // (We do NOT read the plan aloud — that's TC-67, out of scope.) End the spoken loop first so
     // the mic never reopens over the plan. If speak fails, onDone still fires → generate() runs.
     if (__cv.voice && __cvVoiceActive){
       __cvVoiceActive = false; // stop the listen loop; let this one utterance play out
       cvVoiceCue('thinking');
-      speakPrompt("Let me put this together.", () => {});
+      speakPrompt(closing, () => {});
     }
     generate();
     // TC-66 Phase 3b: the conversation wrapped up — persist what the user shared back to the

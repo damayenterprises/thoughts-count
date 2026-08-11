@@ -53,8 +53,20 @@ const TOOLS = [
   },
   {
     name: "ready",
-    description: "Call this the moment you are confident you understand the moment, the relationship, and what would help well enough to give genuinely good guidance. Distill the WHOLE conversation into these plan inputs.",
-    input_schema: ANSWERS_SCHEMA,
+    description:
+      "Call this to hand off to the plan. Only call it AFTER you have given the user their graceful last-call (see 'Closing the conversation like a person' in your instructions) and they've indicated they're done — OR when they've explicitly asked you to just make the plan. Distill the WHOLE conversation into these plan inputs, and include your warm spoken send-off in the closing field.",
+    input_schema: {
+      type: "object",
+      properties: {
+        ...ANSWERS_SCHEMA.properties,
+        closing: {
+          type: "string",
+          description:
+            "Your warm, human send-off line, spoken aloud right before the plan builds — the way a real person signs off before going to work. Situational, not a fixed template: warmer/lighter for a celebration, gentle for a hard time. Brief (1-2 short sentences), e.g. 'This really helps. Let me pull something together for you.' Never robotic, never announce 'generating your plan'.",
+        },
+      },
+      required: ANSWERS_SCHEMA.required,
+    },
   },
 ];
 
@@ -180,7 +192,14 @@ Recognizing who they mean (you know their circle — the saved people listed abo
 Deciding when you have enough (you are an advisor judging, NOT a form validating):
 - The essentials are usually: what happened, who this person is to them, and enough about the person and relationship to make guidance personal.
 - Budget, timing, location, and their authentic voice are helpful but optional. Ask about them only if the answer would actually change your guidance.
-- When you're confident you can give real guidance, call the ready tool and distill everything you learned. Otherwise call reply.
+
+Closing the conversation like a person (do NOT skip this — it is how you hand off warmly):
+- The moment you judge you finally have enough to give real guidance, do NOT jump straight to the plan. First give ONE warm last-call turn with the reply tool: acknowledge that you think you've got what you need, and gently invite anything they still want you to know before you go build it. Make it situational and human, in YOUR own voice, varied every time, never a fixed template — lighter for a celebration, gentler for a hard moment. For example (do not copy these verbatim): "I think I've got a good picture of what would help. Anything else you want me to know before I put this together?" or "This gives me a lot to work with. Is there anything I'm missing before I pull it together?" Keep it to 1 to 2 short sentences and ONE gentle question.
+- If they add more, take it in and continue naturally — incorporate it, ask a real follow-up only if it truly matters, and you may give one more brief last-call. But ONE graceful last-call is the norm: do NOT loop "anything else?" over and over or stall a user who is ready. Once they signal they're done, move on.
+- When they indicate they're finished (they say they're good, "that's it", "go ahead", "make it", they simply have nothing to add, or you've already had your one last-call and they've responded), call the ready tool. Put a warm, human send-off in its closing field — the way a real person signs off before going to work, e.g. "This is really helpful. Let me pull something together for you." — situational and varied, not robotic. That closing line is spoken as you hand off; there is no separate reply, the ready tool carries it.
+- IMPORTANT edge case — an impatient user: if they have ALREADY explicitly asked you to just make the plan ("that's enough, make my plan", "just make it", "go", "I'm done"), do NOT ask the last-call question — that would be tone-deaf. Go straight to the ready tool with only the warm send-off in closing, and build.
+
+- Otherwise, if you still need something to give real guidance, call reply. When you're truly ready to hand off, call ready (with your closing send-off), per the closing rules above.
 
 Every turn, call EXACTLY ONE tool: reply (to say something, optionally asking), or ready (when you can give real guidance). Never both. Never plain text. You are ${HER_NAME}.`;
 }
@@ -439,6 +458,10 @@ function readyAnswers(input, ctx) {
     location:     String(a.location || "").trim() || String(ctx.location || "").trim(),
     facts:        Array.isArray(ctx.facts) ? ctx.facts.map((f) => String(f || "").trim()).filter(Boolean) : [],
     priorPlans:   String(ctx.priorPlans || "").trim(),
+    // TC: her warm spoken send-off, carried to the client to speak right before the plan builds
+    // (replaces the old hardcoded "Let me put this together."). Not consumed by the plan engine —
+    // buildUserMessage() reads only the named plan fields, so this rides along harmlessly.
+    closing:      humanizeText(String(a.closing || "").trim()),
   };
 }
 
