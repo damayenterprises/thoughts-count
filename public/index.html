@@ -1952,7 +1952,18 @@ function priorPlansDigest(person){
       if (gifts[0] && gifts[0].title) gists.push(clip(gifts[0].title, 40));
       if (!gists.length){ const wts = Array.isArray(plan.what_to_say) ? plan.what_to_say : []; if (wts[0]) gists.push(clip(wts[0], 60)); }
       const gist = gists.slice(0,2).join('; ');
-      lines.push('- ' + occ + (gist ? ': suggested ' + gist : ''));
+      // TC-117 compounding feed: if we recorded how this past gesture LANDED (a plan_checkin
+      // outcome), annotate the digest line so the NEXT plan builds on what actually worked —
+      // this rides the SAME priorPlans injection into generate-background (no new channel).
+      // Grief/care-only check-backs never record an outcome, so nothing about grief is annotated.
+      const outMap = window.__tcPlanOutcomes;
+      let landed = '';
+      try {
+        const o = (outMap && rec && rec.id) ? outMap.get(rec.id) : null;
+        if (o === 'went_well') landed = ' (this landed well)';
+        else if (o === 'fell_flat') landed = ' (this fell flat)';
+      } catch(e){}
+      lines.push('- ' + occ + (gist ? ': suggested ' + gist : '') + landed);
     }
     return lines.join('\n');
   } catch(e){ return ''; }
@@ -1968,6 +1979,13 @@ function openConverse(person, opts){
   // most of the work. No person → anonymous, byte-identical to Phase 1.
   flowPerson = person || null;
   window.__tcFlowPersonId = person ? person.id : null;
+  // TC-117: decide (usually NOT) whether Della circles back to a past situation this conversation.
+  // Computed ONCE at open, async, and stashed for cvBuildCtx to read. Anonymous / home path (no
+  // saved person) → never a check-back, so the ctx stays byte-identical to today. The selector
+  // enforces every restraint rule (companion.js pickCheckback). Fail-open: any error → no check-back.
+  window.__tcCheckback = null;
+  window.__tcCheckbackPerson = null;
+  if (flowPerson) tcPrepareCheckback(flowPerson);
   // TC-82 Phase 2 (2a): voice mode. When true, the SAME chat surface is orchestrated hands-free —
   // she speaks each turn (/api/speak), and the mic opens ONLY after her playback ends (the
   // feedback-loop guard), reusing beginConfirmRecording + speakPrompt. Everything else — the
@@ -2471,6 +2489,7 @@ function cvHandleReady(ans){
   speakPrompt(closing, () => {});
   generate();
   rememberFromConversation();
+  emitCheckbackIfAny();
 }
 
 // Append a streamed sentence to her growing bubble: reuse the last 'her' streaming bubble if this
@@ -2496,13 +2515,41 @@ function cvRevealSentence(text){ cvAppendStream(text); }
 // Build the RLS-scoped context object (name/relationship/location/facts/priorPlans) — factored so
 // the stream, fallback, and typed paths all assemble it identically.
 function cvBuildCtx(){
-  return flowPerson ? {
+  if (!flowPerson) return undefined;
+  const ctx = {
     name: flowPerson.name || '',
     relationship: flowPerson.relationship || '',
     location: flowPerson.location || '',
     facts: Array.isArray(flowPerson.noticed) ? flowPerson.noticed : [],
     priorPlans: priorPlansDigest(flowPerson),
-  } : undefined;
+  };
+  // TC-117: attach the circle-back advisory ONLY if the selector chose one for THIS person and
+  // it resolved before this turn. Absent → ctx byte-identical to today. We guard on the person id
+  // so a stale pick from a previous conversation can never leak into this one.
+  if (window.__tcCheckback && window.__tcCheckbackPerson === flowPerson.id) {
+    ctx.checkback = window.__tcCheckback;
+  }
+  return ctx;
+}
+
+// TC-117: run the async selector once when a person conversation opens, and stash the result for
+// cvBuildCtx. Reuses the companion selector (all restraint lives there). Fully guarded + fail-open.
+async function tcPrepareCheckback(person){
+  try {
+    const C = window.TCCompanion;
+    if (!C || !C.isSignedIn || !C.isSignedIn() || !C.pickCheckback || !C.loadCheckins) return;
+    if (!person || !person.id) return;
+    const checkins = await C.loadCheckins();               // one bulk read, dormant-safe (empty pre-migration)
+    if (!flowPerson || flowPerson.id !== person.id) return; // conversation moved on → drop
+    // TC-117 compounding feed: stash the per-plan known outcomes so priorPlansDigest can annotate
+    // "landed well / fell flat" into the digest that already rides into the NEXT plan (§7).
+    window.__tcPlanOutcomes = (checkins && checkins.outcomeForPlan instanceof Map) ? checkins.outcomeForPlan : null;
+    const cb = C.pickCheckback(person, { checkins });
+    if (cb && flowPerson && flowPerson.id === person.id) {
+      window.__tcCheckback = cb;
+      window.__tcCheckbackPerson = person.id;
+    }
+  } catch(e){ /* fail-open: no check-back this conversation */ }
 }
 
 // TC-82 Phase 2 (2a) — THE FEEDBACK-LOOP GUARD, in one place. Speak `text`, and open the mic
@@ -2680,6 +2727,7 @@ async function cvTurn(force){
     // as the source of truth about the person, not her replies. The bridge routes them through
     // the existing authenticated, ownership-checked capture pipeline (no new write surface).
     rememberFromConversation();
+    emitCheckbackIfAny(); // TC-117: SILENT outcome signal + bookkeeping (non-grief A only for signal)
     return;
   }
   if (d && d.action === 'reply' && d.say){
@@ -2722,6 +2770,28 @@ function rememberFromConversation(){
     // Fire-and-forget: don't await, and swallow any rejection so the plan is never affected.
     Promise.resolve(bridge(flowPerson.id, rawText)).catch(() => {});
   } catch(e){ /* fail-open: a memory-write error must never break the conversation or plan */ }
+}
+
+// TC-117: after a check-back conversation, emit the SILENT outcome signal (non-grief Mechanism A
+// only) + the plan-checkin bookkeeping. Fires alongside rememberFromConversation, entirely
+// non-blocking + fail-open. Only fires when a check-back actually rode into THIS conversation;
+// grief-care-only A and Mechanism B never post a plan_outcome (companion guards that). NEVER
+// surfaces any UI artifact (§6b) — the memory-save toast is the only visible confirmation.
+function emitCheckbackIfAny(){
+  try {
+    const cb = (window.__tcCheckback && flowPerson && window.__tcCheckbackPerson === flowPerson.id) ? window.__tcCheckback : null;
+    if (!cb) return;                                            // no check-back fired → nothing to emit
+    const emit = window.TCCompanion && window.TCCompanion.emitCheckbackOutcome;
+    if (!emit) return;
+    const userText = (Array.isArray(__cv.messages) ? __cv.messages : [])
+      .filter(m => m && m.role === 'user').map(m => String(m.content || '').trim()).filter(Boolean).join('\n');
+    // Plan bucket for the outcome signal: valence is a guaranteed-valid label; the server's
+    // sanitizeBucket drops anything not whitelisted, so this stays non-identifying.
+    const bucket = cb.valence ? { valence: cb.valence } : {};
+    // Consume the pick so a re-fire (reload / re-ready) can't double-emit.
+    window.__tcCheckback = null; window.__tcCheckbackPerson = null;
+    Promise.resolve(emit({ cb, userText, bucket })).catch(() => {});
+  } catch(e){ /* fail-open: signal/bookkeeping must never break the plan */ }
 }
 // Resume a remember request after a magic-link return: open the flow surface (the
 // scrim isn't open on a cold return), then run the normal preview→confirm→save flow

@@ -117,16 +117,17 @@ function markCheckbackUsedThisSession() {
  * DORMANT-SAFE: if the table doesn't exist yet (pre-migration) or any error occurs,
  * returns empty structures so pickCheckback simply finds nothing eligible → null. */
 async function loadCheckins() {
-  const empty = { askedPlanIds: new Set(), lastAskedForPlan: new Map() };
+  const empty = { askedPlanIds: new Set(), lastAskedForPlan: new Map(), outcomeForPlan: new Map() };
   if (!sb || !user) return empty;
   try {
     const { data, error } = await sb
       .from("plan_checkins")
-      .select("saved_plan_id,asked_at")
+      .select("saved_plan_id,asked_at,outcome")
       .order("asked_at", { ascending: false });
     if (error || !Array.isArray(data)) return empty; // table absent pre-migration → benign
     const askedPlanIds = new Set();
     const lastAskedForPlan = new Map();
+    const outcomeForPlan = new Map(); // saved_plan_id -> latest non-null outcome (compounding feed)
     for (const r of data) {
       if (r.saved_plan_id) {
         askedPlanIds.add(r.saved_plan_id);
@@ -134,9 +135,11 @@ async function loadCheckins() {
         if (Number.isFinite(ms) && (!lastAskedForPlan.has(r.saved_plan_id) || ms > lastAskedForPlan.get(r.saved_plan_id))) {
           lastAskedForPlan.set(r.saved_plan_id, ms);
         }
+        // data is ordered newest-first, so the first non-null outcome we see is the latest.
+        if (r.outcome && !outcomeForPlan.has(r.saved_plan_id)) outcomeForPlan.set(r.saved_plan_id, r.outcome);
       }
     }
-    return { askedPlanIds, lastAskedForPlan };
+    return { askedPlanIds, lastAskedForPlan, outcomeForPlan };
   } catch (e) { return empty; }
 }
 
