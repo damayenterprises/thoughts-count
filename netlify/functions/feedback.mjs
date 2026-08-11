@@ -7,9 +7,14 @@
 //
 // Privacy: like the rest of analytics, this stores ONLY the non-identifying bucket
 // (occasion/valence/relationship/budget_band, whitelisted server-side) plus a fixed
-// reason enum. No names, no story text, no plan content ever touches this path.
+// reason/outcome enum. No names, no story text, no plan content ever touches this path.
+//
+// TC-117 adds a third accepted event:
+//   plan_outcome  { outcome: enum, ...bucket }  — how a past gesture LANDED in the world,
+//                   read coarsely client-side. Mechanism A, non-grief only (grief-care-only
+//                   and Mechanism B never post this). Same privacy contract: bucket + enum.
 
-import { logEvent, isBot, sanitizeBucket, FEEDBACK_REASONS } from "./_analytics.mjs";
+import { logEvent, isBot, sanitizeBucket, FEEDBACK_REASONS, OUTCOME_VALUES } from "./_analytics.mjs";
 
 export default async (req) => {
   if (req.method !== "POST") return new Response("ok", { status: 405 });
@@ -17,7 +22,7 @@ export default async (req) => {
   try { body = await req.json(); } catch { return new Response("ok", { status: 200 }); }
 
   const kind = String(body?.event || "");
-  if (kind !== "plan_feedback" && kind !== "plan_feedback_reason") {
+  if (kind !== "plan_feedback" && kind !== "plan_feedback_reason" && kind !== "plan_outcome") {
     return new Response("ok", { status: 200 });
   }
 
@@ -27,6 +32,10 @@ export default async (req) => {
   if (kind === "plan_feedback") {
     if (typeof body?.helpful !== "boolean") return new Response("ok", { status: 200 });
     props.helpful = body.helpful;
+  } else if (kind === "plan_outcome") {
+    const outcome = String(body?.outcome || "");
+    if (!OUTCOME_VALUES.has(outcome)) return new Response("ok", { status: 200 });
+    props.outcome = outcome;
   } else {
     const reason = String(body?.reason || "");
     if (!FEEDBACK_REASONS.has(reason)) return new Response("ok", { status: 200 });
