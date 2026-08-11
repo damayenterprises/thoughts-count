@@ -782,8 +782,10 @@
   .tc-send:hover:not(:disabled){ background:var(--clay-deep,#b0714b); }
   .tc-send:disabled { opacity:.45; cursor:default; }
   .tc-chat-foot { text-align:center; margin-top:14px; min-height:18px; }
-  .tc-makeplan { background:transparent; border:none; color:var(--sage-deep,#5f6d4a); font-size:13.5px; cursor:pointer; font-family:inherit; }
-  .tc-makeplan:hover { text-decoration:underline; }
+  /* The "make my plan" escape reads as a clear, tappable pill (not a faint text link a tester
+     missed below the fold), while staying visually secondary to continuing the conversation. */
+  .tc-makeplan { display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.72); border:1.5px solid rgba(138,154,114,.6); border-radius:999px; color:var(--sage-deep,#5f6d4a); font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; padding:9px 18px; box-shadow:0 1px 4px rgba(95,109,74,.1); transition:background .15s, border-color .15s; }
+  .tc-makeplan:hover { background:rgba(255,255,255,.96); border-color:var(--sage,#8a9a72); }
   .tc-chat-hint { text-align:center; font-size:12px; color:var(--ink-soft,#8a8577); margin-top:10px; }
   /* TC-89 (rework): the "…add to someone you know" door on the primary voice/conversation screen. */
   .tc-cv-known { text-align:center; margin-top:10px; }
@@ -2119,6 +2121,10 @@ function cvShowEscape(){
   btn.type = 'button'; btn.className = 'tc-makeplan'; btn.textContent = "That's enough — make my plan →";
   btn.onclick = cvMakePlan;
   foot.appendChild(btn);
+  // The escape used to be a faint link below the input row, which a tester never saw (it sat below
+  // the fold on a phone). Now it's a clear pill AND we nudge it into view the first time it appears,
+  // so the "how do I get my plan?" answer is visible, not hidden. block:'nearest' avoids a jarring jump.
+  try { btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { /* older browsers */ }
   // Once the escape link is visible, drop the redundant "you can say…" half of the hint —
   // the link now speaks for itself; keep only the expectation-setting line. (UX finding 2.)
   const h = document.getElementById('cvHint'); if (h) h.textContent = "She'll ask what she needs, then build your plan.";
