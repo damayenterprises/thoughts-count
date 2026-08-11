@@ -707,19 +707,14 @@ function renderHome(people, opts = {}) {
       <button class="cta ghost tc-addtoggle" id="tcAddToggle" style="width:100%;justify-content:center;margin-top:6px;">${plusSvg(16, "currentColor")}<span>Add someone</span></button>
       <div class="block tc-addwrap" id="tcAddForm" style="display:none;">
         <h4>Add someone</h4>
-        <input type="text" id="np_name" placeholder="Their name" />
-        <input type="text" id="np_rel" placeholder="Who they are to you (e.g. someone I manage)" style="margin-top:10px;" />
-        <textarea id="np_notes" placeholder="Anything worth remembering about them (optional)" style="margin-top:10px;min-height:64px;"></textarea>
-        <div class="nav"><button class="link-btn" id="np_cancel">Cancel</button><button class="cta" id="np_save">Add them →</button></div>
-        <div class="k-msg" id="np_msg"></div>
 
         <!-- TC-98/TC-100/TC-101 — faster ways to add someone, all funnel through the same
-             extract → resolve → confirm pipeline as typing. -->
-        <div style="border-top:1px solid #e5e0d4;margin:16px 0 12px;"></div>
+             extract → resolve → confirm pipeline as typing. UX fix: these fast doors LEAD the
+             Add-someone lane (top, no scroll) so a user discovers them before the manual form. -->
         <div class="tc-add-more">
           <!-- 1c/1d: a screenshot/photo of a DM/profile/contact card, or a shared .vcf -->
           <button class="cta ghost" id="np_photo_btn" type="button" style="width:100%;justify-content:center;">Add from a screenshot or photo</button>
-          <input type="file" id="np_photo_file" accept="image/*,.vcf,text/vcard" capture style="display:none;" />
+          <input type="file" id="np_photo_file" accept="image/*,.vcf,text/vcard" style="display:none;" />
           <p class="tc-help-sm" style="margin:6px 0 0;">A text, a DM, a profile, or a saved contact — we'll read who it's about and let you confirm.</p>
 
           <!-- 1a: paste a bio / anything about them -->
@@ -730,6 +725,15 @@ function renderHome(people, opts = {}) {
           <div id="np_import_out"></div>
           <div class="k-msg" id="np_import_msg"></div>
         </div>
+
+        <!-- Manual "type it in yourself" fallback, presented below the fast doors. -->
+        <div style="border-top:1px solid #e5e0d4;margin:16px 0 12px;"></div>
+        <p class="tc-help-sm" style="margin:0 0 10px;">Or type it in yourself:</p>
+        <input type="text" id="np_name" placeholder="Their name" />
+        <input type="text" id="np_rel" placeholder="Who they are to you (e.g. someone I manage)" style="margin-top:10px;" />
+        <textarea id="np_notes" placeholder="Anything worth remembering about them (optional)" style="margin-top:10px;min-height:64px;"></textarea>
+        <div class="nav"><button class="link-btn" id="np_cancel">Cancel</button><button class="cta" id="np_save">Add them →</button></div>
+        <div class="k-msg" id="np_msg"></div>
       </div>
     </div>`;
 
@@ -814,7 +818,9 @@ function renderHome(people, opts = {}) {
   // Add-someone: reveal the form only when asked, so browsing stays calm.
   const addForm = modalBody().querySelector("#tcAddForm");
   const addToggle = modalBody().querySelector("#tcAddToggle");
-  const showAdd = (on) => { addForm.style.display = on ? "" : "none"; addToggle.style.display = on ? "none" : ""; if (on) modalBody().querySelector("#np_name").focus(); };
+  // Don't auto-focus the manual name field: it now sits below the fast doors, and focusing it
+  // would scroll those doors out of view — the opposite of leading with them.
+  const showAdd = (on) => { addForm.style.display = on ? "" : "none"; addToggle.style.display = on ? "none" : ""; };
   addToggle.onclick = () => showAdd(true);
   // Voice on the add-someone fields = the inline mic inside each box (dictation → in-place
   // record/transcribe/append via window.toggleMic). Mounts no-op if voice isn't available.
@@ -849,10 +855,15 @@ function renderHome(people, opts = {}) {
   const importMsg = modalBody().querySelector("#np_import_msg");
   const setImportMsg = (t, bad) => { if (!importMsg) return; importMsg.className = "k-msg" + (bad ? " bad" : ""); importMsg.textContent = t || ""; };
 
-  const onConfirmed = async (res, { relationship, isNew } = {}) => {
-    if (res && res.ok && isNew && relationship && res.personId) {
+  const onConfirmed = async (res, { relationship, relChanged, isNew } = {}) => {
+    // Persist the edited "who they are to you" — the server createPerson/resolve sets name only and
+    // ignores relationship, so the client honors it here. New person: write whatever they entered.
+    // Existing person (update card): write ONLY when the user actually set/changed the field, so we
+    // never overwrite an existing relationship with a blank or stale prefill.
+    const shouldWriteRel = res && res.ok && res.personId && (isNew ? !!relationship : (relChanged && !!relationship));
+    if (shouldWriteRel) {
       try { await sb.from("people").update({ relationship }).eq("id", res.personId).eq("user_id", user.id); }
-      catch (e) { console.error("set relationship on new person", e); }
+      catch (e) { console.error("set relationship on person", e); }
     }
     renderHome(await loadPeople(), { highlightId: res?.personId });
   };

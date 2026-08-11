@@ -445,9 +445,15 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
     const src = ({ dm: "a direct message", profile: "a profile", contact_card: "a contact card", text_thread: "a message" }[preview.source_kind]) || "what you shared";
     const bday = (facts.find((f) => f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date)) || {}).event_date || preview.birthday || "";
     const otherFacts = facts.filter((f) => !(f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date)));
-    const cands = state.kind === "pick"
+    const isPick = state.kind === "pick";
+    // On a "pick" card the candidate picks are the primary filled actions; the "add someone new"
+    // button (the confirm) is a fundamentally different action, so we de-emphasize it to a ghost
+    // secondary — matching how the To-Review surface separates candidate picks from other actions.
+    const cands = isPick
       ? `<div class="tc-imp-cands">${state.candidates.map((c) => `<button class="cta tc-imp-pick" data-pid="${c.id}">${esc(c.name)}${c.location ? ` · ${esc(c.location)}` : ""}</button>`).join("")}</div>`
       : "";
+    const confirmClass = isPick ? "cta ghost tc-imp-confirm tc-imp-addnew" : "cta tc-imp-confirm";
+    const confirmLabel = isPick ? "Add someone new →" : (state.kind === "update" ? "Add to them →" : "Add them →");
     card.innerHTML = `
       <div class="tc-imp-eyebrow">Found from ${src} — check it over</div>
       <div class="tc-imp-field"><label>Name</label><input type="text" class="tc-imp-name" value="${esc(preview.personHint || state.personName || "")}" autocomplete="off" /></div>
@@ -457,7 +463,7 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
       ${cands}
       ${otherFacts.length ? `<ul class="tc-imp-facts">${otherFacts.map((f) => `<li>${factLine(f)}</li>`).join("")}</ul>` : ""}
       <div class="tc-imp-acts">
-        <button class="cta tc-imp-confirm">${state.kind === "update" ? "Add to them →" : "Add them →"}</button>
+        <button class="${confirmClass}">${confirmLabel}</button>
         <button class="link-btn tc-imp-discard">Not now</button>
       </div>
       <div class="k-msg tc-imp-msg"></div>`;
@@ -495,9 +501,14 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
       } catch (e) { console.error("re-resolve name", e); }
     };
 
+    // The relationship value at draw time — so the host can tell an intentional set/change from an
+    // untouched prefill and never clobber an existing person's relationship with a stale value.
+    const relInitial = relEl.value.trim();
+
     // Confirm → the SAME captureResolve the To-Review surface uses. For a brand-new person we pass
     // the edited name as newPersonName; for an update/pick we pass the chosen personId. An edited
-    // relationship is applied by the host after confirm (server createPerson sets name only).
+    // relationship is applied by the host after confirm (server createPerson sets name only; on an
+    // update the server ignores relationship entirely) — the host honors it when the user changed it.
     const doConfirm = async (personId) => {
       const nm = nameEl.value.trim();
       if (!nm && !personId) { setMsg("A name helps us make it personal.", true); nameEl.focus(); return; }
@@ -512,7 +523,12 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
         });
         card.remove();
         showToast(res.message || (res.personName ? `Saved to ${firstName(res.personName)}` : "Saved"), {});
-        if (onConfirmed) await onConfirmed(res || null, { relationship: relEl.value.trim(), isNew: !(personId || state.personId) });
+        const relNow = relEl.value.trim();
+        if (onConfirmed) await onConfirmed(res || null, {
+          relationship: relNow,
+          relChanged: relNow !== relInitial,
+          isNew: !(personId || state.personId),
+        });
       } catch (e) { setMsg(e.message, true); }
     };
 
