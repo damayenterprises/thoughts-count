@@ -124,7 +124,7 @@
   .stage[data-state="idle"]      .orb { animation: idleBreath 5.4s ease-in-out infinite; }
   .stage[data-state="listening"] .orb { animation: listenRipple 2.6s ease-in-out infinite; }
   .stage[data-state="thinking"]  .orb { animation: thinkSettle 3.0s ease-in-out infinite; }
-  .stage[data-state="speaking"]  .orb { animation: speakPulse 1.35s ease-in-out infinite; }
+  .stage[data-state="speaking"]  .orb { animation: speakPulse 1.9s ease-in-out infinite; }
   @keyframes idleBreath {
     0%,100% { transform: translateY(0) scale(1); }
     50%     { transform: translateY(-4px) scale(1.028); }
@@ -140,9 +140,9 @@
   }
   @keyframes speakPulse {
     0%   { transform: scale(1); }
-    20%  { transform: scale(1.058); }
-    44%  { transform: scale(.992); }
-    66%  { transform: scale(1.04); }
+    24%  { transform: scale(1.03); }
+    48%  { transform: scale(.996); }
+    70%  { transform: scale(1.022); }
     100% { transform: scale(1); }
   }
 
@@ -151,8 +151,8 @@
   @keyframes haloBreath { 0%,100% { transform: scale(1); opacity: .9; } 50% { transform: scale(1.1); opacity: 1; } }
   .stage[data-state="listening"] .halo { animation: haloListen 2.6s ease-in-out infinite; }
   @keyframes haloListen { 0%,100% { transform: scale(1); opacity: .92; } 40% { transform: scale(.9); opacity: .72; } }
-  .stage[data-state="speaking"] .halo { animation: haloSpeak 1.35s ease-in-out infinite; }
-  @keyframes haloSpeak { 0%,100% { transform: scale(1); opacity: .9; } 20% { transform: scale(1.18); opacity: 1; } 66% { transform: scale(1.12); opacity: .96; } }
+  .stage[data-state="speaking"] .halo { animation: haloSpeak 1.9s ease-in-out infinite; }
+  @keyframes haloSpeak { 0%,100% { transform: scale(1); opacity: .9; } 24% { transform: scale(1.1); opacity: .98; } 70% { transform: scale(1.06); opacity: .94; } }
 
   /* mini home orb: always idle, gentle */
   .stage.mini .orb { animation: idleBreath 5.4s ease-in-out infinite; }
@@ -189,15 +189,15 @@
   </header>
 
   <div class="note">
-    <b>Exploration, not production.</b> No real voice is wired &mdash; the buttons simulate the flow: Idle &rarr; Listening &rarr; Thinking &rarr; Speaking. Below the hero: two liveliness variants so you can dial the amount of movement.
+    <b>Exploration, not production.</b> No real voice is wired &mdash; the buttons simulate the flow: Idle &rarr; Listening &rarr; Thinking &rarr; Speaking. The hero is the <b>chosen</b> tuning (the livelier Inner Weather); below it, that same chosen orb beside the calmer &ldquo;Alive&rdquo; alternative for comparison.
     <span class="rm-badge">Reduced-motion on: showing the calm still-color variant (still warm, still no white).</span>
   </div>
 
   <!-- ============== HERO: revised Inner Weather ============== -->
   <div class="hero">
-    <div class="tag">the direction &middot; revised</div>
+    <div class="tag">the direction &middot; chosen &middot; this is her</div>
     <h2>Inner Weather</h2>
-    <div class="stage big" data-state="idle" data-life="alive" role="button" tabindex="0" aria-label="Inner Weather orb, tap to cycle state">
+    <div class="stage big" data-state="idle" data-life="energetic" role="button" tabindex="0" aria-label="Inner Weather orb, tap to cycle state">
       <div class="orb orbIW">
         <div class="halo"></div>
         <canvas width="240" height="240"></canvas>
@@ -208,7 +208,7 @@
 
     <div class="home">
       <div class="mini-orb-wrap">
-        <div class="stage mini" data-state="idle" data-life="alive" aria-hidden="true">
+        <div class="stage mini" data-state="idle" data-life="energetic" aria-hidden="true">
           <div class="orb orbIW">
             <div class="halo"></div>
             <canvas width="92" height="92"></canvas>
@@ -225,9 +225,9 @@
   <div class="grid">
 
     <div class="card">
-      <h3>Alive</h3>
-      <div class="tag">calm, living warmth</div>
-      <div class="stage med" data-state="idle" data-life="alive" role="button" tabindex="0" aria-label="Inner Weather (Alive), tap to cycle state">
+      <h3>More energetic <span style="font-weight:700;color:var(--clay-deep);">&mdash; chosen</span></h3>
+      <div class="tag">the hero tuning, shown here for comparison</div>
+      <div class="stage med" data-state="idle" data-life="energetic" role="button" tabindex="0" aria-label="Inner Weather (More energetic, chosen), tap to cycle state">
         <div class="orb orbIW">
           <div class="halo"></div>
           <canvas width="176" height="176"></canvas>
@@ -238,9 +238,9 @@
     </div>
 
     <div class="card">
-      <h3>More energetic</h3>
-      <div class="tag">the same soul, more motion</div>
-      <div class="stage med" data-state="idle" data-life="energetic" role="button" tabindex="0" aria-label="Inner Weather (More energetic), tap to cycle state">
+      <h3>Alive</h3>
+      <div class="tag">calmer &middot; the quieter alternative</div>
+      <div class="stage med" data-state="idle" data-life="alive" role="button" tabindex="0" aria-label="Inner Weather (Alive), tap to cycle state">
         <div class="orb orbIW">
           <div class="halo"></div>
           <canvas width="176" height="176"></canvas>
@@ -338,7 +338,7 @@
     var f;
     if (state === "listening")      f = { speed: 0.6,  warm: 0.9,  pull: 0.34, breath: 0.05 };
     else if (state === "thinking")  f = { speed: 0.7,  warm: 1.0,  pull: 0.20, breath: 0.06 };
-    else if (state === "speaking")  f = { speed: 1.7,  warm: 1.22, pull: -0.06, breath: 0.14 };
+    else if (state === "speaking")  f = { speed: 1.3,  warm: 1.15, pull: -0.02, breath: 0.10 };
     else                            f = { speed: 1.0,  warm: 1.02, pull: 0.06, breath: 0.09 }; // idle
     if (life === "energetic") { f.speed *= 1.55; f.breath *= 1.35; f.warm *= 1.04; }
     return f;
@@ -360,7 +360,7 @@
       var time = t * 0.001;
       // slow universal breath (heartbeat/lungs) — one shared phase so the whole
       // orb swells together; depth from state.
-      var breath = Math.sin(time * (state === "speaking" ? 2.4 : 1.05) * (life === "energetic" ? 1.3 : 1));
+      var breath = Math.sin(time * (state === "speaking" ? 1.7 : 1.05) * (life === "energetic" ? 1.3 : 1));
       var breathAmt = 1 + breath * sf.breath;
 
       // ---- base wash: a soft green->blue COLOR field (never white) ----
