@@ -167,10 +167,12 @@
   .wrap { max-width: 1080px; margin: 0 auto; padding: 0 30px; }
 
   /* ---------- hero ---------- */
-  .hero { text-align: center; padding: 60px 0 52px; }
-  .hero h1 { font-size: clamp(32px, 5vw, 54px); line-height: 1.12; font-weight: 500; margin: 0 auto 18px; max-width: 15ch; }
+  /* orb-home FIX 4a: tightened vertical rhythm so Della's orb is at least half-visible on
+     first paint (she greets the user on landing instead of sitting below the fold). */
+  .hero { text-align: center; padding: 34px 0 40px; }
+  .hero h1 { font-size: clamp(30px, 4.6vw, 50px); line-height: 1.1; font-weight: 500; margin: 0 auto 12px; max-width: 15ch; }
   .hero h1 em { font-style: italic; color: var(--clay-deep); }
-  .hero p.lead { font-size: clamp(17px, 2.1vw, 20px); color: var(--ink-soft); max-width: 40ch; margin: 0 auto 30px; }
+  .hero p.lead { font-size: clamp(16px, 2vw, 19px); color: var(--ink-soft); max-width: 40ch; margin: 0 auto 16px; }
   .cta { display: inline-flex; align-items: center; gap: 10px; background: var(--clay); color: #fff; border: none; padding: 15px 34px; border-radius: 999px; font-size: 16.5px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow); transition: transform .14s ease, background .2s ease; font-family: inherit; }
   .cta:hover { background: var(--clay-deep); transform: translateY(-1px); }
   .cta.sage { background: var(--sage); }
@@ -202,7 +204,7 @@
   .moments .chip:hover { border-color: var(--sage); color: var(--ink); transform: translateY(-1px); }
 
   /* ---------- what you get (hero) ---------- */
-  .gets { margin: -14px auto 26px; font-size: 14.5px; color: var(--ink-soft); max-width: 46ch; line-height: 1.7; }
+  .gets { margin: -4px auto 16px; font-size: 14.5px; color: var(--ink-soft); max-width: 46ch; line-height: 1.6; }
   .gets b { color: var(--sage-deep); font-weight: 700; }
 
   /* ---------- a real example ---------- */

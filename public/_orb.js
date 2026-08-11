@@ -30,14 +30,15 @@
 function makePigments() {
   return [
     // warm terracotta-clay HEART — biased to center, larger, the anchor
-    { col:[199,123,89],  edge:[168,96,70],  a:0.62, ox: 0.00, oy: 0.08, rx: 0.66, ry: 0.10, sp: 0.22, ph: 0.0, warm:true },
-    { col:[220,150,110], edge:[190,120,84], a:0.48, ox: 0.10, oy: -0.06, rx: 0.50, ry: 0.14, sp: 0.30, ph: 1.6, warm:true },
-    // green
-    { col:[159,197,150], edge:[123,148,112], a:0.50, ox:-0.34, oy: 0.16, rx: 0.58, ry: 0.20, sp: 0.26, ph: 2.4 },
-    { col:[143,191,180], edge:[110,158,148], a:0.48, ox: 0.30, oy: 0.24, rx: 0.54, ry: 0.18, sp: 0.24, ph: 3.6 }, // teal
+    // FIX 2: warmer/more-present clay so she reads alive at rest, not only mid-speech.
+    { col:[206,116,78],  edge:[172,92,64],  a:0.74, ox: 0.00, oy: 0.08, rx: 0.66, ry: 0.10, sp: 0.22, ph: 0.0, warm:true },
+    { col:[224,148,102], edge:[196,118,78], a:0.56, ox: 0.10, oy: -0.06, rx: 0.50, ry: 0.14, sp: 0.30, ph: 1.6, warm:true },
+    // green — more saturated so the green reads clearly, not a whisper
+    { col:[150,202,132], edge:[112,150,100], a:0.58, ox:-0.34, oy: 0.16, rx: 0.58, ry: 0.20, sp: 0.26, ph: 2.4 },
+    { col:[128,192,176], edge:[96,156,146], a:0.54, ox: 0.30, oy: 0.24, rx: 0.54, ry: 0.18, sp: 0.24, ph: 3.6 }, // teal
     // blue
-    { col:[162,189,216], edge:[120,152,196], a:0.46, ox:-0.20, oy:-0.28, rx: 0.52, ry: 0.22, sp: 0.29, ph: 4.7 },
-    { col:[179,210,172], edge:[140,178,132], a:0.40, ox: 0.24, oy:-0.22, rx: 0.48, ry: 0.20, sp: 0.20, ph: 5.9 }  // light green
+    { col:[150,184,220], edge:[108,146,198], a:0.48, ox:-0.20, oy:-0.28, rx: 0.52, ry: 0.22, sp: 0.29, ph: 4.7 },
+    { col:[172,212,158], edge:[130,178,120], a:0.46, ox: 0.24, oy:-0.22, rx: 0.48, ry: 0.20, sp: 0.20, ph: 5.9 }  // light green
   ];
 }
 
@@ -72,7 +73,20 @@ export function mountOrb(stageEl, opts) {
   if (!stageEl.getAttribute("data-state")) stageEl.setAttribute("data-state", "idle");
 
   var ctx = canvas.getContext("2d");
-  var W = canvas.width, H = canvas.height, cx = W / 2, cy = H / 2, R = W / 2;
+
+  // ---- retina crispness (FIX 3): size the backing store to CSS px × devicePixelRatio.
+  //   The canvas is displayed at ~200 CSS px but was hard-coded to a 240 backing store, so on
+  //   DPR 2–3 phones it upscaled and softened. We measure the CSS box, multiply by a capped
+  //   DPR, and scale the drawing context so ALL geometry below stays in CSS px (unchanged).
+  var dpr = Math.min(window.devicePixelRatio || 1, 2.5);
+  // CSS size: prefer the laid-out box; fall back to the authored 240 if not yet laid out.
+  var cssW = Math.round(canvas.clientWidth || canvas.width || 240);
+  var cssH = Math.round(canvas.clientHeight || canvas.height || 240);
+  canvas.width = Math.round(cssW * dpr);
+  canvas.height = Math.round(cssH * dpr);
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0); // 1 unit == 1 CSS px
+  // geometry derived from CSS px so the nebula looks identical, just sharper.
+  var W = cssW, H = cssH, cx = W / 2, cy = H / 2, R = W / 2;
   var pig = makePigments();
   var state = "idle";
 
@@ -88,11 +102,14 @@ export function mountOrb(stageEl, opts) {
     var breathAmt = 1 + breath * sf.breath;
 
     // ---- base wash: a soft green->blue COLOR field (never white) ----
+    //   FIX 2 (warmth): the cool wash used to fill the whole disc at full opacity and
+    //   drown the clay heart. Center is now warmer + more saturated green and the cool
+    //   blue is pushed toward the rim, so the warm bloom below reads through at rest.
     ctx.globalCompositeOperation = "source-over";
     var base = ctx.createRadialGradient(cx, cy * 0.86, R * 0.05, cx, cy, R);
-    base.addColorStop(0.0, "rgba(150,190,168,1)");   // warm-leaning green center
-    base.addColorStop(0.55, "rgba(150,186,182,1)");  // green-teal
-    base.addColorStop(1.0, "rgba(150,172,196,1)");   // blue rim
+    base.addColorStop(0.0, "rgba(178,196,150,1)");   // warmer, more saturated green center
+    base.addColorStop(0.55, "rgba(150,188,178,1)");  // green-teal
+    base.addColorStop(1.0, "rgba(146,170,198,1)");   // blue rim
     ctx.fillStyle = base;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
@@ -124,18 +141,23 @@ export function mountOrb(stageEl, opts) {
     var hx = cx + Math.sin(time * 0.9 + 1.3) * R * 0.05;
     var hy = cy + R * 0.04 + Math.cos(time * 0.8) * R * 0.04;
     var heartR = R * (0.62 + breath * sf.breath * 0.5);
-    var heartA = Math.min(0.7, 0.40 * sf.warm + breath * 0.06);
+    // FIX 2: warmer at REST — the clay heart was too transparent once composited over the
+    //   cool wash, so she read pale. Push the idle alpha up and deepen the terracotta.
+    var heartA = Math.min(0.82, 0.56 * sf.warm + breath * 0.06);
     var wb = ctx.createRadialGradient(hx, hy, 0, hx, hy, heartR);
-    wb.addColorStop(0.0, rgba([203,120,84], heartA));
-    wb.addColorStop(0.45, rgba([196,116,82], heartA * 0.55));
-    wb.addColorStop(1.0, rgba([196,116,82], 0));
+    wb.addColorStop(0.0, rgba([208,116,78], heartA));
+    wb.addColorStop(0.45, rgba([200,110,76], heartA * 0.58));
+    wb.addColorStop(1.0, rgba([200,110,76], 0));
     ctx.fillStyle = wb;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
     // ---- colored rim vignette for a spherical read (NOT a white sheen) ----
-    var vg = ctx.createRadialGradient(cx, cy * 0.9, R * 0.55, cx, cy, R);
-    vg.addColorStop(0, "rgba(52,56,47,0)");
-    vg.addColorStop(1, "rgba(52,56,47,0.20)");
+    //   FIX 4b: deepened + reaching a touch further in so the sphere separates from the
+    //   near-identical page background instead of dissolving into it. Still subtle/on-brand.
+    var vg = ctx.createRadialGradient(cx, cy * 0.9, R * 0.5, cx, cy, R);
+    vg.addColorStop(0, "rgba(48,52,43,0)");
+    vg.addColorStop(0.82, "rgba(48,52,43,0.10)");
+    vg.addColorStop(1, "rgba(48,52,43,0.34)");
     ctx.fillStyle = vg;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
@@ -158,8 +180,7 @@ export function mountOrb(stageEl, opts) {
   var minInterval = 33;
   var last = 0;
   var rafId = 0;
-  var running = false;   // gated by BOTH tab visibility AND on-screen visibility
-  var onScreen = true;
+  var running = false;
   var tabVisible = !document.hidden;
 
   function frame(now) {
@@ -169,10 +190,17 @@ export function mountOrb(stageEl, opts) {
     rafId = requestAnimationFrame(frame);
   }
 
+  // start() ONLY starts the rAF loop. It does NOT gate on visibility — that was the P0:
+  //   on mount the orb was below the fold, IntersectionObserver reported onScreen=false,
+  //   and start() bailed before ever requesting a frame, so the canvas stayed transparent
+  //   forever (and scroll-in didn't reliably revive it). Visibility now only PAUSES an
+  //   already-running loop (see onVis / IO below); it can never block the initial start.
   function start() {
     if (running) return;
-    if (!onScreen || !tabVisible) return;
+    if (!tabVisible) return; // a truly hidden tab shouldn't burn rAF; it resumes on onVis
     running = true;
+    if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
+    // don't reset `last` to 0 — that's fine; first frame draws immediately.
     last = 0;
     rafId = requestAnimationFrame(frame);
   }
@@ -181,26 +209,30 @@ export function mountOrb(stageEl, opts) {
     if (rafId) { cancelAnimationFrame(rafId); rafId = 0; }
   }
 
-  // pause when the tab is hidden — save battery.
+  // pause when the tab is hidden — save battery. Resume when it comes back.
   function onVis() {
     tabVisible = !document.hidden;
     if (tabVisible) start(); else stop();
   }
   document.addEventListener("visibilitychange", onVis);
 
-  // pause when the orb is scrolled off-screen or covered (below the fold / behind an
-  // overlay). Never run a canvas nobody can see.
+  // pause when the orb is scrolled fully off-screen (below the fold / behind an overlay),
+  // resume when it scrolls back in. This ONLY pauses/resumes the animation loop — a paused
+  // orb keeps its last painted (non-transparent) frame on screen, so it's never blank.
   var io = null;
   if ("IntersectionObserver" in window) {
     io = new IntersectionObserver(function (entries) {
       var e = entries[0];
-      onScreen = !!(e && e.isIntersecting);
+      var onScreen = !!(e && e.isIntersecting);
       if (onScreen) start(); else stop();
     }, { threshold: 0.01 });
     io.observe(stageEl);
   }
 
-  // kick it off (IO will correct onScreen on its first callback if we're off-screen).
+  // FIX 1: paint at least one full frame IMMEDIATELY on mount, unconditionally, regardless
+  //   of fold position — so she is NEVER blank on load even before the loop schedules /
+  //   even if she's below the fold. Then start the animation loop.
+  draw(performance.now(), currentSF());
   start();
 
   return {
