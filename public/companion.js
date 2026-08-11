@@ -28,6 +28,253 @@ function voiceAllowed() {
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 
+/* ============================================================================
+ * TC-117 — Della circles back "how did that go?" (client selector + helpers)
+ * ============================================================================
+ * All of TC-117's restraint lives HERE, next to the plan data and the Supabase
+ * reads. The server (converse.mjs checkbackBlock) only ever receives an advisory
+ * ctx.checkback and shapes prose from it — it never decides WHEN, and never writes.
+ *
+ * SIGNAL IS A PURE BYPRODUCT (Council G3): the fire rate and eligibility below are
+ * tuned for how the check-back FEELS to the user ONLY. They must NEVER be changed to
+ * increase the volume of the plan_outcome signal. Any future change to CHECKBACK_RATE_A
+ * or the eligibility windows must be justified by user-experience quality, never by
+ * "we need more outcome data."
+ *
+ * DORMANT-SAFE: reads of the not-yet-migrated plan_checkins table and the not-yet-
+ * migrated saved_plans.valence column both degrade gracefully (treated as "no check-back
+ * this turn / no stored valence"), so the whole feature is a no-op until David applies
+ * migrations 008/009.
+ */
+
+// Tunable constants (David can adjust these without a code hunt).
+const MIN_ELAPSED_DAYS = 10;         // a plan must be old enough that an outcome can exist
+const MAX_ELAPSED_DAYS = 120;        // don't resurrect ancient history
+const GRIEF_FRESH_DAYS = 21;         // fresh grief → total silence, no check-back of any kind
+const PER_PERSON_COOLDOWN_DAYS = 30; // don't circle back on the same person too soon
+const CHECKBACK_RATE_A = 0.25;       // START at the low end; tune UP only on real reactions (NOT for signal)
+const MECH_B_RATE = 0.05;            // Mechanism B is rarer still, and only when A didn't fire
+
+// Client mirror of _analytics.mjs's valence keyword sets. KEEP IN SYNC with
+// netlify/functions/_analytics.mjs (HARD / CELEBRATION / GRATITUDE). A tiny client copy
+// avoids a server round-trip at save time; the shared comment is the sync contract.
+const CB_HARD = ["died", "death", "passed", "loss", "lost", "funeral", "grief", "grieving", "cancer", "diagnos", "sick", "illness", "hospice", "surgery", "hospital", "divorce", "breakup", "broke up", "split", "laid off", "layoff", "fired", "job loss", "unemploy", "miscarriage", "hard week", "hard time", "struggl", "depress", "anxiet", "burnout", "injur"];
+const CB_CELEBRATION = ["baby", "born", "birth", "pregn", "expecting", "wedding", "engag", "married", "marry", "promot", "new job", "new role", "graduat", "retire", "anniversar", "birthday", "housewarm", "congrat", "award", "milestone", "first day"];
+const CB_GRATITUDE = ["thank", "grateful", "apprecia", "just because", "thinking of you", "miss you"];
+
+// Client mirror of classifyValence(). Returns celebration | hard_time | gratitude | other |
+// unspecified. Conservative: any HARD keyword wins first, so the grief guard errs safe.
+function classifyValenceLite(text) {
+  const s = String(text || "").toLowerCase();
+  if (!s.trim()) return "unspecified";
+  if (CB_HARD.some((k) => s.includes(k))) return "hard_time";
+  if (CB_CELEBRATION.some((k) => s.includes(k))) return "celebration";
+  if (CB_GRATITUDE.some((k) => s.includes(k))) return "gratitude";
+  return "other";
+}
+
+// The stored valence for a plan when migration 009 is applied; otherwise re-derive it live
+// (lossy but never crashes). Conservative fallback keeps the grief guard safe pre-migration.
+function planValence(plan) {
+  const stored = plan && typeof plan.valence === "string" ? plan.valence.trim() : "";
+  if (stored) return stored;
+  return classifyValenceLite((plan && (plan.occasion || plan.plan_title)) || "");
+}
+
+// Days between an ISO/date string and now (floored). NaN-safe → returns Infinity so an
+// unparseable date is treated as "too old to check back on" (never eligible).
+function daysSince(iso) {
+  const t = Date.parse(iso);
+  if (!Number.isFinite(t)) return Infinity;
+  return Math.floor((Date.now() - t) / 86400000);
+}
+
+// A coarse, human "when" phrase for a plan's age — advisory prompt sugar only.
+function whenPhraseFor(days) {
+  if (days <= 14) return "a couple weeks ago";
+  if (days <= 45) return "last month";
+  if (days <= 75) return "a couple months ago";
+  return "a while back";
+}
+
+/* ---- per-SESSION global throttle (UX blocking finding) --------------------
+ * At most ONE check-back — Mechanism A or B, combined — across a whole session/day,
+ * no matter how many people the user opens. Prevents "quizzing down the roster."
+ * Keyed by calendar date in localStorage; the authoritative per-PERSON cooldown still
+ * lives server-side in plan_checkins. */
+const CB_SESSION_KEY = "tc_checkback_day";
+function todayKey() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function checkbackUsedThisSession() {
+  try { return localStorage.getItem(CB_SESSION_KEY) === todayKey(); } catch (e) { return false; }
+}
+function markCheckbackUsedThisSession() {
+  try { localStorage.setItem(CB_SESSION_KEY, todayKey()); } catch (e) { /* storage blocked → throttle just falls back to per-person cooldown */ }
+}
+
+/* ---- already-asked + per-person cooldown (cross-device, authoritative) -----
+ * One bulk read of the user's plan_checkins on home load. Returns:
+ *   { askedPlanIds:Set, lastAskedForPlan:Map(saved_plan_id -> ms) }
+ * DORMANT-SAFE: if the table doesn't exist yet (pre-migration) or any error occurs,
+ * returns empty structures so pickCheckback simply finds nothing eligible → null. */
+async function loadCheckins() {
+  const empty = { askedPlanIds: new Set(), lastAskedForPlan: new Map() };
+  if (!sb || !user) return empty;
+  try {
+    const { data, error } = await sb
+      .from("plan_checkins")
+      .select("saved_plan_id,asked_at")
+      .order("asked_at", { ascending: false });
+    if (error || !Array.isArray(data)) return empty; // table absent pre-migration → benign
+    const askedPlanIds = new Set();
+    const lastAskedForPlan = new Map();
+    for (const r of data) {
+      if (r.saved_plan_id) {
+        askedPlanIds.add(r.saved_plan_id);
+        const ms = Date.parse(r.asked_at);
+        if (Number.isFinite(ms) && (!lastAskedForPlan.has(r.saved_plan_id) || ms > lastAskedForPlan.get(r.saved_plan_id))) {
+          lastAskedForPlan.set(r.saved_plan_id, ms);
+        }
+      }
+    }
+    return { askedPlanIds, lastAskedForPlan };
+  } catch (e) { return empty; }
+}
+
+/* ---- the selector -----------------------------------------------------------
+ * pickCheckback(person, opts) → at most ONE of:
+ *   { mechanism:"A", plan_id, occasion, valence, grief_care_only, when_phrase } | { mechanism:"B" } | null
+ * opts: { checkins:{askedPlanIds,lastAskedForPlan}, rng?:()=>number } (rng injectable for tests). */
+function pickCheckback(person, opts = {}) {
+  try {
+    // Session throttle first — cheapest gate, and it caps A+B combined across the day.
+    if (checkbackUsedThisSession()) return null;
+    const rng = typeof opts.rng === "function" ? opts.rng : Math.random;
+    const checkins = opts.checkins || { askedPlanIds: new Set(), lastAskedForPlan: new Map() };
+    const askedPlanIds = checkins.askedPlanIds instanceof Set ? checkins.askedPlanIds : new Set();
+    const lastAskedForPlan = checkins.lastAskedForPlan instanceof Map ? checkins.lastAskedForPlan : new Map();
+
+    const plans = Array.isArray(person && person.saved_plans) ? person.saved_plans : [];
+
+    // Per-person cooldown: if ANY plan for this person was asked within the window, skip A.
+    const cutoffMs = Date.now() - PER_PERSON_COOLDOWN_DAYS * 86400000;
+    let inCooldown = false;
+    for (const p of plans) {
+      const ms = p && p.id ? lastAskedForPlan.get(p.id) : undefined;
+      if (Number.isFinite(ms) && ms >= cutoffMs) { inCooldown = true; break; }
+    }
+
+    // Build the eligible set for Mechanism A.
+    const eligible = [];
+    if (!inCooldown) {
+      for (const p of plans) {
+        if (!p || !p.id) continue;
+        if (askedPlanIds.has(p.id)) continue;                 // already asked, never re-ask
+        const age = daysSince(p.created_at);
+        if (age < MIN_ELAPSED_DAYS || age > MAX_ELAPSED_DAYS) continue;
+        const valence = planValence(p);
+        const isHard = valence === "hard_time";
+        // Grief gate (uses stored valence via planValence). Fresh grief → total silence.
+        if (isHard && age < GRIEF_FRESH_DAYS) continue;
+        eligible.push({
+          plan_id: p.id,
+          occasion: String(p.occasion || p.plan_title || "").trim(),
+          valence,
+          grief_care_only: isHard, // aged hard-time → care-only shape, zero outcome signal
+          when_phrase: whenPhraseFor(age),
+          _age: age,
+        });
+      }
+    }
+
+    // Mechanism A: pick the MOST-RECENT eligible plan, then gate on the conservative fire rate.
+    if (eligible.length) {
+      eligible.sort((a, b) => a._age - b._age); // youngest (smallest age) first = most recent
+      if (rng() < CHECKBACK_RATE_A) {
+        const pick = eligible[0];
+        return {
+          mechanism: "A",
+          plan_id: pick.plan_id,
+          occasion: pick.occasion,
+          valence: pick.valence,
+          grief_care_only: pick.grief_care_only,
+          when_phrase: pick.when_phrase,
+        };
+      }
+    }
+
+    // Mechanism B: only considered when A did NOT fire, rarer still, prompt-only (no signal).
+    // Offered for any saved person (its honesty doesn't depend on a specific past plan); the
+    // prompt itself judges whether the moment is caring/human enough to actually use it.
+    if (rng() < MECH_B_RATE) return { mechanism: "B" };
+
+    return null;
+  } catch (e) { return null; } // fail-open: any error → no check-back (byte-identical to today)
+}
+
+/* ---- coarse outcome word-read (Mechanism A non-grief only) ------------------
+ * Phase-1 client-side read of how the user described how it went. NEVER surfaced to the
+ * user — a SILENT aggregate only. Phase 2 may replace this with a model-emitted field.
+ * Returns "went_well" | "fell_flat" | "unclear". */
+const CB_POSITIVE = ["loved", "love", "cried", "happy", "thrilled", "great", "perfect", "wonderful", "amazing", "meant a lot", "so glad", "touched", "smiled", "laughed", "went well", "hit", "beautiful", "grateful", "appreciated", "best", "made their", "made her", "made his", "lit up"];
+const CB_NEGATIVE = ["didn't", "did not", "never", "awkward", "fell through", "fell flat", "flat", "flopped", "canceled", "cancelled", "too late", "missed", "forgot", "no response", "ignored", "worse", "wrong", "regret", "backfired", "upset", "hurt"];
+function readOutcome(text) {
+  const s = String(text || "").toLowerCase();
+  if (!s.trim()) return "unclear";
+  const neg = CB_NEGATIVE.some((k) => s.includes(k));
+  const pos = CB_POSITIVE.some((k) => s.includes(k));
+  if (pos && !neg) return "went_well";
+  if (neg && !pos) return "fell_flat";
+  return "unclear"; // mixed, or nothing recognizable
+}
+
+/* ---- post-conversation emit (Task 8) ---------------------------------------
+ * Called AFTER a check-back conversation, fire-and-forget. `cb` is the ctx.checkback that
+ * actually fired; `userText` is the user's own turns (for the coarse outcome read); `bucket`
+ * is the plan's stored non-identifying bucket (occasion/valence/relationship/budget_band).
+ *
+ * Mechanism A, non-grief → post ONE plan_outcome (SILENT — no UI artifact, §6b) AND a
+ *   plan_checkin { mechanism:"A", outcome }.
+ * Grief-care-only A, or Mechanism B → post ONLY plan_checkin { outcome:null }, NEVER a
+ *   plan_outcome (§3). This function is the guard that makes grief emit zero signal.
+ * Everything is best-effort and swallows errors, so it can never affect the plan/conversation. */
+async function emitCheckbackOutcome({ cb, userText, bucket } = {}) {
+  try {
+    if (!cb || typeof cb !== "object") return;
+    const mechanism = cb.mechanism === "A" || cb.mechanism === "B" ? cb.mechanism : null;
+    if (!mechanism) return;
+    // Mark the session throttle the moment a check-back actually fired (belt + suspenders with
+    // the server per-person cooldown), so a second person opened today can't be quizzed too.
+    markCheckbackUsedThisSession();
+
+    const isGriefA = mechanism === "A" && !!cb.grief_care_only;
+    const signalEligible = mechanism === "A" && !isGriefA; // ONLY non-grief A emits a signal
+    const outcome = signalEligible ? readOutcome(userText) : null;
+
+    // (1) SILENT outcome signal — non-grief Mechanism A only. Coarse, bucketed, non-identifying.
+    if (signalEligible) {
+      try {
+        const sid = (window && window.__tcSid) || undefined;
+        const test = !!(window && window.__tcTest);
+        const payload = JSON.stringify({ event: "plan_outcome", outcome, bucket: bucket || {}, sid, test });
+        if (navigator.sendBeacon) navigator.sendBeacon("/api/feedback", new Blob([payload], { type: "application/json" }));
+        else fetch("/api/feedback", { method: "POST", keepalive: true, headers: { "content-type": "application/json" }, body: payload });
+      } catch (e) { /* signal is best-effort */ }
+    }
+
+    // (2) Bookkeeping — always (so the outcome/cooldown is authoritative cross-device). For grief
+    // and Mechanism B, outcome is null (the server also forces this). saved_plan_id only for A.
+    try {
+      if (sb && user && accessToken) {
+        await fetch("/api/plan-checkin", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer " + accessToken },
+          body: JSON.stringify({ saved_plan_id: mechanism === "A" ? (cb.plan_id || null) : null, mechanism, outcome }),
+        });
+      }
+    } catch (e) { /* bookkeeping is best-effort; dormant-safe server no-ops pre-migration */ }
+  } catch (e) { /* fail-open */ }
+}
+
 /* ---------------- pending voice request (TC-62) ---------------------------------
  * When an anon user speaks and chooses to REMEMBER a person, we can't run the
  * (RLS-locked) capture engine until they have an account. So we hold the raw
@@ -262,6 +509,17 @@ async function boot() {
     // to the known saved person the conversation is about — so it's always Level-A auto-save
     // with insertFact's dedup/supersession, no new write surface. Signed-out → no-op (guard).
     rememberFromConversation,
+    // TC-117: the "circle back" selector + its post-conversation emit, surfaced for index.html.
+    //  loadCheckins()               — one bulk read of plan_checkins (dormant-safe → empty pre-migration)
+    //  pickCheckback(person, opts)  — at most ONE {A|B}|null, all restraint enforced here
+    //  markCheckbackUsed()          — set the per-session throttle once a check-back actually fired
+    //  emitCheckbackOutcome(...)    — SILENT signal + bookkeeping after a check-back conversation
+    //  planValence(plan)            — stored (post-009) or derived valence for the compounding digest
+    loadCheckins,
+    pickCheckback,
+    markCheckbackUsed: markCheckbackUsedThisSession,
+    emitCheckbackOutcome,
+    planValence,
   };
   // Voice UI (e.g. the dictation mic) may have rendered before the gate resolved —
   // let the page re-check now that we know the audience + sign-in state.
@@ -534,10 +792,23 @@ async function addKeyDate(personId, d) {
   if (error) throw error;
 }
 async function savePlan(personId, plan, occasion) {
-  const { error } = await sb.from("saved_plans").insert({
-    user_id: user.id, person_id: personId, plan_title: plan.plan_title || "", occasion: occasion || "", plan,
-  });
-  if (error) throw error;
+  // TC-117: classify + store the plan's valence ONCE at save time, so the grief guard reads a
+  // stored SAFETY control instead of a lossy re-derivation later. DORMANT-SAFE: the valence
+  // column is a proposed migration (009) not yet applied. Writing it before then would fail
+  // with "column does not exist" (PG 42703) and lose the whole plan — so we try WITH valence
+  // and, on that specific pre-migration error, retry the exact legacy insert WITHOUT it. Once
+  // 009 is applied the first insert succeeds and valence is stored going forward.
+  const base = { user_id: user.id, person_id: personId, plan_title: plan.plan_title || "", occasion: occasion || "", plan };
+  const valence = classifyValenceLite(occasion || plan.plan_title || "");
+  const { error } = await sb.from("saved_plans").insert({ ...base, valence });
+  if (error) {
+    if (error.code === "42703" || /valence/i.test(error.message || "")) {
+      const retry = await sb.from("saved_plans").insert(base); // pre-migration: legacy write, unchanged
+      if (retry.error) throw retry.error;
+      return;
+    }
+    throw error;
+  }
 }
 // Turn a plan's "keep showing up" follow-ups into real one-off reminders on the
 // person, so the most useful nudges (check in in two weeks, a month, a year) are
