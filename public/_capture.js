@@ -384,16 +384,21 @@ function ensureImportStyles() {
   const s = document.createElement("style");
   s.id = "tcImportCss";
   s.textContent = `
-  .tc-imp-card{border:1px solid #e5e0d4;border-radius:12px;padding:14px;margin:12px 0;background:#fffdf8;}
-  .tc-imp-eyebrow{color:#7a7466;font-size:.82rem;margin-bottom:8px;}
+  .tc-imp-card{border:1px solid var(--line);border-radius:18px;padding:14px;margin:12px 0;background:var(--cloud);}
+  .tc-imp-eyebrow{color:var(--ink-soft);font-size:.82rem;margin-bottom:8px;}
   .tc-imp-field{margin-bottom:10px;}
-  .tc-imp-field label{display:block;color:#5f6c4c;font-size:.8rem;margin-bottom:3px;}
+  .tc-imp-field label{display:block;color:var(--sage-deep);font-size:.8rem;margin-bottom:3px;}
   .tc-imp-field input{width:100%;box-sizing:border-box;}
-  .tc-imp-who{color:#7a7466;font-size:.88rem;margin:2px 0 10px;}
-  .tc-imp-facts{color:#4a4636;font-size:.9rem;margin:2px 0 10px;padding-left:16px;}
+  .tc-imp-who{color:var(--ink-soft);font-size:.88rem;margin:2px 0 10px;}
+  .tc-imp-facts{color:var(--ink);font-size:.9rem;margin:2px 0 10px;padding-left:16px;}
   .tc-imp-facts li{margin:2px 0;}
-  .tc-imp-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:4px;}
+  .tc-imp-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:flex-end;margin-top:4px;}
   .tc-imp-cands{display:flex;flex-wrap:wrap;gap:8px;margin:6px 0 10px;}
+  /* Lighter candidate-picker idiom (sage-outline chips), so choosing an existing person reads
+     lighter than the distinct ghost "Add someone new →" action — no clay primary competing. */
+  .tc-imp-pick{appearance:none;background:transparent;border:1.5px solid var(--sage);color:var(--sage-deep);font:inherit;font-weight:600;font-size:.9rem;padding:8px 14px;border-radius:999px;cursor:pointer;transition:background .12s,border-color .12s,color .12s;}
+  .tc-imp-pick:hover,.tc-imp-pick:focus-visible{background:var(--mist);border-color:var(--sage-deep);outline:none;}
+  .tc-imp-pick:active,.tc-imp-pick.is-selected{background:var(--sage-deep);border-color:var(--sage-deep);color:#fff;}
   `;
   document.head.appendChild(s);
 }
@@ -463,8 +468,8 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
       ${cands}
       ${otherFacts.length ? `<ul class="tc-imp-facts">${otherFacts.map((f) => `<li>${factLine(f)}</li>`).join("")}</ul>` : ""}
       <div class="tc-imp-acts">
-        <button class="${confirmClass}">${confirmLabel}</button>
         <button class="link-btn tc-imp-discard">Not now</button>
+        <button class="${confirmClass}">${confirmLabel}</button>
       </div>
       <div class="k-msg tc-imp-msg"></div>`;
     wire();

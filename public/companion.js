@@ -706,7 +706,7 @@ function renderHome(people, opts = {}) {
       <div id="tcPeopleList"></div>
       <button class="cta ghost tc-addtoggle" id="tcAddToggle" style="width:100%;justify-content:center;margin-top:6px;">${plusSvg(16, "currentColor")}<span>Add someone</span></button>
       <div class="block tc-addwrap" id="tcAddForm" style="display:none;">
-        <h4>Add someone</h4>
+        <h4><span class="ic">${plusSvg(17, "var(--sage-deep)")}</span>Add someone</h4>
 
         <!-- TC-98/TC-100/TC-101 — faster ways to add someone, all funnel through the same
              extract → resolve → confirm pipeline as typing. UX fix: these fast doors LEAD the
@@ -718,7 +718,7 @@ function renderHome(people, opts = {}) {
           <p class="tc-help-sm" style="margin:6px 0 0;">A text, a DM, a profile, or a saved contact — we'll read who it's about and let you confirm.</p>
 
           <!-- 1a: paste a bio / anything about them -->
-          <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note — and we'll pull out who it's about" style="margin-top:12px;min-height:60px;"></textarea>
+          <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note — and we'll pull out who it's about" style="margin-top:12px;min-height:72px;"></textarea>
           <div class="nav" style="justify-content:flex-end;"><button class="cta ghost" id="np_paste_go" type="button">Read it →</button></div>
 
           <!-- confirm cards (tap-to-edit) render here -->
@@ -727,11 +727,11 @@ function renderHome(people, opts = {}) {
         </div>
 
         <!-- Manual "type it in yourself" fallback, presented below the fast doors. -->
-        <div style="border-top:1px solid #e5e0d4;margin:16px 0 12px;"></div>
+        <div style="border-top:1px solid var(--line);margin:16px 0 12px;"></div>
         <p class="tc-help-sm" style="margin:0 0 10px;">Or type it in yourself:</p>
         <input type="text" id="np_name" placeholder="Their name" />
         <input type="text" id="np_rel" placeholder="Who they are to you (e.g. someone I manage)" style="margin-top:10px;" />
-        <textarea id="np_notes" placeholder="Anything worth remembering about them (optional)" style="margin-top:10px;min-height:64px;"></textarea>
+        <textarea id="np_notes" placeholder="Anything worth remembering about them (optional)" style="margin-top:10px;min-height:72px;"></textarea>
         <div class="nav"><button class="link-btn" id="np_cancel">Cancel</button><button class="cta" id="np_save">Add them →</button></div>
         <div class="k-msg" id="np_msg"></div>
       </div>
