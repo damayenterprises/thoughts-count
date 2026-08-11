@@ -6,7 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
-import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName } from "/_capture.js";
+import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName, captureFromFile, renderImportConfirm } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
@@ -712,6 +712,24 @@ function renderHome(people, opts = {}) {
         <textarea id="np_notes" placeholder="Anything worth remembering about them (optional)" style="margin-top:10px;min-height:64px;"></textarea>
         <div class="nav"><button class="link-btn" id="np_cancel">Cancel</button><button class="cta" id="np_save">Add them →</button></div>
         <div class="k-msg" id="np_msg"></div>
+
+        <!-- TC-98/TC-100/TC-101 — faster ways to add someone, all funnel through the same
+             extract → resolve → confirm pipeline as typing. -->
+        <div style="border-top:1px solid #e5e0d4;margin:16px 0 12px;"></div>
+        <div class="tc-add-more">
+          <!-- 1c/1d: a screenshot/photo of a DM/profile/contact card, or a shared .vcf -->
+          <button class="cta ghost" id="np_photo_btn" type="button" style="width:100%;justify-content:center;">Add from a screenshot or photo</button>
+          <input type="file" id="np_photo_file" accept="image/*,.vcf,text/vcard" capture style="display:none;" />
+          <p class="tc-help-sm" style="margin:6px 0 0;">A text, a DM, a profile, or a saved contact — we'll read who it's about and let you confirm.</p>
+
+          <!-- 1a: paste a bio / anything about them -->
+          <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note — and we'll pull out who it's about" style="margin-top:12px;min-height:60px;"></textarea>
+          <div class="nav" style="justify-content:flex-end;"><button class="cta ghost" id="np_paste_go" type="button">Read it →</button></div>
+
+          <!-- confirm cards (tap-to-edit) render here -->
+          <div id="np_import_out"></div>
+          <div class="k-msg" id="np_import_msg"></div>
+        </div>
       </div>
     </div>`;
 
@@ -822,6 +840,66 @@ function renderHome(people, opts = {}) {
       renderHome(await loadPeople());
     } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }
   };
+
+  // ── TC-98/TC-100/TC-101: import doors (screenshot/photo, .vcf, paste). Each returns previews that
+  //    render as tap-to-edit confirm cards; confirming routes through the SAME captureResolve. On a
+  //    NEW person we persist the edited relationship (server createPerson sets name only), then refresh
+  //    the home so the new/updated card appears — no reload. ──
+  const importOut = modalBody().querySelector("#np_import_out");
+  const importMsg = modalBody().querySelector("#np_import_msg");
+  const setImportMsg = (t, bad) => { if (!importMsg) return; importMsg.className = "k-msg" + (bad ? " bad" : ""); importMsg.textContent = t || ""; };
+
+  const onConfirmed = async (res, { relationship, isNew } = {}) => {
+    if (res && res.ok && isNew && relationship && res.personId) {
+      try { await sb.from("people").update({ relationship }).eq("id", res.personId).eq("user_id", user.id); }
+      catch (e) { console.error("set relationship on new person", e); }
+    }
+    renderHome(await loadPeople(), { highlightId: res?.personId });
+  };
+
+  const renderPreviews = (result) => {
+    const previews = (result && result.previews) || [];
+    if (!previews.length) { setImportMsg(result?.message || "We couldn't find a person in that — try a clearer screenshot.", false); return; }
+    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person — confirm each below.", false);
+    else setImportMsg("");
+    for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
+  };
+
+  const photoBtn = modalBody().querySelector("#np_photo_btn");
+  const photoFile = modalBody().querySelector("#np_photo_file");
+  if (photoBtn && photoFile) {
+    photoBtn.onclick = () => photoFile.click();
+    photoFile.onchange = async () => {
+      const file = photoFile.files && photoFile.files[0];
+      if (!file) return;
+      setImportMsg("Reading…");
+      photoBtn.disabled = true;
+      try { renderPreviews(await captureFromFile(sb, file)); }
+      catch (e) { setImportMsg(e.message || "We couldn't read that file.", true); }
+      photoBtn.disabled = false; photoFile.value = "";
+    };
+  }
+
+  const pasteEl = modalBody().querySelector("#np_paste");
+  const pasteGo = modalBody().querySelector("#np_paste_go");
+  if (pasteEl) mountInlineMic(pasteEl, { mode: "dictation", ariaLabel: "Say something about them" });
+  if (pasteGo && pasteEl) {
+    pasteGo.onclick = async () => {
+      const text = (pasteEl.value || "").trim();
+      if (!text) { pasteEl.focus(); return; }
+      setImportMsg("Reading…"); pasteGo.disabled = true;
+      try {
+        // The LIVE capture-extract in preview mode → the SAME confirm card. Its captures already
+        // carry {kind, captureId, personDetail, candidates, facts}; map person_hint→personHint so
+        // renderImportConfirm pre-fills the editable name.
+        const result = await captureExtract(sb, { rawText: text, source: "typed", preview: true });
+        const previews = (result.captures || []).map((c) => ({ ...c, personHint: c.personHint || c.personName || "", relationshipHint: "", source_kind: "text_thread" }));
+        if (!previews.length) { setImportMsg(result.message || "Nothing to add there yet.", false); }
+        else { setImportMsg(""); pasteEl.value = ""; for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") }); }
+      } catch (e) { setImportMsg(e.message || "We couldn't read that.", true); }
+      pasteGo.disabled = false;
+    };
+  }
 }
 
 function openAddDate(personId) {
