@@ -2291,7 +2291,7 @@ function cvSpeakDrained(sp){
   setTimeout(() => {
     if (!sp || sp.gen !== __cvStreamGen || !__cvVoiceActive) return;
     cvVoiceListen();
-  }, 300);
+  }, MIC_REARM_PAUSE_MS);
 }
 
 // TC-93: converse request headers — always JSON, plus the signed-in user's Authorization token
@@ -2511,7 +2511,7 @@ function cvSpeakThenListen(text, isOpener){
   const toSpeak = speakSafeText(text, 400);
   const afterSpeak = () => {
     if (!__cvVoiceActive) return; // interrupted during playback → do not open the mic
-    setTimeout(() => { if (__cvVoiceActive) cvVoiceListen(); }, 300);
+    setTimeout(() => { if (__cvVoiceActive) cvVoiceListen(); }, MIC_REARM_PAUSE_MS);
   };
   // TC-88 PROBLEM 2 — the FIRST utterance (her opener) sounded slow/slurred/"drunk", then fine
   // after. Root cause: on a cold, just-unlocked <audio>, chunk-splitting the opener made a tiny
@@ -3148,6 +3148,16 @@ const END_OF_TURN_SILENCE_MS = 2000;       // continuous silence AFTER speech th
 const CREC_MIN_SPEECH_MS = 400;            // grace: ignore silence until they've spoken this long,
                                            // so a beat right after they start doesn't end the turn
 const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can never hang
+// The anti-feedback pause AFTER her audio's 'ended' fires, before the mic re-arms for the user's
+// reply. 'ended' already guarantees her clip finished playing; this is a small extra margin so a
+// physical audio TAIL on speaker-out can't leak into the recording and false-capture her own voice.
+// TUNING KNOB (device-only-verifiable): too high and it clips the START of a snappy reply — the user
+// starts answering (esp. at the "anything else?" wrap-up, where an immediate "no, that's it" / "oh,
+// one more thing" is natural) before the mic is live, and loses the first word (David's symptom,
+// 2026-08). Too low and her tail can leak in on speaker-out (feedback). To fix the clipped start,
+// lower this on David's phone (try 150) with BOTH headphone and speaker tests staying clean. Single
+// source of truth: both re-arm sites (cvSpeakDrained + cvSpeakThenListen) read this.
+const MIC_REARM_PAUSE_MS = 300;
 // TC-88 speculative transcribe: once a qualifying silence has lasted this SHORT soft-pause (well
 // before the 2s end-of-turn) we fire a background /api/transcribe of the audio-so-far, so the
 // transcript is usually ready the instant the 2s confirms — no dead time after the pause.
