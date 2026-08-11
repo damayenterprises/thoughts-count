@@ -125,6 +125,11 @@ t("sessionUsed=true -> null (per-session throttle, even with an eligible plan)",
   const r = pickCheckback(person([{ id: "a", occasion: "birthday", created_at: daysAgo(30) }]), { ...base, sessionUsed: true });
   assert.equal(r, null);
 });
+t("tableMissing=true -> null (DORMANT pre-migration, feature fully inert)", () => {
+  const checkins = { tableMissing: true, askedPlanIds: new Set(), lastAskedForPlan: new Map() };
+  const r = pickCheckback(person([{ id: "a", occasion: "birthday", created_at: daysAgo(30) }]), { ...base, checkins });
+  assert.equal(r, null);
+});
 
 console.log("\n# TC-117 pickCheckback — Mechanism B + anonymous / no-plan safety");
 t("no eligible A + B rng fires -> Mechanism B", () => {

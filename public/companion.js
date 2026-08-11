@@ -61,9 +61,11 @@ function markCheckbackUsedThisSession() {
 
 /* ---- already-asked + per-person cooldown (cross-device, authoritative) -----
  * One bulk read of the user's plan_checkins on home load. Returns:
- *   { askedPlanIds:Set, lastAskedForPlan:Map(saved_plan_id -> ms) }
- * DORMANT-SAFE: if the table doesn't exist yet (pre-migration) or any error occurs,
- * returns empty structures so pickCheckback simply finds nothing eligible → null. */
+ *   { askedPlanIds:Set, lastAskedForPlan:Map(saved_plan_id -> ms), outcomeForPlan:Map, tableMissing:bool }
+ * DORMANT-SAFE: if the table doesn't exist yet (pre-migration), returns tableMissing:true so
+ * pickCheckback treats the WHOLE feature as inert (returns null) until David applies 008 — the
+ * authoritative "already-asked"/cooldown store isn't there, so we must not circle back at all.
+ * Any other error → empty (fail-open, also null-producing). */
 async function loadCheckins() {
   const empty = { askedPlanIds: new Set(), lastAskedForPlan: new Map(), outcomeForPlan: new Map() };
   if (!sb || !user) return empty;
@@ -72,7 +74,16 @@ async function loadCheckins() {
       .from("plan_checkins")
       .select("saved_plan_id,asked_at,outcome")
       .order("asked_at", { ascending: false });
-    if (error || !Array.isArray(data)) return empty; // table absent pre-migration → benign
+    if (error) {
+      // "relation does not exist" (PG 42P01 / PostgREST PGRST205) = pre-migration → inert.
+      const code = String(error.code || "");
+      const msg = String(error.message || "").toLowerCase();
+      if (code === "42P01" || code === "PGRST205" || /does not exist|could not find the table/.test(msg)) {
+        return { ...empty, tableMissing: true };
+      }
+      return empty; // any other read error → fail-open (also yields null from pickCheckback)
+    }
+    if (!Array.isArray(data)) return empty;
     const askedPlanIds = new Set();
     const lastAskedForPlan = new Map();
     const outcomeForPlan = new Map(); // saved_plan_id -> latest non-null outcome (compounding feed)

@@ -88,9 +88,13 @@ export function pickCheckback(person, opts = {}) {
   try {
     // Session throttle first — the cheapest gate; caps A+B combined across the whole day.
     if (opts.sessionUsed) return null;
+    const checkins = opts.checkins || {};
+    // DORMANT-SAFE: if the authoritative plan_checkins store isn't there yet (pre-migration 008),
+    // the whole feature is inert — we cannot record "already asked" or the cooldown, so we must
+    // not circle back at all. loadCheckins flags this as tableMissing.
+    if (checkins.tableMissing) return null;
     const rng = typeof opts.rng === "function" ? opts.rng : Math.random;
     const now = Number.isFinite(opts.now) ? opts.now : Date.now();
-    const checkins = opts.checkins || {};
     const askedPlanIds = checkins.askedPlanIds instanceof Set ? checkins.askedPlanIds : new Set();
     const lastAskedForPlan = checkins.lastAskedForPlan instanceof Map ? checkins.lastAskedForPlan : new Map();
 
