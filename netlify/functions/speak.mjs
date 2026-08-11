@@ -20,7 +20,13 @@ import { requireUser } from "./_supabase.mjs";
 
 const MODEL = "gpt-4o-mini-tts";
 const VOICE = "nova";
-const INSTRUCTIONS = "Speak in a warm, gentle, caring and unhurried tone — soft and reassuring, like a kind friend who genuinely cares. Natural and human, never robotic or flat. When you ask a question or offer a choice, make it sound like a warm, caring invitation — gently engaged, personal and encouraging, with soft rising warmth, never a flat or transactional menu prompt.";
+// ONE unconditional delivery spec, applied identically to EVERY clip. Sentences are spoken as
+// separate clips streamed one at a time; a conditional clause (e.g. "when you ask a question…")
+// would steer question/menu clips to a different prosody than statement clips, so clip N and
+// clip N+1 in the SAME reply would drift in pace/energy. This single steady spec keeps her
+// sounding like the same present, engaged person from her first sentence to her last. Keep it
+// constant — never derive tone from the text; never accept a per-clip style/speed from the client.
+const INSTRUCTIONS = "Speak in a warm, present, gently engaged tone — soft, caring and reassuring, like a kind friend who genuinely cares and is glad to be here. Natural and human, never robotic or flat. Keep a steady, even energy and an unhurried, natural conversational pace throughout: the same warmth and the same measured, relaxed rhythm on every line, whether it is a statement, a question, or an invitation. Do not rush, do not speed up or slow down, and never sound transactional or like a menu prompt — always warm, personal and softly engaged.";
 const MAX_CHARS = 400; // a readback is ~100 chars; hard cap so cost/latency stay bounded
 
 // Light abuse guard: an open endpoint calling a paid service can't be milked. Generous for
