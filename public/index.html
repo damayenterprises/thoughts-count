@@ -812,7 +812,10 @@
   .tc-cv-orbstage[data-state="speaking"]  .orbIW { animation:orbSpeakPulse 1.9s ease-in-out infinite; }
   .tc-cv-orbstage .halo { animation:orbHaloBreath 5.4s ease-in-out infinite; }
   @media (prefers-reduced-motion: reduce) { .tc-cv-orbstage .orbIW, .tc-cv-orbstage .halo { animation:none !important; } }
-  .tc-cv-plabel { font-size:15px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
+  /* Slice 2 refinement: her NAME, carried across the seam from the home "talk with Della".
+     Quiet + serif (the brand voice), subordinate to the orb, sitting just above the state label. */
+  .tc-cv-name { font-family:'Fraunces', serif; font-size:16px; font-weight:500; color:var(--ink,#34382f); line-height:1.2; margin-top:2px; }
+  .tc-cv-plabel { font-size:14px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
 
   /* Soft full-width state tint on the bar background — the accessible hue cue kept from TC-88. */
   .tc-cv-statebar[data-state="speaking"]  { background:linear-gradient(180deg, rgba(246,232,222,.55), rgba(246,232,222,0)); }
@@ -844,6 +847,10 @@
       <div class="tc-cv-orbstage" id="cvOrbStage" data-state="idle" data-life="energetic" aria-hidden="true">
         <div class="orb orbIW"><div class="halo"></div><canvas width="120" height="120"></canvas></div>
       </div>
+      <!-- Slice 2 refinement (UX+Design nice-to-have): carry HER NAME across the seam. The home says
+           "Tap to talk with Della"; naming her quietly here too keeps it the PERSON continuing into the
+           conversation, not a state machine. Quiet by design — subordinate to the orb, above the state. -->
+      <span class="tc-cv-name">Della</span>
       <span class="tc-cv-plabel" id="cvStateLabel"></span>
       <span id="cvVoiceCue" aria-live="polite" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;"></span>
     </div>
