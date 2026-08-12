@@ -104,6 +104,38 @@ export function computeSummary(events) {
     ),
     down_reasons: tally(reasonEvents.map((e) => e.reason)),
   };
+
+  // TC-117: the OUTCOME roll-up — the honest upgrade of TC-58. Not "did the user thumbs-up
+  // the plan," but "did the gesture actually LAND in the world," read coarsely from how the
+  // user described how it went. Mechanism A only, and NEVER from a grief-care-only check-back
+  // (those emit no plan_outcome at all). Bucketed + non-identifying, same store as TC-58 —
+  // no names, no story text. A pure aggregate; it never surfaces to any user.
+  const outcomeEvents = events.filter((e) => e.event === "plan_outcome");
+  const outCount = (list, v) => list.filter((e) => e.outcome === v).length;
+  const rollByKey = (keyFn) => {
+    const by = {};
+    for (const e of outcomeEvents) {
+      const k = keyFn(e) || "unspecified";
+      const b = by[k] || (by[k] = { went_well: 0, fell_flat: 0, unclear: 0 });
+      if (e.outcome === "went_well") b.went_well += 1;
+      else if (e.outcome === "fell_flat") b.fell_flat += 1;
+      else if (e.outcome === "unclear") b.unclear += 1;
+    }
+    return Object.fromEntries(
+      Object.entries(by)
+        .map(([k, v]) => [k, { ...v, landed_rate_pct: rate(v.went_well, v.went_well + v.fell_flat) }])
+        .sort((a, b) => (b[1].went_well + b[1].fell_flat + b[1].unclear) - (a[1].went_well + a[1].fell_flat + a[1].unclear))
+    );
+  };
+  const outcomes = {
+    responses: outcomeEvents.length,
+    went_well: outCount(outcomeEvents, "went_well"),
+    fell_flat: outCount(outcomeEvents, "fell_flat"),
+    unclear: outCount(outcomeEvents, "unclear"),
+    landed_rate_pct: rate(outCount(outcomeEvents, "went_well"), outCount(outcomeEvents, "went_well") + outCount(outcomeEvents, "fell_flat")),
+    by_occasion: rollByKey((e) => e.occasion),
+    by_valence: rollByKey((e) => e.valence),
+  };
   const funnel = {
     visitors: uniqueVisitors,               // distinct sessions (real people)
     page_views: byEvent.page_view || 0,     // total loads (a reload counts again)
@@ -139,6 +171,7 @@ export function computeSummary(events) {
       gift_fit_rate_pct: rate(plans.filter((e) => e.gift_fit).length, plans.length),
     },
     helpfulness,
+    outcomes,
     by_day: tally(events.map((e) => e.ymd)),
   };
 }
@@ -327,6 +360,12 @@ export const VALID_BUDGET = new Set(["unspecified", "no_limit", "under_25", "25_
 
 // The only reasons a downvote may carry. Fixed enum — never free text (TC-34 guardrail).
 export const FEEDBACK_REASONS = new Set(["too_generic", "wrong_tone", "ideas_didnt_fit", "other"]);
+
+// TC-117: the only outcome labels a plan_outcome event may carry — a coarse, non-identifying
+// read of how a past gesture landed in the world. Fixed enum, never free text. NOTE (Council
+// G3): the check-back fire-rate and eligibility (companion.js pickCheckback) are tuned for how
+// the check-back FEELS to the user ONLY — never to increase the volume of this signal.
+export const OUTCOME_VALUES = new Set(["went_well", "fell_flat", "unclear"]);
 
 // Keep only recognized bucket labels; drop anything else so a tampered/stale client
 // can't pollute the store with arbitrary values.

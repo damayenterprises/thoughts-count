@@ -129,7 +129,8 @@ function memoryBlock(ctx) {
     );
   }
   lines.push(
-    "Use this naturally: open by showing you remember (do not re-ask what you already know here), and let it make your guidance specific. Never recite the list back like a database; weave it in like a friend who remembers. If something material is missing, still ask.",
+    "Use this naturally: let what you remember make your guidance specific and personal (do not re-ask what you already know here). Never recite the list back like a database; weave it in like a friend who remembers.",
+    "Most of the time they open by naming what they want — \"I want to talk about Ellen\" or \"something's going on with Marcus.\" When they do, MEET THAT DIRECTLY — respond to what they actually brought, not a warm-up flourish. Do NOT reflexively open with a stock line like \"" + (name || "they") + " has been on my mind too\"; that phrasing has become a crutch. Showing you remember should come out in HOW you engage and the specifics you bring, and its form must VARY every time — sometimes a light acknowledgment, often just diving straight into what they raised, and only sometimes a warm \"I've been thinking about them.\" Never the same opener twice. If something material is missing, still ask.",
   );
   return lines.join("\n") + "\n";
 }
@@ -159,9 +160,86 @@ ${lines.join("\n")}
 `;
 }
 
+// TC-117: the "circle back" block. Active ONLY when the client's pickCheckback selector
+// (companion.js) placed a `ctx.checkback` on this conversation — usually it did NOT, by
+// design (conservative cadence + throttles all live client-side). Absent → returns "" so
+// the system prompt is BYTE-IDENTICAL to today on every ordinary conversation.
+//
+// PROMPT CONTENT ONLY. It never triggers a write and the server never trusts it for one.
+// It encodes, in Della's canonical voice:
+//   • the §5 ORDERED current-intent-first rule (never the opener; abandon on any live need),
+//   • Mechanism A (how it went for THEM — never rate the gesture) vs Mechanism B (a rare,
+//     honest check on whether HER help has been useful),
+//   • the §3 grief clause (care-only, ban "did they like it?", permit dropping it entirely).
+// Example phrasings are labeled range-of-register — never a template to recite verbatim.
+function cbName(ctx) {
+  return ctx && typeof ctx === "object" ? String(ctx.name || "").trim() : "";
+}
+// Trim + collapse a short advisory string; drop anything unusable (fail-open to "").
+function cbClip(s, max) {
+  const t = String(s == null ? "" : s).replace(/\s+/g, " ").trim();
+  if (!t) return "";
+  return t.length > max ? t.slice(0, max).trimEnd() : t;
+}
+// Shared reminder that the example phrasings are register, not a script — so she never
+// recites a canned line (one-voice / no-formula discipline, `feedback_tc_one_voice`).
+const CB_EXAMPLE_NOTE =
+  "- The example phrasings here show the RANGE and register only — never say them verbatim. Compose the actual words fresh to this person and this moment, in your own warm voice.";
+
+function checkbackBlock(ctx) {
+  const cb = ctx && typeof ctx === "object" ? ctx.checkback : null;
+  if (!cb || typeof cb !== "object") return "";
+  const mechanism = cb.mechanism === "B" ? "B" : cb.mechanism === "A" ? "A" : null;
+  if (!mechanism) return "";
+
+  const who = cbName(ctx) || "them";
+  // The ordered rule that governs BOTH mechanisms — always present when the block is active.
+  const openerRule =
+    `\nCIRCLING BACK (a grace note only — read this carefully):
+- This is NEVER your opener or your first breath. Your greeting and what you already remember own the opening. Greet ${who} the way you always would first.
+- ORDERED, ABSOLUTE: read what they bring FIRST. If they open with ANY live need, worry, question, or new topic, give THAT your whole attention and DROP the idea of circling back entirely for this conversation. Not later, not wedged in at the end — gone. A person carrying something now does not get quizzed about the past.
+- Only if the conversation genuinely has room — they are not holding something live — may you make ONE warm, natural attempt, later in the flow, in your own words. One attempt only. If they brush past it or turn elsewhere, let it go at once and never return to it. Never a stack, never a second try.`;
+
+  if (mechanism === "B") {
+    // Mechanism B — the rare, honest impact check. Prompt-only (emits no signal in Phase 1).
+    return `${openerRule}
+- If — and only if — the moment feels caring and human and there is real room, you may, rarely, ask an honest, transparent question about your OWN help: whether the way you've been able to help has actually been useful to them, whether any of it has made things easier. Ask it plainly and warmly, as yourself, never as a service fishing for a rating. This is a rare instrument, not a habit — most conversations should never hear it.
+- In any moment touched by grief, loss, or something raw, THIS is the only kind of circling-back that belongs, if any does at all: center it entirely on how THEY are holding up and whether anything you've offered has helped them carry it — "has any of this helped you carry it?" — never on whether a gesture "worked."
+${CB_EXAMPLE_NOTE}
+`;
+  }
+
+  // Mechanism A — situational "how did that go for THEM?"
+  const grief = !!cb.grief_care_only;
+  const occasion = cbClip(cb.occasion, 90);
+  const whenPhrase = cbClip(cb.when_phrase, 40);
+  const ref = occasion
+    ? `${occasion}${whenPhrase ? ` (${whenPhrase})` : ""}`
+    : `the moment you helped them with${whenPhrase ? ` ${whenPhrase}` : ""}`;
+
+  if (grief) {
+    // Aged hard-time / grief → wellbeing-only, CARE-ONLY. No outcome probe. Lightest touch.
+    return `${openerRule}
+- If there is room, the ONLY thing you may gently circle back to is how they — and the person they were caring for — are doing since ${ref}. Purely about wellbeing: "how are you both holding up?", "how's your dad doing?" Care, not follow-up.
+- GRIEF CLAUSE (non-negotiable): NEVER ask whether it "went well", whether the gesture "worked", or whether anyone "liked" what they did. There is nothing to rate here and you will never imply there is.
+- You cannot hear their voice — only read their words — so you can miss someone quietly breaking down while the text reads calm. On ANY hint of rawness, or if you are in the slightest doubt, do NOT press the question. Let the conversation lead. Silence is a fine answer; dropping it entirely is always allowed and often kindest.
+${CB_EXAMPLE_NOTE}
+`;
+  }
+
+  // Non-grief Mechanism A — the warm "how did it land" grace note.
+  return `${openerRule}
+- If there is room, you may warmly wonder, in your own words, how ${ref} actually turned out — how it landed for THEM, how the other person is, how it felt in the end. About the person and the relationship, never about your idea.
+- NEVER rate or fish about the gesture itself: not "did they like it?", not "was the plan good?", not "did my suggestion work?" You care how it went for the PERSON, full stop. That is the whole difference between remembering someone and grading yourself.
+- Keep it light and genuine — a friend who remembered and wondered how it went, not a survey. If they'd rather not go there, let it rest.
+${CB_EXAMPLE_NOTE}
+`;
+}
+
 export function systemPrompt(ctx) {
   const memory = memoryBlock(ctx);
   const roster = rosterBlock(ctx);
+  const checkback = checkbackBlock(ctx);
   return `${herIdentity()}
 
 Who you are (let this shape everything you say; never announce or explain it): ${HER_CHARACTER}${memory ? "\n" + memory : ""}${roster ? "\n" + roster : ""}
@@ -204,7 +282,7 @@ Closing the conversation like a person (do NOT skip this — it is how you hand 
 - IMPORTANT edge case — an impatient user: if they have ALREADY explicitly asked you to just make the plan ("that's enough, make my plan", "just make it", "go", "I'm done"), do NOT ask the last-call question — that would be tone-deaf. Go straight to the ready tool with only the warm send-off in closing, and build.
 
 - Otherwise, if you still need something to give real guidance, call reply. When you're truly ready to hand off, call ready (with your closing send-off), per the closing rules above.
-
+${checkback ? "\n" + checkback : ""}
 Every turn, call EXACTLY ONE tool: reply (to say something, optionally asking), or ready (when you can give real guidance). Never both. Never plain text. You are ${HER_NAME}.`;
 }
 

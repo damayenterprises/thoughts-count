@@ -8,6 +8,7 @@ import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
 import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName, captureFromFile, renderImportConfirm } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
+import { pickCheckback as pickCheckbackPure, classifyValenceLite, planValence, readOutcome } from "/_checkback.js";
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
 let reviewOpen = false; // keep the To-Review panel open across confirms
@@ -27,6 +28,135 @@ function voiceAllowed() {
 }
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
+
+/* ============================================================================
+ * TC-117 — Della circles back "how did that go?" (client selector + helpers)
+ * ============================================================================
+ * The DETERMINISTIC selection logic lives in the pure, unit-tested module
+ * /_checkback.js (imported at the top). This section holds the IMPURE parts that
+ * belong next to the plan data + Supabase reads: the localStorage session throttle,
+ * the plan_checkins read, and the post-conversation emit. The server (converse.mjs
+ * checkbackBlock) only ever receives an advisory ctx.checkback and shapes prose from
+ * it — it never decides WHEN, and never writes.
+ *
+ * DORMANT-SAFE: reads of the not-yet-migrated plan_checkins table and the not-yet-
+ * migrated saved_plans.valence column both degrade gracefully (treated as "no check-back
+ * this turn / no stored valence"), so the whole feature is a no-op until David applies
+ * migrations 008/009.
+ */
+
+/* ---- per-SESSION global throttle (UX blocking finding) --------------------
+ * At most ONE check-back — Mechanism A or B, combined — across a whole session/day,
+ * no matter how many people the user opens. Prevents "quizzing down the roster."
+ * Keyed by calendar date in localStorage; the authoritative per-PERSON cooldown still
+ * lives server-side in plan_checkins. */
+const CB_SESSION_KEY = "tc_checkback_day";
+function todayKey() { const d = new Date(); return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0"); }
+function checkbackUsedThisSession() {
+  try { return localStorage.getItem(CB_SESSION_KEY) === todayKey(); } catch (e) { return false; }
+}
+function markCheckbackUsedThisSession() {
+  try { localStorage.setItem(CB_SESSION_KEY, todayKey()); } catch (e) { /* storage blocked → throttle just falls back to per-person cooldown */ }
+}
+
+/* ---- already-asked + per-person cooldown (cross-device, authoritative) -----
+ * One bulk read of the user's plan_checkins on home load. Returns:
+ *   { askedPlanIds:Set, lastAskedForPlan:Map(saved_plan_id -> ms), outcomeForPlan:Map, tableMissing:bool }
+ * DORMANT-SAFE: if the table doesn't exist yet (pre-migration), returns tableMissing:true so
+ * pickCheckback treats the WHOLE feature as inert (returns null) until David applies 008 — the
+ * authoritative "already-asked"/cooldown store isn't there, so we must not circle back at all.
+ * Any other error → empty (fail-open, also null-producing). */
+async function loadCheckins() {
+  const empty = { askedPlanIds: new Set(), lastAskedForPlan: new Map(), outcomeForPlan: new Map() };
+  if (!sb || !user) return empty;
+  try {
+    const { data, error } = await sb
+      .from("plan_checkins")
+      .select("saved_plan_id,asked_at,outcome")
+      .order("asked_at", { ascending: false });
+    if (error) {
+      // "relation does not exist" (PG 42P01 / PostgREST PGRST205) = pre-migration → inert.
+      const code = String(error.code || "");
+      const msg = String(error.message || "").toLowerCase();
+      if (code === "42P01" || code === "PGRST205" || /does not exist|could not find the table/.test(msg)) {
+        return { ...empty, tableMissing: true };
+      }
+      return empty; // any other read error → fail-open (also yields null from pickCheckback)
+    }
+    if (!Array.isArray(data)) return empty;
+    const askedPlanIds = new Set();
+    const lastAskedForPlan = new Map();
+    const outcomeForPlan = new Map(); // saved_plan_id -> latest non-null outcome (compounding feed)
+    for (const r of data) {
+      if (r.saved_plan_id) {
+        askedPlanIds.add(r.saved_plan_id);
+        const ms = Date.parse(r.asked_at);
+        if (Number.isFinite(ms) && (!lastAskedForPlan.has(r.saved_plan_id) || ms > lastAskedForPlan.get(r.saved_plan_id))) {
+          lastAskedForPlan.set(r.saved_plan_id, ms);
+        }
+        // data is ordered newest-first, so the first non-null outcome we see is the latest.
+        if (r.outcome && !outcomeForPlan.has(r.saved_plan_id)) outcomeForPlan.set(r.saved_plan_id, r.outcome);
+      }
+    }
+    return { askedPlanIds, lastAskedForPlan, outcomeForPlan };
+  } catch (e) { return empty; }
+}
+
+/* ---- the selector (thin wrapper over the pure /_checkback.js module) --------
+ * The deterministic logic lives in /_checkback.js (unit-tested offline). Here we just feed
+ * it the impure inputs: the localStorage session throttle result. Returns at most ONE of
+ * { mechanism:"A", ... } | { mechanism:"B" } | null. */
+function pickCheckback(person, opts = {}) {
+  return pickCheckbackPure(person, { ...opts, sessionUsed: checkbackUsedThisSession() });
+}
+
+/* ---- post-conversation emit (Task 8) ---------------------------------------
+ * Called AFTER a check-back conversation, fire-and-forget. `cb` is the ctx.checkback that
+ * actually fired; `userText` is the user's own turns (for the coarse outcome read); `bucket`
+ * is the plan's stored non-identifying bucket (occasion/valence/relationship/budget_band).
+ *
+ * Mechanism A, non-grief → post ONE plan_outcome (SILENT — no UI artifact, §6b) AND a
+ *   plan_checkin { mechanism:"A", outcome }.
+ * Grief-care-only A, or Mechanism B → post ONLY plan_checkin { outcome:null }, NEVER a
+ *   plan_outcome (§3). This function is the guard that makes grief emit zero signal.
+ * Everything is best-effort and swallows errors, so it can never affect the plan/conversation. */
+async function emitCheckbackOutcome({ cb, userText, bucket } = {}) {
+  try {
+    if (!cb || typeof cb !== "object") return;
+    const mechanism = cb.mechanism === "A" || cb.mechanism === "B" ? cb.mechanism : null;
+    if (!mechanism) return;
+    // Mark the session throttle the moment a check-back actually fired (belt + suspenders with
+    // the server per-person cooldown), so a second person opened today can't be quizzed too.
+    markCheckbackUsedThisSession();
+
+    const isGriefA = mechanism === "A" && !!cb.grief_care_only;
+    const signalEligible = mechanism === "A" && !isGriefA; // ONLY non-grief A emits a signal
+    const outcome = signalEligible ? readOutcome(userText) : null;
+
+    // (1) SILENT outcome signal — non-grief Mechanism A only. Coarse, bucketed, non-identifying.
+    if (signalEligible) {
+      try {
+        const sid = (window && window.__tcSid) || undefined;
+        const test = !!(window && window.__tcTest);
+        const payload = JSON.stringify({ event: "plan_outcome", outcome, bucket: bucket || {}, sid, test });
+        if (navigator.sendBeacon) navigator.sendBeacon("/api/feedback", new Blob([payload], { type: "application/json" }));
+        else fetch("/api/feedback", { method: "POST", keepalive: true, headers: { "content-type": "application/json" }, body: payload });
+      } catch (e) { /* signal is best-effort */ }
+    }
+
+    // (2) Bookkeeping — always (so the outcome/cooldown is authoritative cross-device). For grief
+    // and Mechanism B, outcome is null (the server also forces this). saved_plan_id only for A.
+    try {
+      if (sb && user && accessToken) {
+        await fetch("/api/plan-checkin", {
+          method: "POST",
+          headers: { "content-type": "application/json", authorization: "Bearer " + accessToken },
+          body: JSON.stringify({ saved_plan_id: mechanism === "A" ? (cb.plan_id || null) : null, mechanism, outcome }),
+        });
+      }
+    } catch (e) { /* bookkeeping is best-effort; dormant-safe server no-ops pre-migration */ }
+  } catch (e) { /* fail-open */ }
+}
 
 /* ---------------- pending voice request (TC-62) ---------------------------------
  * When an anon user speaks and chooses to REMEMBER a person, we can't run the
@@ -262,6 +392,17 @@ async function boot() {
     // to the known saved person the conversation is about — so it's always Level-A auto-save
     // with insertFact's dedup/supersession, no new write surface. Signed-out → no-op (guard).
     rememberFromConversation,
+    // TC-117: the "circle back" selector + its post-conversation emit, surfaced for index.html.
+    //  loadCheckins()               — one bulk read of plan_checkins (dormant-safe → empty pre-migration)
+    //  pickCheckback(person, opts)  — at most ONE {A|B}|null, all restraint enforced here
+    //  markCheckbackUsed()          — set the per-session throttle once a check-back actually fired
+    //  emitCheckbackOutcome(...)    — SILENT signal + bookkeeping after a check-back conversation
+    //  planValence(plan)            — stored (post-009) or derived valence for the compounding digest
+    loadCheckins,
+    pickCheckback,
+    markCheckbackUsed: markCheckbackUsedThisSession,
+    emitCheckbackOutcome,
+    planValence,
   };
   // Voice UI (e.g. the dictation mic) may have rendered before the gate resolved —
   // let the page re-check now that we know the audience + sign-in state.
@@ -534,10 +675,23 @@ async function addKeyDate(personId, d) {
   if (error) throw error;
 }
 async function savePlan(personId, plan, occasion) {
-  const { error } = await sb.from("saved_plans").insert({
-    user_id: user.id, person_id: personId, plan_title: plan.plan_title || "", occasion: occasion || "", plan,
-  });
-  if (error) throw error;
+  // TC-117: classify + store the plan's valence ONCE at save time, so the grief guard reads a
+  // stored SAFETY control instead of a lossy re-derivation later. DORMANT-SAFE: the valence
+  // column is a proposed migration (009) not yet applied. Writing it before then would fail
+  // with "column does not exist" (PG 42703) and lose the whole plan — so we try WITH valence
+  // and, on that specific pre-migration error, retry the exact legacy insert WITHOUT it. Once
+  // 009 is applied the first insert succeeds and valence is stored going forward.
+  const base = { user_id: user.id, person_id: personId, plan_title: plan.plan_title || "", occasion: occasion || "", plan };
+  const valence = classifyValenceLite(occasion || plan.plan_title || "");
+  const { error } = await sb.from("saved_plans").insert({ ...base, valence });
+  if (error) {
+    if (error.code === "42703" || /valence/i.test(error.message || "")) {
+      const retry = await sb.from("saved_plans").insert(base); // pre-migration: legacy write, unchanged
+      if (retry.error) throw retry.error;
+      return;
+    }
+    throw error;
+  }
 }
 // Turn a plan's "keep showing up" follow-ups into real one-off reminders on the
 // person, so the most useful nudges (check in in two weeks, a month, a year) are
