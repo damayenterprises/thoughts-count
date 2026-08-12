@@ -1182,12 +1182,27 @@ function renderHome(people, opts = {}) {
   const guidedBtn = modalBody().querySelector("#np_guided_btn");
   if (guidedBtn && guidedOut) {
     guidedBtn.onclick = () => {
+      // TC-107 (UX): the whole point of the calmest door is a single question with nothing else
+      // competing. So while the guided flow runs, hide the rest of the add-lane (the guided help
+      // line, every fast door after it, and the manual "type it in yourself" form) and restore
+      // them on close. The guided card stands alone.
+      const addWrap = guidedOut.closest(".tc-add-more");
+      const toHide = [];
+      if (guidedBtn.nextElementSibling) toHide.push(guidedBtn.nextElementSibling); // the guided help line
+      for (let n = guidedOut.nextElementSibling; n; n = n.nextElementSibling) toHide.push(n); // fast doors after the guided flow
+      if (addWrap) for (let m = addWrap.nextElementSibling; m; m = m.nextElementSibling) toHide.push(m); // manual form below the lane
+      const restore = toHide.map((el) => [el, el.style.display]);
+      toHide.forEach((el) => { el.style.display = "none"; });
       guidedBtn.style.display = "none";
       startGuidedAdd(guidedOut, {
         onConfirmed,
         // Finishing (a confirmed save reloads the whole home via onConfirmed) or cancelling both
-        // restore the lane's entry button so the user can start another guided add.
-        onClose: () => { guidedOut.innerHTML = ""; guidedBtn.style.display = ""; },
+        // restore the entry button AND the doors/form we hid, so the lane is whole again.
+        onClose: () => {
+          guidedOut.innerHTML = "";
+          guidedBtn.style.display = "";
+          restore.forEach(([el, d]) => { el.style.display = d; });
+        },
       });
     };
   }
@@ -1210,7 +1225,7 @@ function startGuidedAdd(container, { onConfirmed, onClose } = {}) {
       <div class="tc-guided" role="group" aria-label="Adding someone">
         <div class="q-eyebrow">One at a time</div>
         <h2 class="q-title" style="font-size:22px;">Let's make sure this is right.</h2>
-        <p class="tc-help-sm" id="tcGuidedMsg">Reading it over…</p>
+        <p class="tc-help-sm" id="tcGuidedMsg">Reading it over...</p>
       </div>`;
     const msg = container.querySelector("#tcGuidedMsg");
     try {
@@ -1233,7 +1248,6 @@ function startGuidedAdd(container, { onConfirmed, onClose } = {}) {
         personHint: cap.personHint || cap.personName || draft.prefill.name,
         relationshipHint: draft.prefill.relationship || "",
         birthday: bday,
-        source_kind: "text_thread",
       });
     } catch (e) {
       if (msg) { msg.className = "k-msg bad"; msg.textContent = e.message || "Something went wrong. Please try again."; }
