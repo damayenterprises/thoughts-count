@@ -1078,12 +1078,49 @@ function renderHome(people, opts = {}) {
   // preview card(s) — starting a fresh add without confirming the last one must not stack cards.
   // Call this ONCE at the start of each separate user action, before rendering that action's batch;
   // a single result with MULTIPLE people still renders one card per person (that batch is intentional).
-  const clearImportCards = () => { if (importOut) importOut.innerHTML = ""; };
+  // TC-99 (UX): the working state must land RIGHT WHERE THE USER JUST TAPPED, not below the doors
+  // (David: "I had to look even harder to find it"). So it's an opaque panel laid directly OVER the
+  // fast-doors block (.tc-add-more) — it momentarily REPLACES "Take a photo / Add a photo" with the
+  // lantern, then lifts the instant the confirm card (or an error) is ready. clearImportCards also
+  // removes it, so every existing resolve/error path tears it down for free.
+  const importDoors = () => modalBody().querySelector(".tc-add-more");
+  const clearImportCards = () => {
+    if (importOut) importOut.innerHTML = "";
+    const ov = importDoors()?.querySelector(".tc-imp-working");
+    if (ov) ov.remove();
+  };
+
+  const showImportWorking = (heading = "Reading who this is about...") => {
+    clearImportCards();
+    setImportMsg("");
+    const doors = importDoors();
+    if (!doors) return;
+    doors.style.position = "relative";
+    const ov = document.createElement("div");
+    ov.className = "tc-imp-working loading";
+    ov.setAttribute("role", "status");
+    ov.setAttribute("aria-live", "polite");
+    ov.style.cssText = "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;background:#fffdf8;border-radius:14px;padding:20px;";
+    ov.innerHTML = `
+      <svg class="lantern" viewBox="0 0 120 130" aria-hidden="true" style="width:96px;height:auto;">
+        <circle class="glow" cx="60" cy="62" r="52" fill="#ffe7b8"/>
+        <path d="M40 40a255 255 0 0 1 40 0" fill="none"/>
+        <path d="M42 46a20 20 0 0 1 36 0V96H42Z" fill="#fff9ee" stroke="#cda074" stroke-width="4"/>
+        <line x1="60" y1="28" x2="60" y2="96" stroke="#cda074" stroke-width="3"/>
+        <line x1="42" y1="66" x2="78" y2="66" stroke="#cda074" stroke-width="3"/>
+        <circle cx="60" cy="66" r="10" fill="#ffd691"/>
+      </svg>
+      <p class="big" style="margin:0;">${heading}</p>
+      <p class="lines" style="margin:0;">Give me a moment. I'll pull out who it's for and let you look it over.</p>`;
+    doors.appendChild(ov);
+    if (doors.scrollIntoView) doors.scrollIntoView({ block: "nearest" });
+  };
 
   const renderPreviews = (result) => {
     const previews = (result && result.previews) || [];
-    if (!previews.length) { setImportMsg(result?.message || "We couldn't find a person in that — try a clearer screenshot.", false); return; }
-    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person — confirm each below.", false);
+    if (!previews.length) { clearImportCards(); setImportMsg(result?.message || "We couldn't find a person in that. Try a clearer screenshot.", false); return; }
+    clearImportCards(); // tear down the working screen before the confirm card(s) render in its place
+    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person, confirm each below.", false);
     else setImportMsg("");
     for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
   };
@@ -1092,11 +1129,10 @@ function renderHome(people, opts = {}) {
   // image extractor + confirm card. Clears any prior un-confirmed card first (TC-114).
   const importImageFile = async (file, busyEl) => {
     if (!file) return;
-    clearImportCards();
-    setImportMsg("Reading…");
+    showImportWorking();
     if (busyEl) busyEl.disabled = true;
     try { renderPreviews(await captureFromFile(sb, file)); }
-    catch (e) { setImportMsg(e.message || "We couldn't read that file.", true); }
+    catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that file.", true); }
     if (busyEl) busyEl.disabled = false;
   };
 
@@ -1131,8 +1167,8 @@ function renderHome(people, opts = {}) {
   const renderTextPreviews = async (text, { sourceKind }) => {
     const result = await captureExtract(sb, { rawText: text, source: "typed", preview: true });
     const previews = (result.captures || []).map((c) => ({ ...c, personHint: c.personHint || c.personName || "", relationshipHint: "", source_kind: sourceKind }));
-    if (!previews.length) { setImportMsg(result.message || "Nothing to add there yet.", false); return false; }
-    setImportMsg("");
+    if (!previews.length) { clearImportCards(); setImportMsg(result.message || "Nothing to add there yet.", false); return false; }
+    clearImportCards(); // tear down the working overlay before the confirm card(s) render in its place
     for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
     return true;
   };
@@ -1142,14 +1178,15 @@ function renderHome(people, opts = {}) {
   // prior un-confirmed card first (TC-114). Guards mime/size client-side too (transcribeAudioFile).
   const importAudioFile = async (file, busyEl) => {
     if (!file) return;
-    clearImportCards();
-    setImportMsg("Listening…");
+    // TC-99 working-state, over the doors — up for the WHOLE wait (transcribe, then extract), the
+    // longest of any door. renderTextPreviews tears it down when the confirm card is ready.
+    showImportWorking("Listening to your memo...");
     if (busyEl) busyEl.disabled = true;
     try {
       const text = await transcribeAudioFile(sb, file);
-      if (!text) { setImportMsg("We couldn't catch anything in that memo. Try again, or type it.", false); }
-      else { setImportMsg("Reading…"); await renderTextPreviews(text, { sourceKind: "voice_memo" }); }
-    } catch (e) { setImportMsg(e.message || "We couldn't read that recording.", true); }
+      if (!text) { clearImportCards(); setImportMsg("We couldn't catch anything in that memo. Try again, or type it.", false); }
+      else { await renderTextPreviews(text, { sourceKind: "voice_memo" }); }
+    } catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that recording.", true); }
     if (busyEl) busyEl.disabled = false;
   };
 
@@ -1195,14 +1232,13 @@ function renderHome(people, opts = {}) {
     pasteGo.onclick = async () => {
       const text = (pasteEl.value || "").trim();
       if (!text) { pasteEl.focus(); return; }
-      clearImportCards(); // TC-114: a new "Read it →" replaces the prior un-confirmed card
-      setImportMsg("Reading…"); pasteGo.disabled = true;
+      showImportWorking(); pasteGo.disabled = true; // TC-114/TC-99: replaces the prior card with the working screen
       try {
         // The LIVE capture-extract in preview mode → the SAME confirm card (shared helper), so a typed
         // paste and a transcribed voice memo travel the identical extract → resolve → confirm path.
         const shown = await renderTextPreviews(text, { sourceKind: "text_thread" });
         if (shown) pasteEl.value = "";
-      } catch (e) { setImportMsg(e.message || "We couldn't read that.", true); }
+      } catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that.", true); }
       pasteGo.disabled = false;
     };
   }
