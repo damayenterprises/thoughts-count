@@ -876,10 +876,15 @@ function renderHome(people, opts = {}) {
              extract → resolve → confirm pipeline as typing. UX fix: these fast doors LEAD the
              Add-someone lane (top, no scroll) so a user discovers them before the manual form. -->
         <div class="tc-add-more">
-          <!-- 1c/1d: a screenshot/photo of a DM/profile/contact card, or a shared .vcf -->
-          <button class="cta ghost" id="np_photo_btn" type="button" style="width:100%;justify-content:center;">Add from a screenshot or photo</button>
+          <!-- 1c/1d: a screenshot/photo of a DM/profile/contact card, or a shared .vcf.
+               TC-99: on mobile, "Take a photo" opens the camera directly (capture=environment) so a
+               user can shoot a business card / invite / card / obituary in front of them; the library
+               button keeps the desktop file/screenshot/.vcf path. Both route to the SAME handler. -->
+          <button class="cta ghost" id="np_camera_btn" type="button" style="width:100%;justify-content:center;">Take a photo</button>
+          <input type="file" id="np_camera_file" accept="image/*" capture="environment" style="display:none;" />
+          <button class="cta ghost" id="np_photo_btn" type="button" style="width:100%;justify-content:center;margin-top:8px;">Add from a screenshot or photo</button>
           <input type="file" id="np_photo_file" accept="image/*,.vcf,text/vcard" style="display:none;" />
-          <p class="tc-help-sm" style="margin:6px 0 0;">A text, a DM, a profile, or a saved contact — we'll read who it's about and let you confirm.</p>
+          <p class="tc-help-sm" style="margin:6px 0 0;">A business card, an invitation, a card, a text, a profile, or a saved contact. We'll read who it's about and let you confirm.</p>
 
           <!-- 1a: paste a bio / anything about them -->
           <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note, or a screenshot — and we'll pull out who it's about" style="margin-top:12px;min-height:72px;"></textarea>
@@ -1021,7 +1026,7 @@ function renderHome(people, opts = {}) {
   const importMsg = modalBody().querySelector("#np_import_msg");
   const setImportMsg = (t, bad) => { if (!importMsg) return; importMsg.className = "k-msg" + (bad ? " bad" : ""); importMsg.textContent = t || ""; };
 
-  const onConfirmed = async (res, { relationship, relChanged, isNew, birthday } = {}) => {
+  const onConfirmed = async (res, { relationship, relChanged, isNew, birthday, event } = {}) => {
     // Persist the edited "who they are to you" — the server createPerson/resolve sets name only and
     // ignores relationship, so the client honors it here. New person: write whatever they entered.
     // Existing person (update card): write ONLY when the user actually set/changed the field, so we
@@ -1044,6 +1049,21 @@ function renderHome(people, opts = {}) {
         }
       } catch (e) { console.error("set birthday key_date", e); }
     }
+    // TC-99: the confirm card returns `event` only when the user added/edited a non-birthday occasion
+    // (a wedding, a graduation) the extraction didn't already seed. Write it as a labeled key_date —
+    // recurring for a year-less date, one-time for a full date. Needs a real date to be a key_date;
+    // an occasion with no date (e.g. an obituary's dateless loss) stays as the audit note only.
+    // Deduped on label+date so re-confirming can't pile up duplicates.
+    if (res && res.ok && res.personId && event && event.event_date) {
+      try {
+        const label = (event.label || "A date to remember").slice(0, 120);
+        const { data: existing } = await sb.from("key_dates")
+          .select("id").eq("person_id", res.personId).eq("label", label).eq("event_date", event.event_date);
+        if (!existing || !existing.length) {
+          await addKeyDate(res.personId, { label, kind: event.recurs ? "custom" : "moment", event_date: event.event_date, recurs: !!event.recurs, lead_days: 7 });
+        }
+      } catch (e) { console.error("set event key_date", e); }
+    }
     renderHome(await loadPeople(), { highlightId: res?.personId });
   };
 
@@ -1051,12 +1071,49 @@ function renderHome(people, opts = {}) {
   // preview card(s) — starting a fresh add without confirming the last one must not stack cards.
   // Call this ONCE at the start of each separate user action, before rendering that action's batch;
   // a single result with MULTIPLE people still renders one card per person (that batch is intentional).
-  const clearImportCards = () => { if (importOut) importOut.innerHTML = ""; };
+  // TC-99 (UX): the working state must land RIGHT WHERE THE USER JUST TAPPED, not below the doors
+  // (David: "I had to look even harder to find it"). So it's an opaque panel laid directly OVER the
+  // fast-doors block (.tc-add-more) — it momentarily REPLACES "Take a photo / Add a photo" with the
+  // lantern, then lifts the instant the confirm card (or an error) is ready. clearImportCards also
+  // removes it, so every existing resolve/error path tears it down for free.
+  const importDoors = () => modalBody().querySelector(".tc-add-more");
+  const clearImportCards = () => {
+    if (importOut) importOut.innerHTML = "";
+    const ov = importDoors()?.querySelector(".tc-imp-working");
+    if (ov) ov.remove();
+  };
+
+  const showImportWorking = () => {
+    clearImportCards();
+    setImportMsg("");
+    const doors = importDoors();
+    if (!doors) return;
+    doors.style.position = "relative";
+    const ov = document.createElement("div");
+    ov.className = "tc-imp-working loading";
+    ov.setAttribute("role", "status");
+    ov.setAttribute("aria-live", "polite");
+    ov.style.cssText = "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;background:#fffdf8;border-radius:14px;padding:20px;";
+    ov.innerHTML = `
+      <svg class="lantern" viewBox="0 0 120 130" aria-hidden="true" style="width:96px;height:auto;">
+        <circle class="glow" cx="60" cy="62" r="52" fill="#ffe7b8"/>
+        <path d="M40 40a255 255 0 0 1 40 0" fill="none"/>
+        <path d="M42 46a20 20 0 0 1 36 0V96H42Z" fill="#fff9ee" stroke="#cda074" stroke-width="4"/>
+        <line x1="60" y1="28" x2="60" y2="96" stroke="#cda074" stroke-width="3"/>
+        <line x1="42" y1="66" x2="78" y2="66" stroke="#cda074" stroke-width="3"/>
+        <circle cx="60" cy="66" r="10" fill="#ffd691"/>
+      </svg>
+      <p class="big" style="margin:0;">Reading who this is about...</p>
+      <p class="lines" style="margin:0;">Give me a moment. I'll pull out who it's for and let you look it over.</p>`;
+    doors.appendChild(ov);
+    if (doors.scrollIntoView) doors.scrollIntoView({ block: "nearest" });
+  };
 
   const renderPreviews = (result) => {
     const previews = (result && result.previews) || [];
-    if (!previews.length) { setImportMsg(result?.message || "We couldn't find a person in that — try a clearer screenshot.", false); return; }
-    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person — confirm each below.", false);
+    if (!previews.length) { clearImportCards(); setImportMsg(result?.message || "We couldn't find a person in that. Try a clearer screenshot.", false); return; }
+    clearImportCards(); // tear down the working screen before the confirm card(s) render in its place
+    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person, confirm each below.", false);
     else setImportMsg("");
     for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
   };
@@ -1065,11 +1122,10 @@ function renderHome(people, opts = {}) {
   // image extractor + confirm card. Clears any prior un-confirmed card first (TC-114).
   const importImageFile = async (file, busyEl) => {
     if (!file) return;
-    clearImportCards();
-    setImportMsg("Reading…");
+    showImportWorking();
     if (busyEl) busyEl.disabled = true;
     try { renderPreviews(await captureFromFile(sb, file)); }
-    catch (e) { setImportMsg(e.message || "We couldn't read that file.", true); }
+    catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that file.", true); }
     if (busyEl) busyEl.disabled = false;
   };
 
@@ -1081,6 +1137,19 @@ function renderHome(people, opts = {}) {
       const file = photoFile.files && photoFile.files[0];
       await importImageFile(file, photoBtn);
       photoFile.value = "";
+    };
+  }
+
+  // TC-99: the camera door — same handler, a mobile-camera-first input. On desktop this simply
+  // opens the file picker (browsers ignore `capture` when there's no camera), so it degrades safely.
+  const cameraBtn = modalBody().querySelector("#np_camera_btn");
+  const cameraFile = modalBody().querySelector("#np_camera_file");
+  if (cameraBtn && cameraFile) {
+    cameraBtn.onclick = () => cameraFile.click();
+    cameraFile.onchange = async () => {
+      const file = cameraFile.files && cameraFile.files[0];
+      await importImageFile(file, cameraBtn);
+      cameraFile.value = "";
     };
   }
 
@@ -1115,17 +1184,16 @@ function renderHome(people, opts = {}) {
     pasteGo.onclick = async () => {
       const text = (pasteEl.value || "").trim();
       if (!text) { pasteEl.focus(); return; }
-      clearImportCards(); // TC-114: a new "Read it →" replaces the prior un-confirmed card
-      setImportMsg("Reading…"); pasteGo.disabled = true;
+      showImportWorking(); pasteGo.disabled = true; // TC-114/TC-99: replaces the prior card with the working screen
       try {
         // The LIVE capture-extract in preview mode → the SAME confirm card. Its captures already
         // carry {kind, captureId, personDetail, candidates, facts}; map person_hint→personHint so
         // renderImportConfirm pre-fills the editable name.
         const result = await captureExtract(sb, { rawText: text, source: "typed", preview: true });
         const previews = (result.captures || []).map((c) => ({ ...c, personHint: c.personHint || c.personName || "", relationshipHint: "", source_kind: "text_thread" }));
-        if (!previews.length) { setImportMsg(result.message || "Nothing to add there yet.", false); }
-        else { setImportMsg(""); pasteEl.value = ""; for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") }); }
-      } catch (e) { setImportMsg(e.message || "We couldn't read that.", true); }
+        if (!previews.length) { clearImportCards(); setImportMsg(result.message || "Nothing to add there yet.", false); }
+        else { clearImportCards(); setImportMsg(""); pasteEl.value = ""; for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") }); }
+      } catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that.", true); }
       pasteGo.disabled = false;
     };
   }

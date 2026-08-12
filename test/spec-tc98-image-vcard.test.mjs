@@ -3,7 +3,7 @@
 // call itself is exercised live by the Validator with a real screenshot). Run:
 //   node test/spec-tc98-image-vcard.test.mjs
 import assert from "node:assert";
-import { parseVCard, normalizeExtracted } from "../netlify/functions/_extract_image.mjs";
+import { parseVCard, normalizeExtracted, normEvent } from "../netlify/functions/_extract_image.mjs";
 
 let pass = 0, fail = 0;
 function t(name, fn) { try { fn(); pass++; console.log(`  ok   ${name}`); } catch (e) { fail++; console.log(`  FAIL ${name} — ${e.message}`); } }
@@ -114,6 +114,83 @@ t("two people → ambiguous_multi_person forced true", () => {
 t("empty input → empty, non-ambiguous", () => {
   const p = normalizeExtracted({});
   assert.deepEqual(p, { people: [], ambiguous_multi_person: false });
+});
+
+console.log("\n# TC-99 — artifact source_kinds + event capture");
+
+t("artifact source_kinds are accepted; junk falls back to other", () => {
+  const kinds = ["business_card", "invitation", "save_the_date", "greeting_card", "announcement", "obituary"];
+  for (const k of kinds) {
+    const p = normalizeExtracted({ people: [{ name: "A", source_kind: k }] });
+    assert.equal(p.people[0].source_kind, k, `expected ${k} to survive`);
+  }
+  const j = normalizeExtracted({ people: [{ name: "A", source_kind: "flyer" }] });
+  assert.equal(j.people[0].source_kind, "other");
+});
+
+t("normEvent: null / non-object / empty → null", () => {
+  assert.equal(normEvent(null), null);
+  assert.equal(normEvent("wedding"), null);
+  assert.equal(normEvent({}), null);
+  assert.equal(normEvent({ occasion: "", date: "" }), null);
+});
+
+t("normEvent: full wedding date → one-time (recurring stays false)", () => {
+  const e = normEvent({ occasion: "wedding", date: "2027-06-15", recurring: false });
+  assert.deepEqual(e, { occasion: "wedding", date: "2027-06-15", recurring: false });
+});
+
+t("normEvent: year-less date → sentinel year (birthday recurs)", () => {
+  const e = normEvent({ occasion: "birthday", date: "--06-15", recurring: true });
+  assert.equal(e.date, "0004-06-15");
+  assert.equal(e.recurring, true);
+});
+
+t("normEvent: a date the model guessed a full string onto is rejected", () => {
+  const e = normEvent({ occasion: "wedding", date: "next June" });
+  // no usable date, but a real occasion survives (a dateless obituary/loss keeps its label)
+  assert.equal(e.date, null);
+  assert.equal(e.occasion, "wedding");
+});
+
+t("normEvent: occasion-only (dateless loss) survives with null date", () => {
+  const e = normEvent({ occasion: "loss of Robert Hale", date: null, recurring: false });
+  assert.deepEqual(e, { occasion: "loss of Robert Hale", date: null, recurring: false });
+});
+
+t("normEvent: recurring defaults to true only for a birthday occasion", () => {
+  assert.equal(normEvent({ occasion: "birthday", date: "--03-04" }).recurring, true);
+  assert.equal(normEvent({ occasion: "wedding", date: "2027-03-04" }).recurring, false);
+});
+
+t("normalizeExtracted carries a clean event through; drops a junk one to null", () => {
+  const r = normalizeExtracted({ people: [
+    { name: "Ana & Ben", source_kind: "invitation", event: { occasion: "wedding", date: "2027-09-20", recurring: false } },
+    { name: "NoEvent", source_kind: "business_card", event: { occasion: "", date: "" } },
+    { name: "Bare", source_kind: "greeting_card" },
+  ] });
+  assert.deepEqual(r.people[0].event, { occasion: "wedding", date: "2027-09-20", recurring: false });
+  assert.equal(r.people[1].event, null);
+  assert.equal(r.people[2].event, null);
+});
+
+t("obituary: only living SURVIVORS are returned (never the deceased); loss rides on each survivor", () => {
+  // The prompt bars the deceased from the people array — so a well-formed obituary extraction
+  // is survivors only, each carrying the "loss of <deceased>" occasion as context. Two named
+  // survivors force ambiguous_multi_person (never auto-pick who the user is showing up for).
+  const r = normalizeExtracted({ people: [
+    { name: "Mary Hale", relationship_hint: "wife", source_kind: "obituary", event: { occasion: "loss of Robert Hale", date: null, recurring: false } },
+    { name: "James Hale", relationship_hint: "son", source_kind: "obituary", event: { occasion: "loss of Robert Hale", date: null, recurring: false } },
+  ], ambiguous_multi_person: false });
+  assert.equal(r.ambiguous_multi_person, true);
+  assert.equal(r.people.length, 2);
+  assert.ok(!r.people.some((p) => p.name === "Robert Hale"), "the deceased must never be a returned person");
+  assert.equal(r.people[0].event.occasion, "loss of Robert Hale");
+});
+
+t("vCard person shape carries event:null (shape parity with image path)", () => {
+  const p = parseVCard("BEGIN:VCARD\nFN:Zed\nEND:VCARD").people[0];
+  assert.equal(p.event, null);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

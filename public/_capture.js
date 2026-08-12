@@ -14,7 +14,7 @@
 // / salience. The server sends the plain-language evidence; we just render it.
 
 import { mountInlineMic, ensureInlineMicStyles } from "/_inline-mic.js";
-import { formatMonthDay, parseBirthdayInput } from "/_dates.js";
+import { formatMonthDay, parseBirthdayInput, isYearlessBirthday } from "/_dates.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -404,6 +404,25 @@ function ensureImportStyles() {
   document.head.appendChild(s);
 }
 
+// TC-99: title-case an occasion for the editable field ("wedding" → "Wedding", "baby's arrival" →
+// "Baby's Arrival"). Plain, no AI tells.
+// Capitalize only the FIRST letter, so a printed name inside an occasion stays intact:
+// "wedding" -> "Wedding", but "loss of Robert Hale" -> "Loss of Robert Hale" (never "Loss Of Robert Hale").
+const capFirst = (s) => { s = String(s || ""); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; };
+
+// TC-99: render an event date for the confirm field. A full ISO date shows with its year
+// ("2027-06-15" → "June 15, 2027"); a year-less/sentinel date drops the year ("June 15"); a value
+// that's already free text (kept across a re-resolve) is shown verbatim. null/empty → "".
+function formatEventDate(v) {
+  const s = String(v || "").trim();
+  if (!s) return "";
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s);
+  if (!m) return s; // already human text the user typed/kept
+  const md = formatMonthDay(s); // "June 15" (also drops the sentinel year)
+  if (!md) return s;
+  return isYearlessBirthday(s) ? md : `${md}, ${m[1]}`;
+}
+
 const factLine = (f) => {
   if (f.relation === "birthday" || (f.fact_class === "RECURRING" && /birthday/i.test(f.object || ""))) {
     // TC-112: show a warm "June 15" (year dropped for a year-less/recurring birthday), never a raw
@@ -439,7 +458,23 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
   card.className = "tc-imp-card";
   container.appendChild(card);
 
+  // TC-99: is this an obituary? The confirm copy stays quiet and asks who they're showing up for,
+  // never celebratory, never auto-picking the deceased or a survivor.
+  const isObituary = preview.source_kind === "obituary";
+  // The artifact's event (a wedding date, a birth date, a loss), if one was read. A plain recurring
+  // birthday is already handled by the Birthday field below, so the dedicated Occasion field only
+  // shows for a NON-birthday event (a wedding, a graduation, a loss).
+  const ev = preview.event && (preview.event.occasion || preview.event.date) ? preview.event : null;
+  const evIsBirthday = ev && ev.recurring && /\bbirthday\b/i.test(ev.occasion || "");
+  const showOccasion = ev && !evIsBirthday;
+
   function whoLine() {
+    if (isObituary) {
+      // Gentle, plain condolence framing. The deceased is NEVER surfaced as a card — the people here
+      // are the living someone left behind. This asks the user to keep whoever they're showing up
+      // for. No cheer, no auto-pick, and never an invitation to add the person who passed.
+      return `This looks like an obituary. Keep the person you want to show up for. Take your time.`;
+    }
     if (state.kind === "update" && state.personName) {
       const d = preview.personHasDetail && preview.personDetail ? ` (${esc(preview.personDetail)})` : "";
       return `Looks like <b>${esc(state.personName)}</b>${d} — already in your people. We'll add this to them.`;
@@ -451,13 +486,20 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
   }
 
   function draw() {
-    const src = ({ dm: "a direct message", profile: "a profile", contact_card: "a contact card", text_thread: "a message" }[preview.source_kind]) || "what you shared";
+    const src = ({
+      dm: "a direct message", profile: "a profile", contact_card: "a contact card", text_thread: "a message",
+      business_card: "a business card", invitation: "an invitation", save_the_date: "a save-the-date",
+      greeting_card: "a card", announcement: "an announcement", obituary: "an obituary",
+    }[preview.source_kind]) || "what you shared";
     // TC-112: pre-fill an editable month+day birthday. The extracted event_date may be full
     // (YYYY-MM-DD) or year-less (sentinel year) — either way we show a warm "June 15" the user can
     // edit or type fresh. preview.birthday holds a value the user kept across a name re-resolve.
     const bdayRaw = (facts.find((f) => f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date)) || {}).event_date || preview.birthday || "";
     const bday = /^\d{4}-\d{2}-\d{2}$/.test(bdayRaw) ? formatMonthDay(bdayRaw) : String(bdayRaw || "");
-    const otherFacts = facts.filter((f) => !(f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date)));
+    // Hide from the plain fact list: the birthday (its own field) AND the event we surface as the
+    // editable Occasion field (a MILESTONE/RECURRING dated fact) so it never shows twice.
+    const otherFacts = facts.filter((f) =>
+      !(f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date) || (showOccasion && f.event_date && (f.fact_class === "MILESTONE" || f.fact_class === "RECURRING"))));
     const isPick = state.kind === "pick";
     // On a "pick" card the candidate picks are the primary filled actions; the "add someone new"
     // button (the confirm) is a fundamentally different action, so we de-emphasize it to a ghost
@@ -466,12 +508,32 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
       ? `<div class="tc-imp-cands">${state.candidates.map((c) => `<button class="cta tc-imp-pick" data-pid="${c.id}">${esc(c.name)}${c.location ? ` · ${esc(c.location)}` : ""}</button>`).join("")}</div>`
       : "";
     const confirmClass = isPick ? "cta ghost tc-imp-confirm tc-imp-addnew" : "cta tc-imp-confirm";
-    const confirmLabel = isPick ? "Add someone new →" : (state.kind === "update" ? "Add to them →" : "Add them →");
+    // TC-99: gentler confirm verb on an obituary (never "Add them"). The default add/update stays.
+    const confirmLabel = isPick
+      ? "Add someone new →"
+      : (isObituary ? "Keep them →" : (state.kind === "update" ? "Add to them →" : "Add them →"));
+    const eyebrow = isObituary ? `Read from ${src}. Take your time.` : `Found from ${src} — check it over`;
+    // TC-99: for a non-birthday event (a wedding, a graduation, a loss) show an editable Occasion +
+    // date the user can accept or fix. A year-less date shows as "June 15" (no bogus year); a full
+    // date shows as "June 15, 2027". The date field is plain text so the user can type either.
+    const evOccasion = showOccasion ? String(ev.occasion || "") : "";
+    const evDateText = showOccasion ? formatEventDate(ev.date) : "";
+    // TC-99 (UX): on an obituary the occasion is quiet context (a loss), not something to wordsmith —
+    // show it read-only, and only show a Date if one was actually printed (never an empty, celebratory-
+    // looking date field on the most sensitive path). Other events (a wedding) stay fully editable.
+    const showEvDate = showOccasion && (!isObituary || !!evDateText);
+    const occInput = isObituary
+      ? `<input type="text" class="tc-imp-occ" value="${esc(capFirst(evOccasion))}" readonly aria-readonly="true" tabindex="-1" />`
+      : `<input type="text" class="tc-imp-occ" value="${esc(capFirst(evOccasion))}" placeholder="e.g. Wedding" autocomplete="off" />`;
+    const occasionField = showOccasion ? `
+      <div class="tc-imp-field"><label>Occasion</label>${occInput}</div>
+      ${showEvDate ? `<div class="tc-imp-field"><label>Date (optional)</label><input type="text" class="tc-imp-occdate" value="${esc(evDateText)}" placeholder="${isObituary ? "" : "e.g. June 15, 2027"}" autocomplete="off" inputmode="text" /></div>` : ""}` : "";
     card.innerHTML = `
-      <div class="tc-imp-eyebrow">Found from ${src} — check it over</div>
+      <div class="tc-imp-eyebrow">${eyebrow}</div>
       <div class="tc-imp-field"><label>Name</label><input type="text" class="tc-imp-name" value="${esc(preview.personHint || state.personName || "")}" autocomplete="off" /></div>
       <div class="tc-imp-field"><label>Who they are to you</label><input type="text" class="tc-imp-rel" value="${esc(preview.relationshipHint || "")}" placeholder="e.g. a friend, someone I manage" autocomplete="off" /></div>
-      <div class="tc-imp-field"><label>Birthday (optional)</label><input type="text" class="tc-imp-bday" value="${esc(bday)}" placeholder="e.g. June 15 (year optional)" autocomplete="off" inputmode="text" /></div>
+      ${showOccasion ? "" : `<div class="tc-imp-field"><label>Birthday (optional)</label><input type="text" class="tc-imp-bday" value="${esc(bday)}" placeholder="e.g. June 15 (year optional)" autocomplete="off" inputmode="text" /></div>`}
+      ${occasionField}
       <div class="tc-imp-who">${whoLine()}</div>
       ${cands}
       ${otherFacts.length ? `<ul class="tc-imp-facts">${otherFacts.map((f) => `<li>${factLine(f)}</li>`).join("")}</ul>` : ""}
@@ -486,7 +548,9 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
   function wire() {
     const nameEl = card.querySelector(".tc-imp-name");
     const relEl = card.querySelector(".tc-imp-rel");
-    const bdayEl = card.querySelector(".tc-imp-bday");
+    const bdayEl = card.querySelector(".tc-imp-bday"); // absent when the Occasion field replaces it
+    const occEl = card.querySelector(".tc-imp-occ");
+    const occDateEl = card.querySelector(".tc-imp-occdate");
     const msg = card.querySelector(".tc-imp-msg");
     const setMsg = (t, bad) => { msg.className = "k-msg tc-imp-msg" + (bad ? " bad" : ""); msg.textContent = t || ""; };
 
@@ -509,8 +573,10 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
         }
         // Preserve the user's typed relationship/birthday across the redraw (birthday kept as the
         // text the user sees, e.g. "June 15" — draw() shows it back verbatim).
-        const keepRel = relEl.value, keepBday = bdayEl.value.trim();
+        const keepRel = relEl.value, keepBday = bdayEl ? bdayEl.value.trim() : "";
         preview.personHint = nm; preview.relationshipHint = keepRel; if (keepBday) preview.birthday = keepBday;
+        // TC-99: keep an edited occasion/date across the name re-resolve too.
+        if (occEl) preview.event = { ...(preview.event || {}), occasion: occEl.value.trim(), date: occDateEl ? occDateEl.value.trim() : (preview.event?.date || null) };
         draw();
       } catch (e) { console.error("re-resolve name", e); }
     };
@@ -524,6 +590,17 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
     // extraction did NOT already seed (user added or edited it) — so we never double-write.
     const bdayFact = facts.find((f) => f.relation === "birthday" || (f.fact_class === "RECURRING" && f.event_date));
     const bdayExtracted = bdayFact?.event_date || null; // full or sentinel ISO, or null
+
+    // TC-99: the NON-birthday event the extraction already seeded (a wedding/loss key_date written by
+    // captureResolve). Like the birthday, we only ask the host to write an event key_date when the
+    // user edited the occasion or date on the card (so we never double-write the seeded one). The
+    // seeded label/date come from the MILESTONE/RECURRING dated fact.
+    const evFact = showOccasion
+      ? facts.find((f) => f.event_date && (f.fact_class === "MILESTONE" || f.fact_class === "RECURRING"))
+      : null;
+    const evLabelExtracted = evFact ? String(evFact.object || "").trim() : "";
+    const evDateExtracted = evFact?.event_date || null;
+    const evRecursExtracted = evFact?.fact_class === "RECURRING";
 
     // Confirm → the SAME captureResolve the To-Review surface uses. For a brand-new person we pass
     // the edited name as newPersonName; for an update/pick we pass the chosen personId. An edited
@@ -546,14 +623,30 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
         const relNow = relEl.value.trim();
         // TC-112: parse the birthday field ("June 15" / "June 15, 1990" / "6/15" / ISO). If it
         // resolves to a date the extraction did NOT already seed, hand it to the host to write as a
-        // recurring key_date. { event_date, recurs } or null.
-        const bdayNow = parseBirthdayInput(bdayEl.value);
+        // recurring key_date. { event_date, recurs } or null. (Absent when the Occasion field is shown.)
+        const bdayNow = bdayEl ? parseBirthdayInput(bdayEl.value) : null;
         const bdayChanged = (bdayNow?.event_date || null) !== bdayExtracted;
+        // TC-99: the Occasion + date. Parse the date the same way as the birthday (accepts a year-less
+        // "June 15" → sentinel/recurring, or a full "June 15, 2027" → one-time). Hand the event to the
+        // host ONLY when the user changed the label or the date, so the seeded key_date isn't doubled.
+        let event = null;
+        if (showOccasion) {
+          const occLabel = (occEl?.value || "").trim();
+          const occDate = occDateEl ? parseBirthdayInput(occDateEl.value) : null;
+          const dateNow = occDate?.event_date || null;
+          const changed = occLabel !== evLabelExtracted || dateNow !== evDateExtracted;
+          // recurs: keep the extracted intent unless the user typed a full year (one-time) vs a
+          // year-less date (recurring), which parseBirthdayInput already encodes in occDate.recurs.
+          if (changed && (occLabel || dateNow)) {
+            event = { label: occLabel || "A date to remember", event_date: dateNow, recurs: occDate ? occDate.recurs : evRecursExtracted };
+          }
+        }
         if (onConfirmed) await onConfirmed(res || null, {
           relationship: relNow,
           relChanged: relNow !== relInitial,
           isNew: !(personId || state.personId),
           birthday: bdayChanged ? bdayNow : null,
+          event,
         });
       } catch (e) { setMsg(e.message, true); }
     };
