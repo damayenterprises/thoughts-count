@@ -67,6 +67,38 @@ export function captureVcard(sb, { vcard }) {
   return post(sb, "/api/capture/image", { vcard });
 }
 
+// TC-106 — add a person from a VOICE MEMO (an audio file the user recorded / shared). We DON'T
+// rebuild extract/resolve: we transcribe the audio on the server (the SAME /api/transcribe Whisper
+// path the live voice front door uses — key stays server-side), then the CALLER funnels the returned
+// transcript straight into captureExtract(preview) → the SAME confirm card as the paste/voice door.
+// Guards mime + size on the client too so an obviously-wrong or oversize file never costs a call.
+const AUDIO_MAX_BYTES = 5 * 1024 * 1024; // mirrors _audio.mjs MAX_AUDIO_BYTES
+// Accept common voice-memo containers by mime OR by extension (some browsers report "" for a .m4a).
+const AUDIO_EXT_RE = /\.(m4a|mp3|wav|ogg|oga|webm|mp4|aac|caf)$/i;
+export const isAudioFile = (file) =>
+  !!file && ((file.type || "").toLowerCase().startsWith("audio/") || AUDIO_EXT_RE.test(file.name || ""));
+
+// Read a file to raw base64 (no downscale — audio isn't an image). Returns { base64, mime }.
+function audioFileToBase64(file) {
+  return new Promise((res, rej) => {
+    const fr = new FileReader();
+    fr.onerror = () => rej(new Error("We couldn't read that recording."));
+    fr.onload = () => { const s = String(fr.result || ""); res({ base64: s.slice(s.indexOf(",") + 1), mime: file.type || "" }); };
+    fr.readAsDataURL(file);
+  });
+}
+
+// Transcribe a picked/shared audio file → the recognized text (server does the Whisper call).
+// Throws a warm message on an empty/oversize/unreadable file so the door can show it.
+export async function transcribeAudioFile(sb, file) {
+  if (!isAudioFile(file)) throw new Error("That doesn't look like a voice memo. Try an audio file (m4a, mp3, wav, or a recording).");
+  if (file.size != null && file.size > AUDIO_MAX_BYTES) throw new Error("That memo is a bit long. Try a shorter one, or a minute or two at most.");
+  const { base64, mime } = await audioFileToBase64(file);
+  if (!base64) throw new Error("That memo came through empty. Please try another recording.");
+  const { text } = await post(sb, "/api/transcribe", { audio: base64, mime });
+  return String(text || "").trim();
+}
+
 /* ---------------- reads (RLS-scoped anon) ---------------- */
 
 // How many captures are waiting in To-Review (drives the front-door badge).

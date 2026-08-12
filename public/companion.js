@@ -6,7 +6,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
-import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName, captureFromFile, renderImportConfirm } from "/_capture.js";
+import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName, captureFromFile, renderImportConfirm, transcribeAudioFile } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
 import { pickCheckback as pickCheckbackPure, classifyValenceLite, planValence, readOutcome } from "/_checkback.js";
 import { GUIDED_STEPS, makeGuidedState, stepAt, advance, back as guidedBack, isDone as guidedIsDone, canFinish as guidedCanFinish, answersToDraft } from "/_guided.js";
@@ -895,6 +895,13 @@ function renderHome(people, opts = {}) {
           <input type="file" id="np_photo_file" accept="image/*,.vcf,text/vcard" style="display:none;" />
           <p class="tc-help-sm" style="margin:6px 0 0;">A business card, an invitation, a card, a text, a profile, or a saved contact. We'll read who it's about and let you confirm.</p>
 
+          <!-- TC-106: add from a VOICE MEMO. Upload a recording that describes someone; we transcribe
+               it and run the SAME read-who-it's-about pipeline as talking or pasting, then you confirm.
+               On mobile the picker surfaces the phone's saved voice memos / audio. -->
+          <button class="cta ghost" id="np_audio_btn" type="button" style="width:100%;justify-content:center;margin-top:8px;">Add from a voice memo</button>
+          <input type="file" id="np_audio_file" accept="audio/*,.m4a,.mp3,.wav,.ogg,.webm" style="display:none;" />
+          <p class="tc-help-sm" style="margin:6px 0 0;">Record or share a memo about them and we'll listen, pull out who it's about, and let you confirm.</p>
+
           <!-- 1a: paste a bio / anything about them -->
           <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note, or a screenshot — and we'll pull out who it's about" style="margin-top:12px;min-height:72px;"></textarea>
           <div class="nav" style="justify-content:flex-end;"><button class="cta ghost" id="np_paste_go" type="button">Read it →</button></div>
@@ -1080,12 +1087,49 @@ function renderHome(people, opts = {}) {
   // preview card(s) — starting a fresh add without confirming the last one must not stack cards.
   // Call this ONCE at the start of each separate user action, before rendering that action's batch;
   // a single result with MULTIPLE people still renders one card per person (that batch is intentional).
-  const clearImportCards = () => { if (importOut) importOut.innerHTML = ""; };
+  // TC-99 (UX): the working state must land RIGHT WHERE THE USER JUST TAPPED, not below the doors
+  // (David: "I had to look even harder to find it"). So it's an opaque panel laid directly OVER the
+  // fast-doors block (.tc-add-more) — it momentarily REPLACES "Take a photo / Add a photo" with the
+  // lantern, then lifts the instant the confirm card (or an error) is ready. clearImportCards also
+  // removes it, so every existing resolve/error path tears it down for free.
+  const importDoors = () => modalBody().querySelector(".tc-add-more");
+  const clearImportCards = () => {
+    if (importOut) importOut.innerHTML = "";
+    const ov = importDoors()?.querySelector(".tc-imp-working");
+    if (ov) ov.remove();
+  };
+
+  const showImportWorking = (heading = "Reading who this is about...") => {
+    clearImportCards();
+    setImportMsg("");
+    const doors = importDoors();
+    if (!doors) return;
+    doors.style.position = "relative";
+    const ov = document.createElement("div");
+    ov.className = "tc-imp-working loading";
+    ov.setAttribute("role", "status");
+    ov.setAttribute("aria-live", "polite");
+    ov.style.cssText = "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;background:#fffdf8;border-radius:14px;padding:20px;";
+    ov.innerHTML = `
+      <svg class="lantern" viewBox="0 0 120 130" aria-hidden="true" style="width:96px;height:auto;">
+        <circle class="glow" cx="60" cy="62" r="52" fill="#ffe7b8"/>
+        <path d="M40 40a255 255 0 0 1 40 0" fill="none"/>
+        <path d="M42 46a20 20 0 0 1 36 0V96H42Z" fill="#fff9ee" stroke="#cda074" stroke-width="4"/>
+        <line x1="60" y1="28" x2="60" y2="96" stroke="#cda074" stroke-width="3"/>
+        <line x1="42" y1="66" x2="78" y2="66" stroke="#cda074" stroke-width="3"/>
+        <circle cx="60" cy="66" r="10" fill="#ffd691"/>
+      </svg>
+      <p class="big" style="margin:0;">${heading}</p>
+      <p class="lines" style="margin:0;">Give me a moment. I'll pull out who it's for and let you look it over.</p>`;
+    doors.appendChild(ov);
+    if (doors.scrollIntoView) doors.scrollIntoView({ block: "nearest" });
+  };
 
   const renderPreviews = (result) => {
     const previews = (result && result.previews) || [];
-    if (!previews.length) { setImportMsg(result?.message || "We couldn't find a person in that — try a clearer screenshot.", false); return; }
-    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person — confirm each below.", false);
+    if (!previews.length) { clearImportCards(); setImportMsg(result?.message || "We couldn't find a person in that. Try a clearer screenshot.", false); return; }
+    clearImportCards(); // tear down the working screen before the confirm card(s) render in its place
+    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person, confirm each below.", false);
     else setImportMsg("");
     for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
   };
@@ -1094,11 +1138,10 @@ function renderHome(people, opts = {}) {
   // image extractor + confirm card. Clears any prior un-confirmed card first (TC-114).
   const importImageFile = async (file, busyEl) => {
     if (!file) return;
-    clearImportCards();
-    setImportMsg("Reading…");
+    showImportWorking();
     if (busyEl) busyEl.disabled = true;
     try { renderPreviews(await captureFromFile(sb, file)); }
-    catch (e) { setImportMsg(e.message || "We couldn't read that file.", true); }
+    catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that file.", true); }
     if (busyEl) busyEl.disabled = false;
   };
 
@@ -1123,6 +1166,47 @@ function renderHome(people, opts = {}) {
       const file = cameraFile.files && cameraFile.files[0];
       await importImageFile(file, cameraBtn);
       cameraFile.value = "";
+    };
+  }
+
+  // TC-101/TC-106: run FREE TEXT (a pasted bio OR a transcribed voice memo) through the LIVE
+  // capture-extract in preview mode → the SAME confirm card as typing/voice. ONE place so the paste
+  // door and the voice-memo door share identical extract → resolve → confirm wiring (no parallel
+  // path). source_kind only tags provenance on the preview; the pipeline is the same.
+  const renderTextPreviews = async (text, { sourceKind }) => {
+    const result = await captureExtract(sb, { rawText: text, source: "typed", preview: true });
+    const previews = (result.captures || []).map((c) => ({ ...c, personHint: c.personHint || c.personName || "", relationshipHint: "", source_kind: sourceKind }));
+    if (!previews.length) { clearImportCards(); setImportMsg(result.message || "Nothing to add there yet.", false); return false; }
+    clearImportCards(); // tear down the working overlay before the confirm card(s) render in its place
+    for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
+    return true;
+  };
+
+  // TC-106: the voice-memo door. Transcribe the uploaded/shared audio (server-side Whisper, key never
+  // touches the client), then funnel the transcript through the SAME text pipeline above. Clears any
+  // prior un-confirmed card first (TC-114). Guards mime/size client-side too (transcribeAudioFile).
+  const importAudioFile = async (file, busyEl) => {
+    if (!file) return;
+    // TC-99 working-state, over the doors — up for the WHOLE wait (transcribe, then extract), the
+    // longest of any door. renderTextPreviews tears it down when the confirm card is ready.
+    showImportWorking("Listening to your memo...");
+    if (busyEl) busyEl.disabled = true;
+    try {
+      const text = await transcribeAudioFile(sb, file);
+      if (!text) { clearImportCards(); setImportMsg("We couldn't catch anything in that memo. Try again, or type it.", false); }
+      else { await renderTextPreviews(text, { sourceKind: "voice_memo" }); }
+    } catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that recording.", true); }
+    if (busyEl) busyEl.disabled = false;
+  };
+
+  const audioBtn = modalBody().querySelector("#np_audio_btn");
+  const audioFile = modalBody().querySelector("#np_audio_file");
+  if (audioBtn && audioFile) {
+    audioBtn.onclick = () => audioFile.click();
+    audioFile.onchange = async () => {
+      const file = audioFile.files && audioFile.files[0];
+      await importAudioFile(file, audioBtn);
+      audioFile.value = "";
     };
   }
 
@@ -1157,17 +1241,13 @@ function renderHome(people, opts = {}) {
     pasteGo.onclick = async () => {
       const text = (pasteEl.value || "").trim();
       if (!text) { pasteEl.focus(); return; }
-      clearImportCards(); // TC-114: a new "Read it →" replaces the prior un-confirmed card
-      setImportMsg("Reading…"); pasteGo.disabled = true;
+      showImportWorking(); pasteGo.disabled = true; // TC-114/TC-99: replaces the prior card with the working screen
       try {
-        // The LIVE capture-extract in preview mode → the SAME confirm card. Its captures already
-        // carry {kind, captureId, personDetail, candidates, facts}; map person_hint→personHint so
-        // renderImportConfirm pre-fills the editable name.
-        const result = await captureExtract(sb, { rawText: text, source: "typed", preview: true });
-        const previews = (result.captures || []).map((c) => ({ ...c, personHint: c.personHint || c.personName || "", relationshipHint: "", source_kind: "text_thread" }));
-        if (!previews.length) { setImportMsg(result.message || "Nothing to add there yet.", false); }
-        else { setImportMsg(""); pasteEl.value = ""; for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") }); }
-      } catch (e) { setImportMsg(e.message || "We couldn't read that.", true); }
+        // The LIVE capture-extract in preview mode → the SAME confirm card (shared helper), so a typed
+        // paste and a transcribed voice memo travel the identical extract → resolve → confirm path.
+        const shown = await renderTextPreviews(text, { sourceKind: "text_thread" });
+        if (shown) pasteEl.value = "";
+      } catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that.", true); }
       pasteGo.disabled = false;
     };
   }
