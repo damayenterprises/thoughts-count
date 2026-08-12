@@ -1071,30 +1071,42 @@ function renderHome(people, opts = {}) {
   // preview card(s) — starting a fresh add without confirming the last one must not stack cards.
   // Call this ONCE at the start of each separate user action, before rendering that action's batch;
   // a single result with MULTIPLE people still renders one card per person (that batch is intentional).
-  const clearImportCards = () => { if (importOut) importOut.innerHTML = ""; };
+  // TC-99 (UX): the working state must land RIGHT WHERE THE USER JUST TAPPED, not below the doors
+  // (David: "I had to look even harder to find it"). So it's an opaque panel laid directly OVER the
+  // fast-doors block (.tc-add-more) — it momentarily REPLACES "Take a photo / Add a photo" with the
+  // lantern, then lifts the instant the confirm card (or an error) is ready. clearImportCards also
+  // removes it, so every existing resolve/error path tears it down for free.
+  const importDoors = () => modalBody().querySelector(".tc-add-more");
+  const clearImportCards = () => {
+    if (importOut) importOut.innerHTML = "";
+    const ov = importDoors()?.querySelector(".tc-imp-working");
+    if (ov) ov.remove();
+  };
 
-  // TC-99 (UX): a calm full-surface "she's reading this" state that REPLACES the doors the instant
-  // an import fires, echoing the plan-gen lantern so the few-second extraction reads as considered,
-  // not broken (was a near-invisible "Reading" line under the still-visible doors). Renders into
-  // #np_import_out, so renderPreviews / the error path tear it down and render in its place.
   const showImportWorking = () => {
     clearImportCards();
     setImportMsg("");
-    if (!importOut) return;
-    importOut.innerHTML = `
-      <div class="loading" style="padding:32px 20px;" role="status" aria-live="polite">
-        <svg class="lantern" viewBox="0 0 120 130" aria-hidden="true">
-          <circle class="glow" cx="60" cy="62" r="52" fill="#ffe7b8"/>
-          <path d="M40 40a255 255 0 0 1 40 0" fill="none"/>
-          <path d="M42 46a20 20 0 0 1 36 0V96H42Z" fill="#fff9ee" stroke="#cda074" stroke-width="4"/>
-          <line x1="60" y1="28" x2="60" y2="96" stroke="#cda074" stroke-width="3"/>
-          <line x1="42" y1="66" x2="78" y2="66" stroke="#cda074" stroke-width="3"/>
-          <circle cx="60" cy="66" r="10" fill="#ffd691"/>
-        </svg>
-        <p class="big">Reading who this is about...</p>
-        <p class="lines">Give me a moment with this. I'll pull out who it's for and let you look it over.</p>
-      </div>`;
-    if (importOut.scrollIntoView) importOut.scrollIntoView({ block: "nearest" });
+    const doors = importDoors();
+    if (!doors) return;
+    doors.style.position = "relative";
+    const ov = document.createElement("div");
+    ov.className = "tc-imp-working loading";
+    ov.setAttribute("role", "status");
+    ov.setAttribute("aria-live", "polite");
+    ov.style.cssText = "position:absolute;inset:0;z-index:6;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:6px;background:#fffdf8;border-radius:14px;padding:20px;";
+    ov.innerHTML = `
+      <svg class="lantern" viewBox="0 0 120 130" aria-hidden="true" style="width:96px;height:auto;">
+        <circle class="glow" cx="60" cy="62" r="52" fill="#ffe7b8"/>
+        <path d="M40 40a255 255 0 0 1 40 0" fill="none"/>
+        <path d="M42 46a20 20 0 0 1 36 0V96H42Z" fill="#fff9ee" stroke="#cda074" stroke-width="4"/>
+        <line x1="60" y1="28" x2="60" y2="96" stroke="#cda074" stroke-width="3"/>
+        <line x1="42" y1="66" x2="78" y2="66" stroke="#cda074" stroke-width="3"/>
+        <circle cx="60" cy="66" r="10" fill="#ffd691"/>
+      </svg>
+      <p class="big" style="margin:0;">Reading who this is about...</p>
+      <p class="lines" style="margin:0;">Give me a moment. I'll pull out who it's for and let you look it over.</p>`;
+    doors.appendChild(ov);
+    if (doors.scrollIntoView) doors.scrollIntoView({ block: "nearest" });
   };
 
   const renderPreviews = (result) => {
