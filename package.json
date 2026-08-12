@@ -13,7 +13,8 @@
     "test:tc66": "node --env-file=.env test/spec-tc66-conversation-write.test.mjs",
     "test:tc91": "node --env-file=.env test/spec-tc91-firstname-fallback.test.mjs",
     "test:tc93": "node test/spec-tc93-roster-prompt.test.mjs",
-    "test:tc98": "node test/spec-tc98-image-vcard.test.mjs"
+    "test:tc98": "node test/spec-tc98-image-vcard.test.mjs",
+    "test:tc106": "node test/spec-tc106-audio-guard.test.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
