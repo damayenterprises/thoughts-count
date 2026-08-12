@@ -310,6 +310,14 @@
   .block ul li::before { content: "•"; position: absolute; left: 7px; color: var(--sage); font-weight: 700; }
   .block.say ul li::before { content: "\201C"; color: var(--sage-deep); font-size: 22px; top: -3px; }
   .block.avoid ul li::before { content: "\2013"; color: var(--clay-deep); top: 0; }
+  /* TC-86: unobtrusive one-tap copy on the lines a user actually sends. */
+  .block.say ul li.say-line { display: flex; align-items: baseline; gap: 8px; }
+  .block.say ul li.say-line .say-text { flex: 1 1 auto; }
+  .tc-copy { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; border: none; background: transparent; color: var(--ink-soft, #9a927f); cursor: pointer; font: inherit; font-size: 12.5px; line-height: 1; padding: 3px 7px; border-radius: 7px; opacity: .6; transition: opacity .15s ease, color .15s ease, background .15s ease; }
+  .tc-copy:hover, .tc-copy:focus-visible { opacity: 1; color: var(--sage-deep, #5f6c4c); background: rgba(95,108,76,.09); outline: none; }
+  .tc-copy.copied { color: var(--sage-deep, #5f6c4c); opacity: 1; }
+  .tc-copy .lbl { font-weight: 600; }
+  .followup .fu-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 4px; }
 
   .action { border-top: 1px solid var(--line); padding-top: 15px; margin-top: 15px; }
   .action:first-of-type { border-top: none; padding-top: 0; margin-top: 0; }
@@ -650,10 +658,10 @@
 <main>
   <section class="hero wrap">
     <h1>Show up for the moments that <em>matter most.</em></h1>
-    <p class="lead">A new baby or a hard week, a big promotion or just because — tell us what's happening and who they are to you, and we'll help you find the words, the gesture, and the perfect way to show you care.</p>
+    <p class="lead">A new baby or a hard week, a big promotion or just because. Tell us what's happening and who they are to you, and we'll help you find the words, the gesture, and the perfect way to show you care.</p>
     <p class="gets">You'll get: <b>what to say</b> · <b>what to do</b> · <b>what to send</b> · <b>how to keep showing up</b></p>
     <div class="hero-start">
-      <div class="hero-start-label">I want to show up for someone…</div>
+      <div class="hero-start-label">I want to show up for someone...</div>
       <!-- TC-90/orb-home: Della's presence orb IS the front door. The orb is the mic —
            tap / Enter / Space starts the hands-free spoken conversation (or, mic-less,
            opens the typed one). The old two-button hero-actions (#homeMicBtn "Say it out
@@ -691,7 +699,7 @@
 
   <section class="section wrap">
     <h2>You're not looking for a product.</h2>
-    <p class="sub">You're looking for the quiet certainty that you got it just right — big moment or small. So we start with a real conversation.</p>
+    <p class="sub">You're looking for the quiet certainty that you got it just right, big moment or small. So we start with a real conversation.</p>
     <div class="steps">
       <div class="step">
         <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e3ece4"/><circle cx="150" cy="60" r="120" fill="#eef4ee"/><path d="M95 78q0-24 24-24h62q24 0 24 24v10q0 24-24 24h-42l-20 18v-18h0q-24 0-24-24Z" fill="#ffffff" stroke="#bcccc0" stroke-width="2"/><path d="M112 74h76M112 88h54" stroke="#9fb3a6" stroke-width="3" stroke-linecap="round"/></svg></span>
@@ -701,7 +709,7 @@
       <div class="step">
         <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e1eae6"/><circle cx="150" cy="66" r="120" fill="#ecf2ee"/><path d="M150 104s-40-24-40-52a20 20 0 0 1 40-12 20 20 0 0 1 40 12c0 28-40 52-40 52Z" fill="#f4d9c6" stroke="#c58f68" stroke-width="2.5"/></svg></span>
         <h3>We think it through</h3>
-        <p>The way a thoughtful friend would — what helps, not just what's easy.</p>
+        <p>The way a thoughtful friend would: what helps, not just what's easy.</p>
       </div>
       <div class="step">
         <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e4ece6"/><circle cx="150" cy="60" r="120" fill="#eef4ef"/><rect x="112" y="30" width="76" height="78" rx="8" fill="#ffffff" stroke="#a9b788" stroke-width="2.5"/><path d="M126 50h48M126 64h48M126 78h30" stroke="#9aab77" stroke-width="3" stroke-linecap="round"/><path d="M118 62l30 24 40-46" fill="none" stroke="#7d8a68" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg></span>
@@ -730,11 +738,11 @@
       <div class="q-eyebrow example-eyebrow">A real example</div>
       <p class="example-situation">"My coworker's father passed away, but we aren't close."</p>
       <div class="example-lines">
-        <div class="example-line"><span>What to say</span>"I was so sorry to hear about your dad. I'm thinking of you this week." — sincere, brief, and no pressure to reply.</div>
+        <div class="example-line"><span>What to say</span>"I was so sorry to hear about your dad. I'm thinking of you this week." Sincere, brief, and no pressure to reply.</div>
         <div class="example-line"><span>A gesture that fits</span>A card left on their desk, or quietly covering their lunch. Presence over a big display.</div>
         <div class="example-line"><span>How to keep showing up</span>A short check-in the following week, once the cards have stopped and it gets quiet.</div>
       </div>
-      <p class="example-foot">This is a taste — your plan is built around your person and what feels right to you.</p>
+      <p class="example-foot">This is a taste. Your plan is built around your person and what feels right to you.</p>
     </div>
   </section>
 
@@ -748,7 +756,7 @@
 
 <footer>
   <div class="promise-big">Helping good intentions become meaningful actions.</div>
-  <div>Not to help you buy better gifts — to help you build stronger relationships.</div>
+  <div>Not to help you buy better gifts, but to help you build stronger relationships.</div>
   <div style="margin-top:16px;font-size:14.5px;">
     <a href="/guides/" style="color:var(--sage-deep);font-weight:700;">Guides: what to say &amp; do when it matters →</a>
   </div>
@@ -874,12 +882,12 @@
 <script>
 const STEPS = [
   { key: "moment", eyebrow: "First, the moment", title: "What happened?", help: "Pick what's closest, or tell us in your own words. The more you share, the more personal we can make this.", picks: ["Lost a loved one","New baby","A hard diagnosis","Beat cancer","Engagement","New job","Promotion","Job loss","Lost a pet","Retirement","Just a hard week"], placeholder: "e.g. My coworker's father passed away suddenly last weekend." },
-  { key: "relationship", eyebrow: "Who they are to you", title: "What's your relationship?", help: "This gently shapes everything — what's right for a spouse is different for a coworker.", picks: ["Close friend","Friend","Partner / spouse","Parent","Sibling","Other family","Coworker","Someone I manage","My boss","Neighbor","Client"], placeholder: "e.g. A coworker I like but don't know outside of work.",
-    extra: { key: "name", label: "Their name — optional, makes everything more personal", placeholder: "e.g. Todd" } },
-  { key: "about", eyebrow: "Tell us about them", title: "What are they like?", help: "Anything that helps us make this feel like them — their personality, what they're going through, your history together.", picks: [], placeholder: "e.g. She's private and doesn't like a fuss, but she's been carrying a lot. We usually just chat about our kids." },
-  { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure — guide me"], placeholder: "Optional — anything about your style or what you're comfortable with." },
-  { key: "constraints", eyebrow: "Time & budget", title: "What can you give right now?", help: "Totally okay if it's not much. Sometimes the most meaningful gesture is free.", picks: ["Just a little time","An afternoon","No budget","Under $25","$25–75","$75–150","Money's not the issue"], placeholder: "Optional — e.g. I'm slammed this week but want to do something meaningful.",
-    extra: { key: "location", label: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4" stroke="#c28a63"/></svg>What town or ZIP are they in?', hint: "Optional — but if you add it, we'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
+  { key: "relationship", eyebrow: "Who they are to you", title: "What's your relationship?", help: "This gently shapes everything. What's right for a spouse is different for a coworker.", picks: ["Close friend","Friend","Partner / spouse","Parent","Sibling","Other family","Coworker","Someone I manage","My boss","Neighbor","Client"], placeholder: "e.g. A coworker I like but don't know outside of work.",
+    extra: { key: "name", label: "Their name, optional. Makes everything more personal", placeholder: "e.g. Todd" } },
+  { key: "about", eyebrow: "Tell us about them", title: "What are they like?", help: "Anything that helps us make this feel like them: their personality, what they're going through, your history together.", picks: [], placeholder: "e.g. She's private and doesn't like a fuss, but she's been carrying a lot. We usually just chat about our kids." },
+  { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure, guide me"], placeholder: "Optional. Anything about your style or what you're comfortable with." },
+  { key: "constraints", eyebrow: "Time & budget", title: "What can you give right now?", help: "Totally okay if it's not much. Sometimes the most meaningful gesture is free.", picks: ["Just a little time","An afternoon","No budget","Under $25","$25-75","$75-150","Money's not the issue"], placeholder: "Optional. For example, I'm slammed this week but want to do something meaningful.",
+    extra: { key: "location", label: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4" stroke="#c28a63"/></svg>What town or ZIP are they in?', hint: "Optional. If you add it, we'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
 ];
 
 const answers = {};   // raw free-text per step
@@ -1102,7 +1110,7 @@ function renderStep(){
       <div class="q-eyebrow">${sEyebrow} · ${idx+1} of ${STEPS.length}</div>
       <h2 class="q-title">${sTitle}</h2>
       <p class="q-help">${sHelp}</p>
-      ${idx === 0 ? `<p class="q-reassure" style="margin:-4px 0 4px;font-size:12.5px;color:#b3a58c;">Takes about a minute — most people breeze through. Only this first question is needed.</p>` : ''}
+      ${idx === 0 ? `<p class="q-reassure" style="margin:-4px 0 4px;font-size:12.5px;color:#b3a58c;">Takes about a minute. Most people breeze through. Only this first question is needed.</p>` : ''}
       ${picksHtml}
       <textarea id="freetext" placeholder="${s.placeholder}">${current}</textarea>
       <div class="mic-wrap" style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
@@ -1490,7 +1498,7 @@ async function tcVoicePickPerson(){
   // primary conversation modal via cvStopVoice, or from the older listening overlay).
   __voicePerson = null; __voiceRememberOnSaved = null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
-  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment…</p></div>`;
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment...</p></div>`;
   scrim.scrollTop = 0;
   try {
     __voicePickCache = (window.TCCompanion && window.TCCompanion.listPeopleForVoice) ? await window.TCCompanion.listPeopleForVoice() : [];
@@ -1528,7 +1536,7 @@ function renderPersonPicker(people, filter){
       <div style="max-width:380px;margin:12px auto 0;">
         <input type="text" id="vpFilter" class="tc-name-input" placeholder="Type a name to find anyone" autocomplete="off" style="width:100%;box-sizing:border-box;max-width:none;text-align:left;font-weight:400;" value="${escapeHtml(filter || '')}" />
       </div>
-      ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#7a7263);">Recent — or type to find anyone else</p>` : ''}
+      ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#7a7263);">Recent, or type to find anyone else</p>` : ''}
       <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:10px;max-width:380px;margin-left:auto;margin-right:auto;">
         ${rows}
         ${emptyMsg}
@@ -1571,7 +1579,7 @@ function tcVoiceSayName(){
 async function onSpokenName(text){
   const t = String(text || '').trim();
   if ((t.match(/[\p{L}\p{N}]/gu) || []).length < 1){ renderHomeError("I didn't quite catch that name."); return; }
-  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Finding them…</p></div>`;
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Finding them...</p></div>`;
   scrim.scrollTop = 0;
   let res = null;
   try { res = await window.TCCompanion.resolveName(t); } catch(e){ res = { kind: 'none' }; }
@@ -1606,7 +1614,7 @@ function renderSpokenNameConfirm(spoken, person){
       <p style="font-family:'Fraunces',Georgia,serif;font-size:20px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 8px;">${knownPersonPhrase(person)}</p>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:10px;max-width:360px;margin-left:auto;margin-right:auto;">
         <button type="button" class="cta" id="snYes" style="width:100%;justify-content:center;">Yes, that's ${escapeHtml((person.name||'them').split(/\s+/)[0])}</button>
-        <button type="button" class="cta ghost" id="snElse" style="width:100%;justify-content:center;">No — someone else</button>
+        <button type="button" class="cta ghost" id="snElse" style="width:100%;justify-content:center;">No, someone else</button>
         <button type="button" class="cta ghost" id="snNew" style="width:100%;justify-content:center;">It's a new ${escapeHtml(spoken)}</button>
       </div>
       <div style="margin-top:14px;"><button type="button" class="link-btn" id="snConfirmCancel">Cancel</button></div>
@@ -1631,10 +1639,10 @@ function renderSpokenNamePick(spoken, candidates){
   stage.innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="q-eyebrow">A quick check</div>
-      <h2 class="q-title" style="font-size:22px;">You have a few — which one?</h2>
+      <h2 class="q-title" style="font-size:22px;">You have a few. Which one?</h2>
       <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:12px;max-width:360px;margin-left:auto;margin-right:auto;">
         ${rows}
-        <button type="button" class="cta ghost sn-new" style="width:100%;justify-content:center;">None of these — a new ${escapeHtml(spoken)}</button>
+        <button type="button" class="cta ghost sn-new" style="width:100%;justify-content:center;">None of these, a new ${escapeHtml(spoken)}</button>
       </div>
       <div style="margin-top:14px;"><button type="button" class="link-btn" id="snCancel">Cancel</button></div>
     </div>`;
@@ -1673,7 +1681,7 @@ function renderHomeListening(){
         <span class="tc-listen-ripple r3"></span>
         <span class="tc-listen-core">${micSvg(28, '#fff', '#fff')}</span>
       </div>
-      <p class="big" id="homeListenHeading" style="margin-top:14px;" aria-live="polite">I'm listening…</p>
+      <p class="big" id="homeListenHeading" style="margin-top:14px;" aria-live="polite">I'm listening...</p>
       ${(__voicePerson && __voicePerson.name) ? `<p class="lines" style="color:var(--accent,#c28a63);font-weight:600;margin-bottom:2px;">Adding to ${escapeHtml(__voicePerson.name)}</p>` : ''}
       <p class="lines" id="homeListenSub">Take your time. Tell me what's happening and who it's about.</p>
       <div id="homeMicStatus" style="font-size:12.5px;color:var(--ink-soft,#7a7263);margin-top:8px;"></div>
@@ -1681,7 +1689,7 @@ function renderHomeListening(){
         <button type="button" class="cta" id="homeDoneBtn">Done</button>
         <button type="button" class="link-btn" id="homeCancelBtn">Cancel</button>
       </div>
-      ${(tcSignedIn() && !__voicePerson) ? `<div style="margin-top:12px;"><button type="button" class="link-btn" id="homeAboutKnown">…or add to someone you already know</button></div>` : ''}
+      ${(tcSignedIn() && !__voicePerson) ? `<div style="margin-top:12px;"><button type="button" class="link-btn" id="homeAboutKnown">...or add to someone you already know</button></div>` : ''}
       ${ttsAvailable() ? `<div><label class="tc-readaloud"><input type="checkbox" id="homeReadAloud" class="tc-switch-input"${readAloudEnabled() ? ' checked' : ''}><span class="tc-switch" aria-hidden="true"></span><span>Read my replies aloud (hands-free)</span></label></div>` : ''}
     </div>`;
   scrim.scrollTop = 0;
@@ -2815,7 +2823,7 @@ let __voiceTranscript = ''; // held so the plan bridge can reuse the original wo
 async function rememberFromText(text){
   const t = String(text || '').trim();
   __voiceTranscript = t;
-  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment…</p><p class="lines">Figuring out who this is about.</p></div>`;
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment...</p><p class="lines">Figuring out who this is about.</p></div>`;
   scrim.scrollTop = 0;
   try {
     const res = await window.TCCompanion.capturePreview(t);
@@ -2923,7 +2931,7 @@ function renderRememberCard(cap){
         <p class="q-help" style="margin-top:10px;">Sound right? <span style="color:var(--ink-soft,#7a7263);">Tap the name to fix the spelling.</span></p>
         <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px;">
           <button type="button" class="cta" id="reConfirm">${attach ? `Yes, add it` : `Yes, remember ${escapeHtml(first(name))}`}</button>
-          ${attach ? `<button type="button" class="cta ghost" id="reElse" style="width:100%;max-width:320px;justify-content:center;">No — someone else</button>` : ''}
+          ${attach ? `<button type="button" class="cta ghost" id="reElse" style="width:100%;max-width:320px;justify-content:center;">No, someone else</button>` : ''}
           <button type="button" class="link-btn" id="reCancel">Cancel</button>
         </div>
         <div class="re-listen-cue" id="reListenCue" hidden></div>
@@ -2980,7 +2988,7 @@ function renderRememberCard(cap){
     // No real change → just restore the card as it was.
     if (!edited || edited.toLowerCase() === prev.toLowerCase()){ renderConfirm(); return; }
     const msg = document.getElementById('reNameMsg');
-    if (msg) msg.innerHTML = `<span class="q-help" style="color:var(--ink-soft,#7a7263);">Checking your people…</span>`;
+    if (msg) msg.innerHTML = `<span class="q-help" style="color:var(--ink-soft,#7a7263);">Checking your people...</span>`;
     let res = null;
     try { res = await window.TCCompanion.resolveName(edited); } catch(e){ res = { kind: 'none' }; }
     // If the corrected name matches a saved person that ISN'T the one we're already attached to,
@@ -3037,7 +3045,7 @@ function renderRememberCard(cap){
   async function renderRememberPersonPicker(filter){
     const spokenName = choice.name || 'them';
     if (!Array.isArray(__voicePickCache)){
-      stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Loading your people…</p></div>`;
+      stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Loading your people...</p></div>`;
       scrim.scrollTop = 0;
       try { __voicePickCache = (window.TCCompanion && window.TCCompanion.listPeopleForVoice) ? await window.TCCompanion.listPeopleForVoice() : []; }
       catch(e){ __voicePickCache = []; }
@@ -3063,7 +3071,7 @@ function renderRememberCard(cap){
         <div style="max-width:380px;margin:12px auto 0;">
           <input type="text" id="rpFilter" class="tc-name-input" placeholder="Type a name to find anyone" autocomplete="off" style="width:100%;box-sizing:border-box;max-width:none;text-align:left;font-weight:400;" value="${escapeHtml(filter || '')}" />
         </div>
-        ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#7a7263);">Recent — or type to find anyone else</p>` : ''}
+        ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#7a7263);">Recent, or type to find anyone else</p>` : ''}
         <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:10px;max-width:380px;margin-left:auto;margin-right:auto;">
           ${rows}
           ${emptyMsg}
@@ -3097,7 +3105,7 @@ function checkSvgLocal(sz){ return `<svg viewBox="0 0 24 24" width="${sz}" heigh
 function nextOrClose(){ if (__voiceQueue.length) renderNextRememberCard(); else closeFlow(); }
 let __lastSavedName = '';
 async function confirmRemember(cap, choice){
-  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Saving…</p></div>`;
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Saving...</p></div>`;
   try {
     const res = await window.TCCompanion.captureConfirm({ captureId: cap.captureId, personId: choice.personId || null, newPersonName: choice.newPersonName || null });
     __lastSavedName = (res && res.personName) || choice.newPersonName || cap.personName || cap.personHint || 'them';
@@ -3129,7 +3137,7 @@ async function onLockedText(text){
   const t = String(text || '').trim();
   if ((t.match(/[\p{L}\p{N}]/gu) || []).length < 2){ renderHomeError("I didn't quite catch that."); return; }
   if (!__voicePerson){ renderHomeReflect(t); return; }
-  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment…</p></div>`;
+  stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment...</p></div>`;
   scrim.scrollTop = 0;
   try {
     const res = await window.TCCompanion.capturePreviewLocked(__voicePerson.id, t);
@@ -3171,7 +3179,7 @@ function renderLockedConfirm(cap){
   // Same save whether confirmed by tap or by a spoken "yes" (TC-63); a tap stops the listen.
   const doConfirm = async () => {
     stopConfirmListen();
-    stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Saving…</p></div>`;
+    stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Saving...</p></div>`;
     try {
       await window.TCCompanion.captureConfirm({ captureId: cap.captureId, personId: cap.personId });
       const cb = __voicePerson && __voicePerson.onSaved;
@@ -3706,7 +3714,7 @@ function startGenProgress(){
     'Finding words that sound like you, not a card.',
     'Thinking through gestures that fit this relationship.',
     'Looking for lovely local options near them.',
-    'Almost there — putting your plan together.',
+    'Almost there. Putting your plan together.',
   ];
   let pct = 12, li = 0, tick = 0;
   setProgress(pct);
@@ -3734,7 +3742,7 @@ async function generate(){
         <line x1="42" y1="66" x2="78" y2="66" stroke="#cda074" stroke-width="3"/>
         <circle cx="60" cy="66" r="10" fill="#ffd691"/>
       </svg>
-      <p class="big">Thinking it through…</p>
+      <p class="big">Thinking it through...</p>
       <p class="lines" id="genLine" style="transition:opacity .25s ease;">Taking a moment to weigh what would truly help. This usually takes about a minute.</p>
     </div>`;
   scrim.scrollTop = 0;
@@ -3830,7 +3838,7 @@ function renderGiftCard(g, i){
           <div class="g-title">${escapeHtml(g.title)}</div>
           <div class="g-place">${PIN_SVG}<b>${escapeHtml(lp.name)}</b>${rating}<span class="g-addr">${escapeHtml(lp.address||'')}</span></div>
           <div class="g-why"><b>Why it fits:</b> ${escapeHtml(g.why_it_fits||'')}</div>
-          <div style="font-size:13px;color:var(--ink-soft);margin:2px 0 4px;">Many local spots sell gift cards on their site or at the counter — a quick check confirms it.</div>
+          <div style="font-size:13px;color:var(--ink-soft);margin:2px 0 4px;">Many local spots sell gift cards on their site or at the counter, a quick check confirms it.</div>
           <div class="g-foot">${priceTag}${gcBadge}<a class="g-link" href="${href}" target="_blank" rel="noopener noreferrer">${lp.website ? 'Visit their site →' : 'See them on the map →'}</a></div>
         </div>
       </div>`;
@@ -3992,6 +4000,46 @@ function tcFlushPendingRemember(){
   const inject = tcRememberShouldInject(pend.personId, window.__tcFlowPersonId, Date.now() - (pend.ts || 0), window.TC_REMEMBER_TTL_MS);
   if (inject) tcRenderRememberBand(pend.payload);
 }
+// TC-86: one-tap copy for the lines a user actually sends. The plan text is already
+// humanized server-side; tcCleanForHuman is a belt-and-suspenders normalize so a paste
+// never lands indented (David's "sentence starts 2-3 spaces in / line looks cut off" tell)
+// or carries a stray smart quote / ellipsis char.
+const TC_COPY_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.2"/><path d="M5 15V5.5A2.5 2.5 0 0 1 7.5 3H16"/></svg>';
+const TC_CHECK_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
+function tcCleanForHuman(s){
+  return String(s == null ? '' : s)
+    .replace(/\r\n?/g, '\n')
+    .replace(/[‘’‚‛]/g, "'")
+    .replace(/[“”„‟]/g, '"')
+    .replace(/…/g, '...')
+    .replace(/ /g, ' ')
+    .split('\n').map(function(l){ return l.replace(/[ \t]+/g, ' ').trim(); }).join('\n')
+    .replace(/\n{3,}/g, '\n\n').trim();
+}
+function tcCopiedFlash(btn){
+  if (!btn) return;
+  var hadLbl = !!btn.querySelector('.lbl');
+  btn.classList.add('copied');
+  btn.innerHTML = TC_CHECK_SVG + '<span class="lbl">Copied</span>';
+  clearTimeout(btn.__copyT);
+  btn.__copyT = setTimeout(function(){
+    btn.classList.remove('copied');
+    btn.innerHTML = TC_COPY_SVG + (hadLbl ? '<span class="lbl">Copy</span>' : '');
+  }, 1500);
+}
+async function tcCopyLine(text, btn){
+  var clean = tcCleanForHuman(text);
+  if (!clean) return;
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(clean); }
+    else {
+      var ta = document.createElement('textarea');
+      ta.value = clean; ta.setAttribute('readonly', ''); ta.style.position = 'fixed'; ta.style.top = '-1000px'; ta.style.opacity = '0';
+      document.body.appendChild(ta); ta.focus(); ta.select(); document.execCommand('copy'); document.body.removeChild(ta);
+    }
+    tcCopiedFlash(btn);
+  } catch(e){ console.error('copy failed', e); }
+}
 function renderPlan(p){
   currentPlan = p;
   // TC-81: silently persist for device-local recovery (overwrites each render). A freshly
@@ -4001,6 +4049,8 @@ function renderPlan(p){
   stopGenProgress(); setProgress(100);
   try { window.tcTrack && tcTrack('plan_viewed'); } catch(e){}
   const li = arr => (arr||[]).map(x => `<li>${escapeHtml(x)}</li>`).join('');
+  // TC-86: the "what you might say" lines get an unobtrusive copy button (sendable copy).
+  const sayLi = arr => (arr||[]).map((x, i) => `<li class="say-line"><span class="say-text">${escapeHtml(x)}</span><button type="button" class="tc-copy" data-copy-say="${i}" aria-label="Copy this line" title="Copy">${TC_COPY_SVG}</button></li>`).join('');
   const icon = d => `<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#5f6c4c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
   const actions = (p.thoughtful_actions||[]).map(a => `
     <div class="action">
@@ -4013,10 +4063,13 @@ function renderPlan(p){
       <div class="when">${escapeHtml(f.when)}</div>
       <div class="body">
         <div class="g">${escapeHtml(f.gesture)}</div>
-        <button class="remind-btn" data-fi="${i}">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M12 14v3M10.5 15.5h3"/></svg>
-          Set reminder
-        </button>
+        <div class="fu-actions">
+          <button type="button" class="tc-copy" data-copy-follow="${i}" aria-label="Copy this message" title="Copy">${TC_COPY_SVG}<span class="lbl">Copy</span></button>
+          <button class="remind-btn" data-fi="${i}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M12 14v3M10.5 15.5h3"/></svg>
+            Set reminder
+          </button>
+        </div>
       </div>
     </div>`).join('');
 
@@ -4064,7 +4117,7 @@ function renderPlan(p){
         <button type="button" class="fb-btn" data-v="down" aria-label="${fbHard ? 'I need something different' : 'Not quite'}" style="${fbPill}${fbHard ? '' : 'display:inline-flex;align-items:center;gap:7px;'}">${fbDownLabel}</button>
       </div>
       ${fbReasonsHtml}
-      <div class="fb-thanks" id="fbThanks" hidden aria-live="polite" style="margin-top:12px;opacity:0;transition:opacity .25s ease;font-size:14px;color:var(--sage-deep,#5f6c4c);font-weight:700;">Thank you — that means a lot.</div>
+      <div class="fb-thanks" id="fbThanks" hidden aria-live="polite" style="margin-top:12px;opacity:0;transition:opacity .25s ease;font-size:14px;color:var(--sage-deep,#5f6c4c);font-weight:700;">Thank you, that means a lot.</div>
     </div>`;
 
   stage.innerHTML = `
@@ -4074,7 +4127,7 @@ function renderPlan(p){
     </div>
     <div class="plan-body">
       <div class="block"><h4>${icon('<path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/>')}What matters most</h4><p>${escapeHtml(p.what_matters_most||'')}</p></div>
-      <div class="block say"><h4>${icon('<path d="M21 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/>')}What you might say</h4><ul>${li(p.what_to_say)}</ul></div>
+      <div class="block say"><h4>${icon('<path d="M21 15a2 2 0 0 1-2 2H8l-4 4V6a2 2 0 0 1 2-2h13a2 2 0 0 1 2 2Z"/>')}What you might say</h4><ul>${sayLi(p.what_to_say)}</ul></div>
       <div class="block avoid"><h4>${icon('<circle cx="12" cy="12" r="9"/><path d="M9 12h6"/>')}What to gently avoid</h4><ul>${li(p.what_not_to_say)}</ul></div>
       <div class="block"><h4>${icon('<path d="M20 12v9H4v-9M2 7h20v5H2zM12 22V7M12 7S9 3 6.5 4.5 8 8 12 7Zm0 0s3-4 5.5-2.5S16 8 12 7Z"/>')}Thoughtful things you could do</h4>${actions}</div>
       <div class="block"><h4>${icon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')}How much to spend</h4><p>${escapeHtml(p.spend_guidance||'')}</p></div>
@@ -4088,7 +4141,7 @@ function renderPlan(p){
            companion layer injects that option into #savePersonMount). -->
       <div class="keep keep-unified">
         <h4>Keep this plan</h4>
-        <p class="k-sub">Have it when you need it — and get a gentle nudge at just the right time to follow through.</p>
+        <p class="k-sub">Have it when you need it, and get a gentle nudge at just the right time to follow through.</p>
         <div class="keep-way">
           <div class="keep-way-label">Email it to you</div>
           <div class="k-row">
@@ -4113,7 +4166,7 @@ function renderPlan(p){
       ${fbBlock}
       <div style="text-align:center;margin-top:14px;"><a href="/guides/" style="color:var(--sage-deep);font-weight:600;font-size:14px;">Explore more guides on showing up →</a></div>
     </div>
-    <div class="disclaimer">A thoughtful starting point, made for your situation — trust your own heart on the details.</div>
+    <div class="disclaimer">A thoughtful starting point, made for your situation. Trust your own heart on the details.</div>
     <div style="height:16px"></div>`;
 
   // TC-66: if a conversation memory-save resolved while the plan was generating (the usual case),
@@ -4128,7 +4181,18 @@ function renderPlan(p){
       if (!f) return;
       downloadReminder(f, p);
       btn.classList.add('done');
-      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Downloaded — open it to add';
+      btn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6L9 17l-5-5"/></svg> Downloaded, open it to add';
+    });
+  });
+
+  // TC-86: wire the one-tap copy buttons on sendable lines. Source text comes from the plan
+  // object (not the DOM) so what lands on the clipboard is the clean, humanized copy.
+  stage.querySelectorAll('.tc-copy').forEach(btn => {
+    btn.addEventListener('click', () => {
+      let text = '';
+      if (btn.dataset.copySay != null) text = (p.what_to_say||[])[Number(btn.dataset.copySay)] || '';
+      else if (btn.dataset.copyFollow != null) { const ff = (p.follow_up||[])[Number(btn.dataset.copyFollow)]; text = ff ? ff.gesture : ''; }
+      if (text) tcCopyLine(text, btn);
     });
   });
 

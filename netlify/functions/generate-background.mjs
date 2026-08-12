@@ -294,6 +294,9 @@ export function humanizeText(s) {
   t = t.replace(/,\s*,/g, ",");                               // ", ," → ","  (from the dash swap)
   t = t.replace(/[ \t]{2,}/g, " ");                          // collapse runs of spaces
   t = t.replace(/\s+([,.;:!?])/g, "$1");                     // no space before punctuation
+  // Human-typed text is flush-left: strip any leading/trailing indentation the model
+  // emits per line (the "sentence starts 2-3 spaces in / line looks cut off" AI tell).
+  t = t.replace(/^[ \t]+/gm, "").replace(/[ \t]+$/gm, "");
   return t.trim();
 }
 
