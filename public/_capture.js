@@ -406,7 +406,9 @@ function ensureImportStyles() {
 
 // TC-99: title-case an occasion for the editable field ("wedding" → "Wedding", "baby's arrival" →
 // "Baby's Arrival"). Plain, no AI tells.
-const titleCase = (s) => String(s || "").replace(/\b\w/g, (c) => c.toUpperCase());
+// Capitalize only the FIRST letter, so a printed name inside an occasion stays intact:
+// "wedding" -> "Wedding", but "loss of Robert Hale" -> "Loss of Robert Hale" (never "Loss Of Robert Hale").
+const capFirst = (s) => { s = String(s || ""); return s ? s.charAt(0).toUpperCase() + s.slice(1) : s; };
 
 // TC-99: render an event date for the confirm field. A full ISO date shows with its year
 // ("2027-06-15" → "June 15, 2027"); a year-less/sentinel date drops the year ("June 15"); a value
@@ -468,9 +470,10 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
 
   function whoLine() {
     if (isObituary) {
-      // Gentle, plain condolence framing. We surfaced the deceased AND named survivors as separate
-      // cards; this asks the user to keep the person THEY are showing up for. No cheer, no auto-pick.
-      return `This looks like an obituary. Keep the person you want to show up for, whether that's someone remembering them or the one who has passed. Take your time.`;
+      // Gentle, plain condolence framing. The deceased is NEVER surfaced as a card — the people here
+      // are the living someone left behind. This asks the user to keep whoever they're showing up
+      // for. No cheer, no auto-pick, and never an invitation to add the person who passed.
+      return `This looks like an obituary. Keep the person you want to show up for. Take your time.`;
     }
     if (state.kind === "update" && state.personName) {
       const d = preview.personHasDetail && preview.personDetail ? ` (${esc(preview.personDetail)})` : "";
@@ -515,9 +518,16 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
     // date shows as "June 15, 2027". The date field is plain text so the user can type either.
     const evOccasion = showOccasion ? String(ev.occasion || "") : "";
     const evDateText = showOccasion ? formatEventDate(ev.date) : "";
+    // TC-99 (UX): on an obituary the occasion is quiet context (a loss), not something to wordsmith —
+    // show it read-only, and only show a Date if one was actually printed (never an empty, celebratory-
+    // looking date field on the most sensitive path). Other events (a wedding) stay fully editable.
+    const showEvDate = showOccasion && (!isObituary || !!evDateText);
+    const occInput = isObituary
+      ? `<input type="text" class="tc-imp-occ" value="${esc(capFirst(evOccasion))}" readonly aria-readonly="true" tabindex="-1" />`
+      : `<input type="text" class="tc-imp-occ" value="${esc(capFirst(evOccasion))}" placeholder="e.g. Wedding" autocomplete="off" />`;
     const occasionField = showOccasion ? `
-      <div class="tc-imp-field"><label>Occasion</label><input type="text" class="tc-imp-occ" value="${esc(titleCase(evOccasion))}" placeholder="e.g. Wedding" autocomplete="off" /></div>
-      <div class="tc-imp-field"><label>Date${isObituary ? "" : " (optional)"}</label><input type="text" class="tc-imp-occdate" value="${esc(evDateText)}" placeholder="e.g. June 15, 2027" autocomplete="off" inputmode="text" /></div>` : "";
+      <div class="tc-imp-field"><label>Occasion</label>${occInput}</div>
+      ${showEvDate ? `<div class="tc-imp-field"><label>Date (optional)</label><input type="text" class="tc-imp-occdate" value="${esc(evDateText)}" placeholder="${isObituary ? "" : "e.g. June 15, 2027"}" autocomplete="off" inputmode="text" /></div>` : ""}` : "";
     card.innerHTML = `
       <div class="tc-imp-eyebrow">${eyebrow}</div>
       <div class="tc-imp-field"><label>Name</label><input type="text" class="tc-imp-name" value="${esc(preview.personHint || state.personName || "")}" autocomplete="off" /></div>

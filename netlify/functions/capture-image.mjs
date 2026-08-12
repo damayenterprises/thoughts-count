@@ -238,13 +238,14 @@ async function notesToFacts(person) {
   return facts;
 }
 
-// A short, human, Title-cased label for an event key_date from the extracted occasion ("wedding" →
-// "Wedding"; "baby's arrival" → "Baby's Arrival"). Falls back to a plain word when the occasion is
-// empty. No AI tells (no em-dash/ellipsis) — a straight label the user sees on the confirm card.
+// A short, human label for an event key_date from the extracted occasion. Capitalize only the FIRST
+// letter so a printed name inside the occasion stays intact: "wedding" -> "Wedding", but
+// "loss of Robert Hale" -> "Loss of Robert Hale" (never the mangled "Loss Of Robert Hale"). Falls
+// back to a plain phrase when the occasion is empty. No AI tells, a straight label on the confirm card.
 function eventLabel(occasion) {
   const s = String(occasion || "").trim();
   if (!s) return "A date to remember";
-  return s.replace(/\b\w/g, (c) => c.toUpperCase());
+  return s.charAt(0).toUpperCase() + s.slice(1);
 }
 
 // A short human-readable audit string of what we imported (stored on the capture row like the typed
