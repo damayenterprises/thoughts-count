@@ -15,6 +15,10 @@ import { getStore } from "@netlify/blobs";
 import { normalizeAudience } from "./public-config.mjs";
 import { requireUser, serviceClient, supabaseConfigured } from "./_supabase.mjs";
 import { rosterNames } from "./_capture.mjs";
+// TC-106: the audio guard (mime + size) + ext mapping now live in one shared module so the live
+// voice front door AND the voice-memo add-a-person door (which rides this SAME endpoint) reject junk
+// identically, BEFORE spending a paid Whisper call. Mirrors the image door's ALLOWED_IMAGE_MIMES.
+import { audioExtFromMime, guardAudio, MAX_AUDIO_BYTES } from "./_audio.mjs";
 
 // TC-89 (1a): cap the total characters of the roster we hand OpenAI as a spelling bias, so a
 // large (Pro) roster can never bloat the transcription request or add latency. rosterNames
@@ -48,7 +52,7 @@ async function rosterPrompt(req) {
   } catch (e) { console.error("rosterPrompt (best-effort, skipping)", e); return ""; }
 }
 
-const MAX_BYTES = 5 * 1024 * 1024;
+const MAX_BYTES = MAX_AUDIO_BYTES;
 // Light abuse guard: cap how often one caller can transcribe, so an open (ungated)
 // endpoint calling a paid service can't be milked. Generous for real use — a plan
 // uses only a few — but stops a runaway bot. Never blocks on limiter failure.
@@ -98,10 +102,12 @@ export default async (req) => {
 
   let bytes;
   try { bytes = Buffer.from(b64, "base64"); } catch { return json(400, { error: "bad audio" }); }
-  if (!bytes.length) return json(400, { error: "empty audio" });
-  if (bytes.length > MAX_BYTES) return json(413, { error: "That recording is a bit long — try a shorter one." });
+  // TC-106: one shared mime + size guard (rejects an image/video/oversize memo BEFORE the paid call),
+  // used by both this endpoint's callers (live voice + voice-memo add-a-person).
+  const g = guardAudio(mime, bytes.length);
+  if (!g.ok) return json(g.status, { error: g.error });
 
-  const ext = mime.includes("mp4") ? "mp4" : mime.includes("ogg") ? "ogg" : mime.includes("wav") ? "wav" : "webm";
+  const ext = audioExtFromMime(mime);
   const form = new FormData();
   form.append("file", new Blob([bytes], { type: mime }), `answer.${ext}`);
   // gpt-4o-mini-transcribe is ~2x faster than whisper-1 at equal accuracy — cuts the wait
