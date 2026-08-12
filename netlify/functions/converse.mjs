@@ -129,7 +129,8 @@ function memoryBlock(ctx) {
     );
   }
   lines.push(
-    "Use this naturally: open by showing you remember (do not re-ask what you already know here), and let it make your guidance specific. Never recite the list back like a database; weave it in like a friend who remembers. If something material is missing, still ask.",
+    "Use this naturally: let what you remember make your guidance specific and personal (do not re-ask what you already know here). Never recite the list back like a database; weave it in like a friend who remembers.",
+    "Most of the time they open by naming what they want — \"I want to talk about Ellen\" or \"something's going on with Marcus.\" When they do, MEET THAT DIRECTLY — respond to what they actually brought, not a warm-up flourish. Do NOT reflexively open with a stock line like \"" + (name || "they") + " has been on my mind too\"; that phrasing has become a crutch. Showing you remember should come out in HOW you engage and the specifics you bring, and its form must VARY every time — sometimes a light acknowledgment, often just diving straight into what they raised, and only sometimes a warm \"I've been thinking about them.\" Never the same opener twice. If something material is missing, still ask.",
   );
   return lines.join("\n") + "\n";
 }
