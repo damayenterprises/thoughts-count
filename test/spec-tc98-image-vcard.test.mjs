@@ -174,13 +174,17 @@ t("normalizeExtracted carries a clean event through; drops a junk one to null", 
   assert.equal(r.people[2].event, null);
 });
 
-t("obituary: multiple people force ambiguous_multi_person (never auto-pick)", () => {
+t("obituary: only living SURVIVORS are returned (never the deceased); loss rides on each survivor", () => {
+  // The prompt bars the deceased from the people array — so a well-formed obituary extraction
+  // is survivors only, each carrying the "loss of <deceased>" occasion as context. Two named
+  // survivors force ambiguous_multi_person (never auto-pick who the user is showing up for).
   const r = normalizeExtracted({ people: [
-    { name: "Robert Hale", source_kind: "obituary", event: { occasion: "loss of Robert Hale", date: null, recurring: false } },
-    { name: "Mary Hale", source_kind: "obituary" },
+    { name: "Mary Hale", relationship_hint: "wife", source_kind: "obituary", event: { occasion: "loss of Robert Hale", date: null, recurring: false } },
+    { name: "James Hale", relationship_hint: "son", source_kind: "obituary", event: { occasion: "loss of Robert Hale", date: null, recurring: false } },
   ], ambiguous_multi_person: false });
   assert.equal(r.ambiguous_multi_person, true);
   assert.equal(r.people.length, 2);
+  assert.ok(!r.people.some((p) => p.name === "Robert Hale"), "the deceased must never be a returned person");
   assert.equal(r.people[0].event.occasion, "loss of Robert Hale");
 });
 
