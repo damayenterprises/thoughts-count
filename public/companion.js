@@ -9,6 +9,7 @@ import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportU
 import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName, captureFromFile, renderImportConfirm, transcribeAudioFile } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
 import { pickCheckback as pickCheckbackPure, classifyValenceLite, planValence, readOutcome } from "/_checkback.js";
+import { GUIDED_STEPS, makeGuidedState, stepAt, advance, back as guidedBack, isDone as guidedIsDone, canFinish as guidedCanFinish, answersToDraft } from "/_guided.js";
 
 let reviewCount = 0;   // captures waiting in To-Review (TC-50)
 let reviewOpen = false; // keep the To-Review panel open across confirms
@@ -876,6 +877,14 @@ function renderHome(people, opts = {}) {
              extract → resolve → confirm pipeline as typing. UX fix: these fast doors LEAD the
              Add-someone lane (top, no scroll) so a user discovers them before the manual form. -->
         <div class="tc-add-more">
+          <!-- TC-107: the calmest door — a guided, one-question-at-a-time add for the timid /
+               first-time / accessibility case. It leads the lane (a hesitant user should find it
+               first) but does NOT replace the fast doors below; it layers over the SAME
+               extract → resolve → confirm brain. -->
+          <button class="cta ghost" id="np_guided_btn" type="button" style="width:100%;justify-content:center;">Add one gentle question at a time</button>
+          <p class="tc-help-sm" style="margin:6px 0 14px;">New here, or would rather take it slow? We'll ask one small thing at a time, and you can skip anything.</p>
+          <div id="np_guided_out"></div>
+
           <!-- 1c/1d: a screenshot/photo of a DM/profile/contact card, or a shared .vcf.
                TC-99: on mobile, "Take a photo" opens the camera directly (capture=environment) so a
                user can shoot a business card / invite / card / obituary in front of them; the library
@@ -1242,6 +1251,151 @@ function renderHome(people, opts = {}) {
       pasteGo.disabled = false;
     };
   }
+
+  // ── TC-107: guided one-question-at-a-time add. The calmest, lowest-pressure door. It renders
+  //    INTO #np_guided_out (taking over the add lane's other doors while it runs), asks one small
+  //    thing at a time (every step but the name skippable), and on finish funnels the collected
+  //    answers through the SAME captureExtract(preview) → renderImportConfirm → captureResolve →
+  //    onConfirmed path as the paste door. No parallel writer; the confirm card still resolves WHICH
+  //    person against the roster (dedup) and confirms before any save. ──
+  const guidedOut = modalBody().querySelector("#np_guided_out");
+  const guidedBtn = modalBody().querySelector("#np_guided_btn");
+  if (guidedBtn && guidedOut) {
+    guidedBtn.onclick = () => {
+      // TC-107 (UX): the whole point of the calmest door is a single question with nothing else
+      // competing. So while the guided flow runs, hide the rest of the add-lane (the guided help
+      // line, every fast door after it, and the manual "type it in yourself" form) and restore
+      // them on close. The guided card stands alone.
+      const addWrap = guidedOut.closest(".tc-add-more");
+      const toHide = [];
+      if (guidedBtn.nextElementSibling) toHide.push(guidedBtn.nextElementSibling); // the guided help line
+      for (let n = guidedOut.nextElementSibling; n; n = n.nextElementSibling) toHide.push(n); // fast doors after the guided flow
+      if (addWrap) for (let m = addWrap.nextElementSibling; m; m = m.nextElementSibling) toHide.push(m); // manual form below the lane
+      const restore = toHide.map((el) => [el, el.style.display]);
+      toHide.forEach((el) => { el.style.display = "none"; });
+      guidedBtn.style.display = "none";
+      startGuidedAdd(guidedOut, {
+        onConfirmed,
+        // Finishing (a confirmed save reloads the whole home via onConfirmed) or cancelling both
+        // restore the entry button AND the doors/form we hid, so the lane is whole again.
+        onClose: () => {
+          guidedOut.innerHTML = "";
+          guidedBtn.style.display = "";
+          restore.forEach(([el, d]) => { el.style.display = d; });
+        },
+      });
+    };
+  }
+}
+
+// TC-107 — drive the guided flow inside `container`. Renders one question per screen (single focused
+// input, with the shared inline mic for the voice path), Skip/Continue/Back, and on finish assembles
+// the answers into a draft that runs through captureExtract(preview) and renders the SAME confirm
+// card everything else uses. `onConfirmed` is renderHome's shared save-and-reload callback;
+// `onClose` restores the entry button.
+function startGuidedAdd(container, { onConfirmed, onClose } = {}) {
+  const answers = {};
+  let state = makeGuidedState(GUIDED_STEPS);
+
+  const finish = async () => {
+    const draft = answersToDraft(answers);
+    // No name → nothing to save. Send the user back to the first question rather than dead-ending.
+    if (!draft) { state = makeGuidedState(GUIDED_STEPS); render(); return; }
+    container.innerHTML = `
+      <div class="tc-guided" role="group" aria-label="Adding someone">
+        <div class="q-eyebrow">One at a time</div>
+        <h2 class="q-title" style="font-size:22px;">Let's make sure this is right.</h2>
+        <p class="tc-help-sm" id="tcGuidedMsg">Reading it over...</p>
+      </div>`;
+    const msg = container.querySelector("#tcGuidedMsg");
+    try {
+      // The SAME extraction/dedup brain the paste door uses. preview:true writes nothing; it resolves
+      // WHICH person (existing/ambiguous/new) so the confirm card can never make a silent duplicate.
+      const result = await captureExtract(sb, { rawText: draft.rawText, source: "typed", preview: true });
+      const cap = (result.captures || [])[0];
+      if (!cap) {
+        // The extractor found no person (extremely unlikely with a leading name). Fall back to the
+        // structured answers so a guided add still confirms — the card resolves the name on its own.
+        renderGuidedConfirm({ personHint: draft.prefill.name });
+        return;
+      }
+      // Pre-fill the confirm card from what the user typed directly in the guided flow. The user's
+      // answers are authoritative over anything re-derived: name, relationship, and birthday all seed
+      // the editable fields, so they just check and save.
+      const bday = draft.prefill.birthday || cap.birthday || "";
+      renderGuidedConfirm({
+        ...cap,
+        personHint: cap.personHint || cap.personName || draft.prefill.name,
+        relationshipHint: draft.prefill.relationship || "",
+        birthday: bday,
+      });
+    } catch (e) {
+      if (msg) { msg.className = "k-msg bad"; msg.textContent = e.message || "Something went wrong. Please try again."; }
+    }
+  };
+
+  const renderGuidedConfirm = (preview) => {
+    container.innerHTML = `<div class="tc-guided"><div class="q-eyebrow">One at a time</div><h2 class="q-title" style="font-size:22px;">Here's who you're adding.</h2><p class="tc-help-sm">Check anything over, then save. You can still change a field.</p><div id="tcGuidedConfirmOut"></div></div>`;
+    const out = container.querySelector("#tcGuidedConfirmOut");
+    renderImportConfirm(out, sb, preview, {
+      contactKind: "personal",
+      // On save, onConfirmed reloads the whole home (the new card flashes) — that unmounts this
+      // guided container. On dismiss ("Not now"), just close back to the entry button.
+      onConfirmed: async (res, meta) => { if (onConfirmed) await onConfirmed(res, meta); },
+      onDismiss: () => { if (onClose) onClose(); },
+    });
+  };
+
+  const render = () => {
+    if (guidedIsDone(state)) { finish(); return; }
+    const s = stepAt(state);
+    const total = GUIDED_STEPS.length;
+    const answered = String(answers[s.key] || "").trim();
+    // Progress: a calm "N of 4". The name step Continue is only enabled with a value (it's the one
+    // soft requirement); every other step offers Skip and Continue works empty too.
+    const canContinue = s.optional || !!answered || guidedCanFinish(answers);
+    const isLast = state.idx === total - 1;
+    container.innerHTML = `
+      <div class="tc-guided" role="group" aria-label="Adding someone, ${s.title}">
+        <div class="q-eyebrow">${esc(s.eyebrow)} · ${state.idx + 1} of ${total}</div>
+        <h2 class="q-title" style="font-size:22px;">${esc(s.title)}</h2>
+        <p class="tc-help-sm" style="margin:2px 0 12px;">${esc(s.help)}</p>
+        <input type="text" id="tcGuidedInput" placeholder="${esc(s.placeholder)}" autocomplete="off" value="${esc(answered)}" />
+        <div class="nav" style="margin-top:14px;align-items:center;">
+          <div style="display:flex;gap:12px;align-items:center;">
+            ${state.idx > 0 ? `<button class="link-btn" id="tcGuidedBack" type="button">Back</button>` : `<button class="link-btn" id="tcGuidedCancel" type="button">Cancel</button>`}
+            ${s.optional ? `<button class="link-btn" id="tcGuidedSkip" type="button">Skip</button>` : ""}
+          </div>
+          <button class="cta" id="tcGuidedNext" type="button"${canContinue ? "" : " disabled"}>${isLast ? "Add them →" : "Continue →"}</button>
+        </div>
+        <div class="k-msg" id="tcGuidedMsg"></div>
+      </div>`;
+    const input = container.querySelector("#tcGuidedInput");
+    const nextBtn = container.querySelector("#tcGuidedNext");
+    // Voice path: the SAME inline mic used everywhere else (dictation into the focused field), so the
+    // guided door speaks in one voice with the fast doors. No new mic engine.
+    mountInlineMic(input, { mode: "dictation", ariaLabel: s.title });
+    // Keep Continue in step with whether the name has been given (the only enable-gated step).
+    const syncNext = () => { if (!s.optional && nextBtn) nextBtn.disabled = !input.value.trim(); };
+    input.addEventListener("input", syncNext);
+    setTimeout(() => { try { input.focus(); } catch (e) {} }, 0);
+
+    const commitAndAdvance = (value) => { answers[s.key] = value; state = advance(state); render(); };
+    nextBtn.onclick = () => {
+      const v = input.value.trim();
+      if (!s.optional && !v) { input.focus(); return; }
+      commitAndAdvance(v);
+    };
+    input.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); if (!nextBtn.disabled) nextBtn.onclick(); } });
+    const skipBtn = container.querySelector("#tcGuidedSkip");
+    if (skipBtn) skipBtn.onclick = () => { answers[s.key] = ""; state = advance(state); render(); };
+    const backBtn = container.querySelector("#tcGuidedBack");
+    if (backBtn) backBtn.onclick = () => { answers[s.key] = input.value.trim(); state = guidedBack(state); render(); };
+    const cancelBtn = container.querySelector("#tcGuidedCancel");
+    if (cancelBtn) cancelBtn.onclick = () => { if (onClose) onClose(); };
+  };
+
+  render();
 }
 
 function openAddDate(personId) {
