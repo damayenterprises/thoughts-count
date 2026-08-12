@@ -1073,10 +1073,35 @@ function renderHome(people, opts = {}) {
   // a single result with MULTIPLE people still renders one card per person (that batch is intentional).
   const clearImportCards = () => { if (importOut) importOut.innerHTML = ""; };
 
+  // TC-99 (UX): a calm full-surface "she's reading this" state that REPLACES the doors the instant
+  // an import fires, echoing the plan-gen lantern so the few-second extraction reads as considered,
+  // not broken (was a near-invisible "Reading" line under the still-visible doors). Renders into
+  // #np_import_out, so renderPreviews / the error path tear it down and render in its place.
+  const showImportWorking = () => {
+    clearImportCards();
+    setImportMsg("");
+    if (!importOut) return;
+    importOut.innerHTML = `
+      <div class="loading" style="padding:32px 20px;" role="status" aria-live="polite">
+        <svg class="lantern" viewBox="0 0 120 130" aria-hidden="true">
+          <circle class="glow" cx="60" cy="62" r="52" fill="#ffe7b8"/>
+          <path d="M40 40a255 255 0 0 1 40 0" fill="none"/>
+          <path d="M42 46a20 20 0 0 1 36 0V96H42Z" fill="#fff9ee" stroke="#cda074" stroke-width="4"/>
+          <line x1="60" y1="28" x2="60" y2="96" stroke="#cda074" stroke-width="3"/>
+          <line x1="42" y1="66" x2="78" y2="66" stroke="#cda074" stroke-width="3"/>
+          <circle cx="60" cy="66" r="10" fill="#ffd691"/>
+        </svg>
+        <p class="big">Reading who this is about...</p>
+        <p class="lines">Give me a moment with this. I'll pull out who it's for and let you look it over.</p>
+      </div>`;
+    if (importOut.scrollIntoView) importOut.scrollIntoView({ block: "nearest" });
+  };
+
   const renderPreviews = (result) => {
     const previews = (result && result.previews) || [];
-    if (!previews.length) { setImportMsg(result?.message || "We couldn't find a person in that — try a clearer screenshot.", false); return; }
-    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person — confirm each below.", false);
+    if (!previews.length) { clearImportCards(); setImportMsg(result?.message || "We couldn't find a person in that. Try a clearer screenshot.", false); return; }
+    clearImportCards(); // tear down the working screen before the confirm card(s) render in its place
+    if (result.ambiguousMultiPerson && previews.length > 1) setImportMsg("Looks like more than one person, confirm each below.", false);
     else setImportMsg("");
     for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
   };
@@ -1085,11 +1110,10 @@ function renderHome(people, opts = {}) {
   // image extractor + confirm card. Clears any prior un-confirmed card first (TC-114).
   const importImageFile = async (file, busyEl) => {
     if (!file) return;
-    clearImportCards();
-    setImportMsg("Reading…");
+    showImportWorking();
     if (busyEl) busyEl.disabled = true;
     try { renderPreviews(await captureFromFile(sb, file)); }
-    catch (e) { setImportMsg(e.message || "We couldn't read that file.", true); }
+    catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that file.", true); }
     if (busyEl) busyEl.disabled = false;
   };
 
@@ -1148,17 +1172,16 @@ function renderHome(people, opts = {}) {
     pasteGo.onclick = async () => {
       const text = (pasteEl.value || "").trim();
       if (!text) { pasteEl.focus(); return; }
-      clearImportCards(); // TC-114: a new "Read it →" replaces the prior un-confirmed card
-      setImportMsg("Reading…"); pasteGo.disabled = true;
+      showImportWorking(); pasteGo.disabled = true; // TC-114/TC-99: replaces the prior card with the working screen
       try {
         // The LIVE capture-extract in preview mode → the SAME confirm card. Its captures already
         // carry {kind, captureId, personDetail, candidates, facts}; map person_hint→personHint so
         // renderImportConfirm pre-fills the editable name.
         const result = await captureExtract(sb, { rawText: text, source: "typed", preview: true });
         const previews = (result.captures || []).map((c) => ({ ...c, personHint: c.personHint || c.personName || "", relationshipHint: "", source_kind: "text_thread" }));
-        if (!previews.length) { setImportMsg(result.message || "Nothing to add there yet.", false); }
-        else { setImportMsg(""); pasteEl.value = ""; for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") }); }
-      } catch (e) { setImportMsg(e.message || "We couldn't read that.", true); }
+        if (!previews.length) { clearImportCards(); setImportMsg(result.message || "Nothing to add there yet.", false); }
+        else { clearImportCards(); setImportMsg(""); pasteEl.value = ""; for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") }); }
+      } catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that.", true); }
       pasteGo.disabled = false;
     };
   }
