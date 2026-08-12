@@ -876,10 +876,15 @@ function renderHome(people, opts = {}) {
              extract → resolve → confirm pipeline as typing. UX fix: these fast doors LEAD the
              Add-someone lane (top, no scroll) so a user discovers them before the manual form. -->
         <div class="tc-add-more">
-          <!-- 1c/1d: a screenshot/photo of a DM/profile/contact card, or a shared .vcf -->
-          <button class="cta ghost" id="np_photo_btn" type="button" style="width:100%;justify-content:center;">Add from a screenshot or photo</button>
+          <!-- 1c/1d: a screenshot/photo of a DM/profile/contact card, or a shared .vcf.
+               TC-99: on mobile, "Take a photo" opens the camera directly (capture=environment) so a
+               user can shoot a business card / invite / card / obituary in front of them; the library
+               button keeps the desktop file/screenshot/.vcf path. Both route to the SAME handler. -->
+          <button class="cta ghost" id="np_camera_btn" type="button" style="width:100%;justify-content:center;">Take a photo</button>
+          <input type="file" id="np_camera_file" accept="image/*" capture="environment" style="display:none;" />
+          <button class="cta ghost" id="np_photo_btn" type="button" style="width:100%;justify-content:center;margin-top:8px;">Add from a screenshot or photo</button>
           <input type="file" id="np_photo_file" accept="image/*,.vcf,text/vcard" style="display:none;" />
-          <p class="tc-help-sm" style="margin:6px 0 0;">A text, a DM, a profile, or a saved contact — we'll read who it's about and let you confirm.</p>
+          <p class="tc-help-sm" style="margin:6px 0 0;">A business card, an invitation, a card, a text, a profile, or a saved contact. We'll read who it's about and let you confirm.</p>
 
           <!-- 1a: paste a bio / anything about them -->
           <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note, or a screenshot — and we'll pull out who it's about" style="margin-top:12px;min-height:72px;"></textarea>
@@ -1021,7 +1026,7 @@ function renderHome(people, opts = {}) {
   const importMsg = modalBody().querySelector("#np_import_msg");
   const setImportMsg = (t, bad) => { if (!importMsg) return; importMsg.className = "k-msg" + (bad ? " bad" : ""); importMsg.textContent = t || ""; };
 
-  const onConfirmed = async (res, { relationship, relChanged, isNew, birthday } = {}) => {
+  const onConfirmed = async (res, { relationship, relChanged, isNew, birthday, event } = {}) => {
     // Persist the edited "who they are to you" — the server createPerson/resolve sets name only and
     // ignores relationship, so the client honors it here. New person: write whatever they entered.
     // Existing person (update card): write ONLY when the user actually set/changed the field, so we
@@ -1043,6 +1048,21 @@ function renderHome(people, opts = {}) {
           await addKeyDate(res.personId, { label: "Birthday", kind: "birthday", event_date: birthday.event_date, recurs: !!birthday.recurs, lead_days: 7 });
         }
       } catch (e) { console.error("set birthday key_date", e); }
+    }
+    // TC-99: the confirm card returns `event` only when the user added/edited a non-birthday occasion
+    // (a wedding, a graduation) the extraction didn't already seed. Write it as a labeled key_date —
+    // recurring for a year-less date, one-time for a full date. Needs a real date to be a key_date;
+    // an occasion with no date (e.g. an obituary's dateless loss) stays as the audit note only.
+    // Deduped on label+date so re-confirming can't pile up duplicates.
+    if (res && res.ok && res.personId && event && event.event_date) {
+      try {
+        const label = (event.label || "A date to remember").slice(0, 120);
+        const { data: existing } = await sb.from("key_dates")
+          .select("id").eq("person_id", res.personId).eq("label", label).eq("event_date", event.event_date);
+        if (!existing || !existing.length) {
+          await addKeyDate(res.personId, { label, kind: event.recurs ? "custom" : "moment", event_date: event.event_date, recurs: !!event.recurs, lead_days: 7 });
+        }
+      } catch (e) { console.error("set event key_date", e); }
     }
     renderHome(await loadPeople(), { highlightId: res?.personId });
   };
@@ -1081,6 +1101,19 @@ function renderHome(people, opts = {}) {
       const file = photoFile.files && photoFile.files[0];
       await importImageFile(file, photoBtn);
       photoFile.value = "";
+    };
+  }
+
+  // TC-99: the camera door — same handler, a mobile-camera-first input. On desktop this simply
+  // opens the file picker (browsers ignore `capture` when there's no camera), so it degrades safely.
+  const cameraBtn = modalBody().querySelector("#np_camera_btn");
+  const cameraFile = modalBody().querySelector("#np_camera_file");
+  if (cameraBtn && cameraFile) {
+    cameraBtn.onclick = () => cameraFile.click();
+    cameraFile.onchange = async () => {
+      const file = cameraFile.files && cameraFile.files[0];
+      await importImageFile(file, cameraBtn);
+      cameraFile.value = "";
     };
   }
 

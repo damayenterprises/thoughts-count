@@ -148,6 +148,8 @@ async function previewForPerson(supa, userId, person, source) {
       relationship_hint: person.relationship_hint || "",
       birthday: person.birthday || null,
       source_kind: person.source_kind || "other",
+      // TC-99: carry the artifact's event so the confirm card can show + edit the occasion/date.
+      event: person.event || null,
       // TC-109: carry the detected email/phone so confirm persists them into `identifiers`, arming
       // strong-key dedup — a later import of the same contact resolves to an UPDATE, not a duplicate.
       identifiers: Array.isArray(person.identifiers) ? person.identifiers : [],
@@ -179,6 +181,9 @@ async function previewForPerson(supa, userId, person, source) {
     evidence: r.evidence,
     count: facts.length,
     source_kind: person.source_kind || "other",
+    // TC-99: the confirm card shows the occasion + date and (for an obituary) asks who the user is
+    // showing up for with quiet copy. Passed straight through; the client decides the rendering.
+    event: person.event || null,
   };
 }
 
@@ -208,7 +213,38 @@ async function notesToFacts(person) {
       confidence: 1,
     });
   }
+  // TC-99: the artifact's event → a dated fact that seeds a key_date on confirm, through the SAME
+  // writeFactsToPerson path (no parallel write logic). A recurring event (a birthday on a card/baby
+  // announcement) → a RECURRING "Birthday" key_date; a one-time event (a wedding date, a loss) → a
+  // MILESTONE key_date labeled with the occasion. We only add it when the event carries a real date
+  // (a key_date needs one) and it isn't already the birthday we seeded above. An obituary's dateless
+  // "loss of <name>" occasion is carried on the preview (quiet confirm copy) rather than as a bogus
+  // dated key_date. Recurrence + label come straight from the extracted event — never guessed.
+  const ev = person.event;
+  if (ev && ev.date && ev.date !== person.birthday) {
+    const isBirthday = ev.recurring && /\bbirthday\b/i.test(ev.occasion || "");
+    facts.push({
+      person_hint: "",
+      subject: "self",
+      relation: isBirthday ? "birthday" : "event",
+      object: isBirthday ? "Birthday" : eventLabel(ev.occasion),
+      fact_class: ev.recurring ? "RECURRING" : "MILESTONE",
+      is_health: false,
+      event_date: ev.date,
+      suggested_gesture: null,
+      confidence: 1,
+    });
+  }
   return facts;
+}
+
+// A short, human, Title-cased label for an event key_date from the extracted occasion ("wedding" →
+// "Wedding"; "baby's arrival" → "Baby's Arrival"). Falls back to a plain word when the occasion is
+// empty. No AI tells (no em-dash/ellipsis) — a straight label the user sees on the confirm card.
+function eventLabel(occasion) {
+  const s = String(occasion || "").trim();
+  if (!s) return "A date to remember";
+  return s.replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 // A short human-readable audit string of what we imported (stored on the capture row like the typed
@@ -218,6 +254,9 @@ function rawTextFor(person) {
   if (person.relationship_hint) bits.push(`(${person.relationship_hint})`);
   for (const id of person.identifiers || []) bits.push(id.value);
   if (person.birthday) bits.push(`birthday ${person.birthday}`);
+  if (person.event && (person.event.occasion || person.event.date)) {
+    bits.push([person.event.occasion, person.event.date].filter(Boolean).join(" "));
+  }
   for (const n of person.notes || []) bits.push(n);
   return bits.filter(Boolean).join(" · ");
 }

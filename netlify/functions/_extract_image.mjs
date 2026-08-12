@@ -22,6 +22,13 @@ import { BDAY_SENTINEL_YEAR } from "./_capture.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 
+// The kinds we trust (screens + TC-99 physical artifacts). Anything else normalizes to "other".
+const SOURCE_KINDS = [
+  "dm", "profile", "contact_card", "text_thread",
+  "business_card", "invitation", "save_the_date", "greeting_card", "announcement", "obituary",
+  "other",
+];
+
 // The images we accept. Kept small + explicit so a junk/oversized upload never costs a model
 // call (capture-image.mjs guards on this list before we ever reach the API).
 export const ALLOWED_IMAGE_MIMES = ["image/jpeg", "image/png", "image/webp", "image/gif"];
@@ -71,8 +78,21 @@ const EXTRACTED_PERSON_ITEM = {
     },
     source_kind: {
       type: "string",
-      enum: ["dm", "profile", "contact_card", "text_thread", "other"],
-      description: "What kind of screen this is: a direct-message chat, a social profile header, a phone contact card, a texting thread, or other.",
+      enum: ["dm", "profile", "contact_card", "text_thread", "business_card", "invitation", "save_the_date", "greeting_card", "announcement", "obituary", "other"],
+      description: "What kind of thing this is. Screens: dm (a direct-message chat), profile (a social profile header), contact_card (a phone contact card), text_thread (a texting thread). Physical artifacts: business_card, invitation (a wedding/party/event invite), save_the_date, greeting_card (a birthday/greeting card), announcement (a baby/graduation/engagement announcement), obituary. Otherwise other.",
+    },
+    // TC-99: an EVENT the artifact carries (a wedding date on an invite, a birthday on a card, a
+    // birth date on a baby announcement, a loss on an obituary). Per person: the date + occasion +
+    // whether it repeats yearly. ONLY when a date is literally printed; never infer a day/month/year.
+    event: {
+      type: "object",
+      description:
+        "An event this artifact carries FOR THIS PERSON, when a date or occasion is literally shown. A wedding invite/save-the-date → occasion \"wedding\", the printed wedding date, recurring:false. A baby announcement → occasion \"birthday\", the birth date, recurring:true (a birthday repeats). A birthday/greeting card with a printed birth date → occasion \"birthday\", recurring:true. An obituary → occasion \"loss of <deceased name>\", the date if shown, recurring:false. A business card usually carries NO event (omit). Omit the whole object if no occasion/date is shown for this person. Never invent a date.",
+      properties: {
+        occasion: { type: "string", description: "A short plain label for the event, lowercase (e.g. \"wedding\", \"birthday\", \"baby's arrival\", \"loss of Robert Hale\"). Empty if none." },
+        date: { type: "string", description: "The event date: YYYY-MM-DD when a full date with a year is printed, or --MM-DD when only a month+day is shown (no year). null if no date is printed. Never infer a day, month, or year." },
+        recurring: { type: "boolean", description: "true if this event repeats yearly (a birthday, an anniversary). false for a one-time event (a specific wedding date, a loss)." },
+      },
     },
     confidence: {
       type: "number",
@@ -99,16 +119,24 @@ const EXTRACT_IMAGE_SCHEMA = {
   required: ["people"],
 };
 
-const EXTRACT_IMAGE_SYSTEM = `You look at ONE screenshot or photo a thoughtful person captured about someone they care about — a direct-message chat, a social-media profile, a phone contact card, or a texting thread — and turn the people literally visible in it into clean, structured records for a relationship companion's memory. You are the eyes behind that memory, not a chatbot. Be faithful to exactly what is shown; never invent.
+const EXTRACT_IMAGE_SYSTEM = `You look at ONE screenshot or photo a thoughtful person captured about someone they care about, and turn the people literally shown in it into clean, structured records for a relationship companion's memory. You are the eyes behind that memory, not a chatbot. Be faithful to exactly what is shown; never invent.
 
-You can read the layout directly (no transcription tool needed): a chat header names who the conversation is with; a profile shows a display name/@handle and sometimes a bio, location, birthday; a contact card shows a name, phone, email, and labeled fields.
+It may be a SCREEN — a direct-message chat, a social-media profile, a phone contact card, a texting thread — or a photo of a PHYSICAL ARTIFACT the person is holding onto: a business card, a wedding invitation or save-the-date, a birthday or greeting card, a baby/graduation/engagement announcement, or an obituary. You can read the layout directly (no transcription tool needed).
+
+What each thing tells you:
+- A chat header names who the conversation is with; a profile shows a display name/@handle and sometimes a bio, location, birthday; a contact card shows a name, phone, email, labeled fields.
+- A business card: the person is the card's OWNER. Read their name, and put a job title and company name into notes. Read the email/phone printed on it. A business card usually carries no event.
+- An invitation or save-the-date: the person(s) is the celebrant(s) — the couple getting married, the child having a party. Capture the EVENT: occasion "wedding" (or "party", etc.) and the printed date. A wedding date is a one-time event (recurring:false). If TWO hosts/celebrants are named (a couple), set ambiguous_multi_person and list each — never auto-pick one.
+- A birthday or greeting card: the person is who the card is for/from as named. If a birth date is printed, that is a birthday event (recurring:true).
+- A baby announcement: the person is the child (or the parents if only they are named); the birth date is a birthday (recurring:true).
+- An obituary: handle with CARE. Someone usually photographs an obituary to show up for a person who is grieving, not to "add the deceased". So surface BOTH the deceased AND the named surviving relatives (spouse, children, etc.) as separate people, set ambiguous_multi_person, and NEVER auto-pick anyone. On the deceased's record set the event occasion to "loss of <the deceased's name>". Only use names and relationships literally printed in the obituary. Keep everything plain and factual; do not add sentiment.
 
 Rules:
-- Emit ONLY what is literally visible. Never invent or complete a name, email, phone, birthday, or location. Prefer an empty field over a guess.
-- The person to add is the OTHER party — the one the user is talking to / looking at — not the user themselves. If the user's own name/handle is visible (e.g. the account header), do not return the user as a person to add.
-- A relative or friend merely MENTIONED in a message ("my mom is visiting", "Eli started school") is a NOTE about the visible person, never their own person record.
-- Only set birthday when a full, unambiguous date is shown. Only include an identifier (email/phone) that is actually printed on screen.
-- If TWO OR MORE distinct people appear (a group chat, a multi-sender thread), set ambiguous_multi_person:true and list each person separately. NEVER pick one for the user.
+- Emit ONLY what is literally visible. Never invent or complete a name, email, phone, date, occasion, or location. Prefer an empty field over a guess.
+- On a screen, the person to add is the OTHER party — the one the user is talking to / looking at — not the user themselves. If the user's own name/handle is visible (e.g. the account header), do not return the user as a person to add.
+- A relative or friend merely MENTIONED in a message ("my mom is visiting", "Eli started school") is a NOTE about the visible person, never their own person record. (An obituary is the exception: named survivors ARE returned as people, because showing up for them is the point.)
+- Only set a birthday or an event date when it is literally printed. Set the event's date to YYYY-MM-DD if a full date with a year is shown, or --MM-DD if only a month and day are shown; leave it null if no date is printed. Only include an identifier (email/phone) that is actually printed.
+- If TWO OR MORE distinct people appear (a group chat, a couple on an invite, a family in an obituary), set ambiguous_multi_person:true and list each person separately. NEVER pick one for the user.
 - If nothing identifiable is present (a meme, a landscape, unreadable), return an empty people array.
 
 Always respond by calling the extract_people tool.`;
@@ -147,7 +175,7 @@ export async function extractPersonFromImage(base64, mime, { rosterNames = [] } 
           role: "user",
           content: [
             { type: "image", source: { type: "base64", media_type, data } },
-            { type: "text", text: `Read this image and return the person (or people) visible in it.${rosterLine}` },
+            { type: "text", text: `Read this image and return the person (or people) shown in it. It may be a screen (a DM, profile, contact card, thread) or a photo of a physical thing (a business card, invitation, save-the-date, greeting card, announcement, or obituary) — capture any event date + occasion it carries.${rosterLine}` },
           ],
         },
       ],
@@ -181,7 +209,12 @@ export function normalizeExtracted(input) {
     // sentinel year so it seeds a RECURRING yearly key_date without a bogus year).
     const birthday = normBday(String(p.birthday || ""));
     const notes = Array.isArray(p.notes) ? p.notes.map((n) => String(n || "").trim()).filter(Boolean) : [];
-    const source_kind = ["dm", "profile", "contact_card", "text_thread", "other"].includes(p.source_kind) ? p.source_kind : "other";
+    const source_kind = SOURCE_KINDS.includes(p.source_kind) ? p.source_kind : "other";
+    // TC-99: carry the artifact's event through cleanly. The date runs through the SAME normBday
+    // handling as a birthday (full YYYY-MM-DD kept; year-less --MM-DD → sentinel year; a partial the
+    // model guessed a day onto is rejected → null). An event with no usable occasion AND no date is
+    // dropped (nothing to seed). recurring defaults to whether it reads as a birthday.
+    const event = normEvent(p.event);
     people.push({
       name,
       name_confidence: clamp01(p.name_confidence, 0.9),
@@ -191,6 +224,7 @@ export function normalizeExtracted(input) {
       location_hint: String(p.location_hint || "").trim(),
       notes,
       source_kind,
+      event,
       confidence: clamp01(p.confidence, 0.9),
     });
   }
@@ -199,6 +233,22 @@ export function normalizeExtracted(input) {
 
 function clamp01(v, dflt) {
   return typeof v === "number" ? Math.max(0, Math.min(1, v)) : dflt;
+}
+
+// TC-99: coerce a model-emitted event into a clean, trusted shape or null. The date runs through
+// normBday (full date kept; year-less → sentinel year; anything the model guessed a day onto → null),
+// so a wedding date stays a one-time key_date and a printed birthday seeds a recurring one — the SAME
+// year-less handling as everywhere else. We keep an event with a date OR a real occasion (an obituary
+// may carry a "loss of <name>" occasion with no printed date); an empty/dateless-and-occasionless
+// object is dropped. `recurring` is faithful to the model, defaulting to true only for a birthday.
+export function normEvent(raw) {
+  if (!raw || typeof raw !== "object") return null;
+  const occasion = String(raw.occasion || "").trim();
+  const date = normBday(String(raw.date || ""));
+  if (!date && !occasion) return null; // nothing durable to seed
+  const looksBirthday = /\bbirthday\b/i.test(occasion);
+  const recurring = typeof raw.recurring === "boolean" ? raw.recurring : looksBirthday;
+  return { occasion, date, recurring };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────────────────
@@ -277,6 +327,7 @@ function cardToPerson(cardLines) {
     location_hint: "",
     notes: noteBits.filter(Boolean),
     source_kind: "contact_card",
+    event: null, // a .vcf carries a contact, not an event (TC-99 shape parity)
     confidence: 1,
   };
 }
