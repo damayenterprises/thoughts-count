@@ -485,7 +485,7 @@ function openSignIn() {
       <input type="email" id="tcEmail" placeholder="you@email.com" autocomplete="email" />
       <div class="nav" style="justify-content:center;"><button class="cta" id="tcSendLink">Email me a sign-in link →</button></div>
       <div class="k-msg" id="tcAuthMsg"></div>
-      <div class="k-privacy">We use your email only for this — no password, no sharing, no spam.</div>
+      <div class="k-privacy">We use your email only for this. No password, no sharing, no spam.</div>
     </div>`;
   const emailEl = modalBody().querySelector("#tcEmail");
   emailEl.focus();
@@ -583,7 +583,7 @@ function promptSignInToRemember(transcript) {
       <div class="nav"><span></span><button class="cta" id="tcSendLink">Email me a link to keep them →</button></div>
       <div class="k-msg" id="tcAuthMsg"></div>
       <div style="text-align:center;margin-top:14px;"><button class="link-btn" id="tcRememberDecline">Just make my plan instead →</button></div>
-      <div class="k-privacy" style="margin-top:12px;">We use your email only for this — no password, no sharing, no spam.</div>
+      <div class="k-privacy" style="margin-top:12px;">We use your email only for this. No password, no sharing, no spam.</div>
     </div>`;
   const emailEl = modalBody().querySelector("#tcEmail");
   emailEl.focus();
