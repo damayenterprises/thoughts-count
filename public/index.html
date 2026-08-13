@@ -444,7 +444,7 @@
   footer { text-align: center; padding: 54px 24px 60px; color: var(--ink-soft); }
   footer .promise-big { font-family: 'Fraunces', serif; font-size: clamp(21px, 3vw, 27px); color: var(--ink); font-style: italic; margin-bottom: 10px; }
   footer .small { font-size: 13px; color: var(--tc-ink-mute); margin-top: 20px; }
-  footer .colophon { border-top: 1px solid var(--line, #e7ddca); max-width: 520px; margin: 28px auto 0; padding-top: 18px; font-size: 13px; color: var(--tc-ink-mute); }
+  footer .colophon { border-top: 1px solid var(--line, #e7ded0); max-width: 520px; margin: 28px auto 0; padding-top: 18px; font-size: 13px; color: var(--tc-ink-mute); }
   footer .colophon a { color: var(--tc-ink-mute); text-decoration: none; }
   footer .colophon a:hover { color: var(--sage-deep); text-decoration: underline; }
   footer .colophon .sep { opacity: .5; margin: 0 8px; }
@@ -529,7 +529,7 @@
   .tc-lastplan-link { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.92); cursor: pointer; padding: 6px 8px; display: inline-flex; align-items: center; gap: 6px; line-height: 1; opacity: .9; transition: opacity .15s ease; }
   .tc-lastplan-link:hover { opacity: 1; text-decoration: underline; }
   /* TC-81: gentle, non-blocking toast (bottom-center, thumb zone, auto-dismiss). */
-  .tc-toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(12px); z-index: 9999; max-width: min(420px, calc(100vw - 32px)); background: var(--ink, #3b362e); color: #fff; border-radius: 14px; box-shadow: 0 8px 30px rgba(40,34,24,.28); padding: 13px 14px 13px 18px; display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.4; opacity: 0; pointer-events: none; transition: opacity .28s ease, transform .28s ease; }
+  .tc-toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(12px); z-index: 9999; max-width: min(420px, calc(100vw - 32px)); background: var(--ink, #2c2a26); color: #fff; border-radius: 14px; box-shadow: 0 8px 30px rgba(40,34,24,.28); padding: 13px 14px 13px 18px; display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.4; opacity: 0; pointer-events: none; transition: opacity .28s ease, transform .28s ease; }
   .tc-toast.show { opacity: 1; transform: translateX(-50%) translateY(0); pointer-events: auto; }
   .tc-toast .tc-toast-x { flex: 0 0 auto; background: none; border: none; color: rgba(255,255,255,.92); cursor: pointer; padding: 4px; line-height: 0; border-radius: 8px; }
   .tc-toast .tc-toast-x:hover { color: #fff; }
@@ -550,7 +550,7 @@
 
   /* TC-63: hands-free confirm cue — a calm "say yes, or tap" line shown under an
      add/update confirm card while we listen for a spoken answer. Tap always works. */
-  .re-listen-cue { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--ink-soft, #7a7263); min-height: 18px; }
+  .re-listen-cue { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--ink-soft, #5a554c); min-height: 18px; }
   .re-listen-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--tc-blue); animation: re-listen-pulse 1.6s ease-out infinite; }
   @keyframes re-listen-pulse { 0% { box-shadow: 0 0 0 0 rgba(17,138,185,.45); } 100% { box-shadow: 0 0 0 10px rgba(17,138,185,0); } }
   @media (prefers-reduced-motion: reduce) { .re-listen-dot { animation: none !important; } }
@@ -560,26 +560,26 @@
   .tc-name-edit { display: inline-flex; align-items: center; gap: 0; background: transparent; border: none;
     padding: 2px 6px; margin: 0 -2px; border-radius: 8px; cursor: pointer; color: inherit; font: inherit;
     line-height: inherit; min-height: 40px; -webkit-tap-highlight-color: transparent; }
-  .tc-name-edit .tc-name-edit-txt { font-weight: 600; border-bottom: 1.5px dashed var(--sage, #7d8a68); padding-bottom: 1px; }
-  .tc-name-edit svg { color: var(--sage-deep, #5f6c4c); opacity: .8; }
+  .tc-name-edit .tc-name-edit-txt { font-weight: 600; border-bottom: 1.5px dashed var(--sage, #118ab9); padding-bottom: 1px; }
+  .tc-name-edit svg { color: var(--sage-deep, #0a5876); opacity: .8; }
   .tc-name-edit:hover { background: var(--cloud, #f4f1e9); }
-  .tc-name-edit:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist, #eef2e6); }
+  .tc-name-edit:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist, #e3f0f6); }
   .tc-name-editing { display: inline-flex; align-items: center; gap: 6px; vertical-align: middle; }
   .tc-name-input { font: inherit; font-weight: 600; padding: 6px 10px; min-width: 8ch; max-width: 60vw;
-    border: 1.5px solid var(--sage, #7d8a68); border-radius: 10px; background: #fff; color: var(--ink, #3b362e); }
-  .tc-name-input:focus { outline: none; border-color: var(--sage-deep, #5f6c4c); box-shadow: 0 0 0 3px var(--mist, #eef2e6); }
+    border: 1.5px solid var(--sage, #118ab9); border-radius: 10px; background: var(--tc-surface, #fdfbf7); color: var(--ink, #2c2a26); }
+  .tc-name-input:focus { outline: none; border-color: var(--sage-deep, #0a5876); box-shadow: 0 0 0 3px var(--mist, #e3f0f6); }
   .tc-name-done { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px;
-    padding: 0; border: none; border-radius: 999px; background: var(--sage, #7d8a68); color: #fff; cursor: pointer; }
-  .tc-name-done:hover { background: var(--sage-deep, #5f6c4c); }
-  .tc-name-done:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist, #eef2e6); }
+    padding: 0; border: none; border-radius: 999px; background: var(--sage, #118ab9); color: #fff; cursor: pointer; }
+  .tc-name-done:hover { background: var(--sage-deep, #0a5876); }
+  .tc-name-done:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist, #e3f0f6); }
 
   /* TC-67: "Read replies aloud" opt-in on the listening screen. Calm, out of the way —
      a small brand-styled switch (not a native checkbox) to match the hand-crafted UI. */
-  .tc-readaloud { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 13px; color: var(--ink-soft, #7a7263); cursor: pointer; user-select: none; }
+  .tc-readaloud { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 13px; color: var(--ink-soft, #5a554c); cursor: pointer; user-select: none; }
   .tc-switch-input { position: absolute; opacity: 0; width: 0; height: 0; }
   .tc-switch { position: relative; flex: 0 0 auto; width: 34px; height: 20px; border-radius: 999px; background: var(--tc-line-strong); transition: background .18s ease; }
   .tc-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .18s ease; }
-  .tc-switch-input:checked + .tc-switch { background: var(--sage, #7d8a68); }
+  .tc-switch-input:checked + .tc-switch { background: var(--sage, #118ab9); }
   .tc-switch-input:checked + .tc-switch::after { transform: translateX(14px); }
   .tc-switch-input:focus-visible + .tc-switch { box-shadow: 0 0 0 3px var(--mist, #e7ecdd); }
   @media (prefers-reduced-motion: reduce) { .tc-switch, .tc-switch::after { transition: none; } }
@@ -880,7 +880,7 @@
   @media (prefers-reduced-motion: reduce) { .tc-cv-orbstage .orbIW, .tc-cv-orbstage .halo { animation:none !important; } }
   /* Slice 2 refinement: her NAME, carried across the seam from the home "talk with Della".
      Quiet + serif (the brand voice), subordinate to the orb, sitting just above the state label. */
-  .tc-cv-name { font-family:'Fraunces', serif; font-size:16px; font-weight:500; color:var(--ink,#34382f); line-height:1.2; margin-top:2px; }
+  .tc-cv-name { font-family:var(--tc-font); font-size:16px; font-weight:600; color:var(--ink,#2c2a26); line-height:1.2; margin-top:2px; }
   .tc-cv-plabel { font-size:14px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
 
   /* Soft full-width state tint on the bar background — the accessible hue cue kept from TC-88. */
@@ -1165,7 +1165,7 @@ function renderStep(){
       ${picksHtml}
       <textarea id="freetext" placeholder="${s.placeholder}">${current}</textarea>
       <div class="mic-wrap" style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
-        <span id="micStatus" style="font-size:12.5px;color:var(--ink-soft,#7a7263);"></span>
+        <span id="micStatus" style="font-size:12.5px;color:var(--ink-soft,#5a554c);"></span>
       </div>
       ${s.extra ? `<label style="display:block;margin-top:14px;font-size:13.5px;color:var(--ink-soft);">${s.extra.label}</label>
       ${s.extra.hint ? `<p style="margin:3px 0 0;font-size:12.5px;line-height:1.5;color:var(--tc-ink-mute);">${s.extra.hint}</p>` : ''}
@@ -1587,7 +1587,7 @@ function renderPersonPicker(people, filter){
       <div style="max-width:380px;margin:12px auto 0;">
         <input type="text" id="vpFilter" class="tc-name-input" placeholder="Type a name to find anyone" autocomplete="off" style="width:100%;box-sizing:border-box;max-width:none;text-align:left;font-weight:400;" value="${escapeHtml(filter || '')}" />
       </div>
-      ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#7a7263);">Recent, or type to find anyone else</p>` : ''}
+      ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#5a554c);">Recent, or type to find anyone else</p>` : ''}
       <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:10px;max-width:380px;margin-left:auto;margin-right:auto;">
         ${rows}
         ${emptyMsg}
@@ -1662,7 +1662,7 @@ function renderSpokenNameConfirm(spoken, person){
   stage.innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="q-eyebrow">A quick check</div>
-      <p style="font-family:'Fraunces',Georgia,serif;font-size:20px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 8px;">${knownPersonPhrase(person)}</p>
+      <p style="font-family:'Fraunces',Georgia,serif;font-size:20px;line-height:1.5;color:var(--ink,#2c2a26);margin:12px 0 8px;">${knownPersonPhrase(person)}</p>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:10px;max-width:360px;margin-left:auto;margin-right:auto;">
         <button type="button" class="cta" id="snYes" style="width:100%;justify-content:center;">Yes, that's ${escapeHtml((person.name||'them').split(/\s+/)[0])}</button>
         <button type="button" class="cta ghost" id="snElse" style="width:100%;justify-content:center;">No, someone else</button>
@@ -1708,7 +1708,7 @@ function renderSpokenNameNoMatch(spoken){
   stage.innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="q-eyebrow">Add to someone you know</div>
-      <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 8px;">I don't have a ${nm} yet.</p>
+      <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#2c2a26);margin:12px 0 8px;">I don't have a ${nm} yet.</p>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:8px;">
         <button type="button" class="cta" id="snAdd">Add ${nm} as someone new</button>
         <button type="button" class="cta ghost" id="snBack" style="justify-content:center;">Pick from my people</button>
@@ -1735,7 +1735,7 @@ function renderHomeListening(){
       <p class="big" id="homeListenHeading" style="margin-top:14px;" aria-live="polite">I'm listening...</p>
       ${(__voicePerson && __voicePerson.name) ? `<p class="lines" style="color:var(--tc-blue-deep);font-weight:600;margin-bottom:2px;">Adding to ${escapeHtml(__voicePerson.name)}</p>` : ''}
       <p class="lines" id="homeListenSub">Take your time. Tell me what's happening and who it's about.</p>
-      <div id="homeMicStatus" style="font-size:12.5px;color:var(--ink-soft,#7a7263);margin-top:8px;"></div>
+      <div id="homeMicStatus" style="font-size:12.5px;color:var(--ink-soft,#5a554c);margin-top:8px;"></div>
       <div id="homeListenControls" style="margin-top:20px;display:flex;gap:12px;justify-content:center;align-items:center;">
         <button type="button" class="cta" id="homeDoneBtn">Done</button>
         <button type="button" class="link-btn" id="homeCancelBtn">Cancel</button>
@@ -1844,7 +1844,7 @@ function renderHomeReflect(text){
   stage.innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="q-eyebrow">Here's what I heard</div>
-      <p style="font-family:'Fraunces',Georgia,serif;font-size:20px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 18px;">“${escapeHtml(t)}”</p>
+      <p style="font-family:'Fraunces',Georgia,serif;font-size:20px;line-height:1.5;color:var(--ink,#2c2a26);margin:12px 0 18px;">“${escapeHtml(t)}”</p>
       <p class="q-help" style="text-align:center;">${canRemember ? 'What would you like to do?' : 'Make your plan from this?'}</p>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:14px;">
         <button type="button" class="cta" id="homePlanBtn">${canRemember ? 'Make my plan for this →' : 'Yes, make my plan →'}</button>
@@ -2906,7 +2906,7 @@ function factsListHtml(facts){
   let lines = [];
   try { lines = (window.TCCompanion.factsToText(facts) || []); } catch(e){}
   if (!lines.length) return '';
-  return `<ul style="text-align:left;display:inline-block;margin:10px 0 4px;padding-left:18px;color:var(--ink,#3b362e);">${lines.map(l => `<li style="margin:3px 0;">${escapeHtml(l)}</li>`).join('')}</ul>`;
+  return `<ul style="text-align:left;display:inline-block;margin:10px 0 4px;padding-left:18px;color:var(--ink,#2c2a26);">${lines.map(l => `<li style="margin:3px 0;">${escapeHtml(l)}</li>`).join('')}</ul>`;
 }
 // Plain-text version of the same facts, for the spoken confirmation (TC-67). No HTML escaping —
 // this is read aloud, not rendered.
@@ -2975,11 +2975,11 @@ function renderRememberCard(cap){
     stage.innerHTML = `
       <div class="panel-body" style="text-align:center;">
         <div class="q-eyebrow" id="reEyebrow">${eyebrow}</div>
-        <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 4px;">${lead}</p>
+        <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#2c2a26);margin:12px 0 4px;">${lead}</p>
         ${whoLine}
         ${facts}
         <div id="reNameMsg" style="margin-top:8px;"></div>
-        <p class="q-help" style="margin-top:10px;">Sound right? <span style="color:var(--ink-soft,#7a7263);">Tap the name to fix the spelling.</span></p>
+        <p class="q-help" style="margin-top:10px;">Sound right? <span style="color:var(--ink-soft,#5a554c);">Tap the name to fix the spelling.</span></p>
         <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px;">
           <button type="button" class="cta" id="reConfirm">${attach ? `Yes, add it` : `Yes, remember ${escapeHtml(first(name))}`}</button>
           ${attach ? `<button type="button" class="cta ghost" id="reElse" style="width:100%;max-width:320px;justify-content:center;">No, someone else</button>` : ''}
@@ -3039,7 +3039,7 @@ function renderRememberCard(cap){
     // No real change → just restore the card as it was.
     if (!edited || edited.toLowerCase() === prev.toLowerCase()){ renderConfirm(); return; }
     const msg = document.getElementById('reNameMsg');
-    if (msg) msg.innerHTML = `<span class="q-help" style="color:var(--ink-soft,#7a7263);">Checking your people...</span>`;
+    if (msg) msg.innerHTML = `<span class="q-help" style="color:var(--ink-soft,#5a554c);">Checking your people...</span>`;
     let res = null;
     try { res = await window.TCCompanion.resolveName(edited); } catch(e){ res = { kind: 'none' }; }
     // If the corrected name matches a saved person that ISN'T the one we're already attached to,
@@ -3071,7 +3071,7 @@ function renderRememberCard(cap){
     stage.innerHTML = `
       <div class="panel-body" style="text-align:center;">
         <div class="q-eyebrow">A quick check</div>
-        <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 6px;">${heading}</p>
+        <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#2c2a26);margin:12px 0 6px;">${heading}</p>
         <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:12px;max-width:360px;margin-left:auto;margin-right:auto;">
           ${rows}
           <button type="button" class="cta ghost re-keepnew" style="width:100%;justify-content:center;">No, keep ${escapeHtml(edited)} as someone new</button>
@@ -3122,7 +3122,7 @@ function renderRememberCard(cap){
         <div style="max-width:380px;margin:12px auto 0;">
           <input type="text" id="rpFilter" class="tc-name-input" placeholder="Type a name to find anyone" autocomplete="off" style="width:100%;box-sizing:border-box;max-width:none;text-align:left;font-weight:400;" value="${escapeHtml(filter || '')}" />
         </div>
-        ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#7a7263);">Recent, or type to find anyone else</p>` : ''}
+        ${!f && people.length > PICKER_RECENT_SHOWN ? `<p class="q-help" style="margin:10px 0 2px;color:var(--ink-soft,#5a554c);">Recent, or type to find anyone else</p>` : ''}
         <div style="display:flex;flex-direction:column;gap:8px;align-items:stretch;margin-top:10px;max-width:380px;margin-left:auto;margin-right:auto;">
           ${rows}
           ${emptyMsg}
@@ -3217,7 +3217,7 @@ function renderLockedConfirm(cap){
   stage.innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="q-eyebrow">Add to ${escapeHtml(name)}</div>
-      <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#3b362e);margin:12px 0 4px;">I'll add this to ${escapeHtml(name)}:</p>
+      <p style="font-family:'Fraunces',Georgia,serif;font-size:19px;line-height:1.5;color:var(--ink,#2c2a26);margin:12px 0 4px;">I'll add this to ${escapeHtml(name)}:</p>
       ${facts}
       <p class="q-help" style="margin-top:10px;">Sound right?</p>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:12px;">
@@ -4129,7 +4129,7 @@ function renderPlan(p){
     <div class="block">
       <h4>${icon('<rect x="4" y="9" width="16" height="12" rx="1"/><path d="M2 5h20v4H2zM12 21V5"/><path d="M12 5S9 1 6.5 2.5 8 6 12 5Zm0 0s3-4 5.5-2.5S16 6 12 5Z"/>')}If you'd like to send something</h4>
       ${gifts.map((g, i) => renderGiftCard(g, i)).join('')}
-      ${(answers.location||'').trim() ? '' : `<div class="mp-invite" style="margin:2px 4px 0;font-size:13px;color:var(--ink-soft,#7a7263);"><span style="color:var(--sage-deep);vertical-align:-1px;margin-right:4px;">${PIN_SVG}</span>Know their town or ZIP? <a href="#" id="addLocationLink" style="color:var(--sage-deep);font-weight:600;">Add it</a> and we'll point you to real shops near them.</div>`}
+      ${(answers.location||'').trim() ? '' : `<div class="mp-invite" style="margin:2px 4px 0;font-size:13px;color:var(--ink-soft,#5a554c);"><span style="color:var(--sage-deep);vertical-align:-1px;margin-right:4px;">${PIN_SVG}</span>Know their town or ZIP? <a href="#" id="addLocationLink" style="color:var(--sage-deep);font-weight:600;">Add it</a> and we'll point you to real shops near them.</div>`}
       <div class="more-places">
         <div class="mp-label">More lovely places to look:</div>
         <div class="mp-links">
@@ -4152,7 +4152,7 @@ function renderPlan(p){
   const fbDownLabel = fbHard ? "I need something different" : thumbDownSvg + "<span>Not quite</span>";
   const fbReasonsHtml = fbHard ? '' : `
       <div class="fb-reasons" id="fbReasons" hidden style="margin-top:12px;opacity:0;transition:opacity .25s ease;">
-        <div style="font-size:13px;color:var(--ink-soft,#7a7263);margin-bottom:8px;">What was off? <span style="opacity:.65;">(optional)</span></div>
+        <div style="font-size:13px;color:var(--ink-soft,#5a554c);margin-bottom:8px;">What was off? <span style="opacity:.65;">(optional)</span></div>
         <div role="group" aria-label="What was off?" style="display:flex;flex-wrap:wrap;gap:8px;justify-content:center;">
           <button type="button" class="fb-reason" data-r="too_generic" style="${fbChip}">Too generic</button>
           <button type="button" class="fb-reason" data-r="wrong_tone" style="${fbChip}">Wrong tone</button>
@@ -4168,7 +4168,7 @@ function renderPlan(p){
         <button type="button" class="fb-btn" data-v="down" aria-label="${fbHard ? 'I need something different' : 'Not quite'}" style="${fbPill}${fbHard ? '' : 'display:inline-flex;align-items:center;gap:7px;'}">${fbDownLabel}</button>
       </div>
       ${fbReasonsHtml}
-      <div class="fb-thanks" id="fbThanks" hidden aria-live="polite" style="margin-top:12px;opacity:0;transition:opacity .25s ease;font-size:14px;color:var(--sage-deep,#5f6c4c);font-weight:700;">Thank you, that means a lot.</div>
+      <div class="fb-thanks" id="fbThanks" hidden aria-live="polite" style="margin-top:12px;opacity:0;transition:opacity .25s ease;font-size:14px;color:var(--sage-deep,#0a5876);font-weight:700;">Thank you, that means a lot.</div>
     </div>`;
 
   stage.innerHTML = `
