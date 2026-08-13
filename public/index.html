@@ -714,7 +714,7 @@
            to the small "or type instead" link below so its openConverse() wiring still binds. -->
       <div class="hero-orb-wrap">
         <div class="stage" id="homeOrbStage" data-state="idle" data-life="energetic"
-             role="button" tabindex="0" aria-label="Talk it through — tap to start">
+             role="button" tabindex="0" aria-label="Talk it through, tap to start">
           <div class="orb orbIW">
             <div class="halo"></div>
             <canvas width="240" height="240"></canvas>
@@ -1217,7 +1217,7 @@ function renderStep(){
     const hasMoment = (picks.moment && picks.moment.length) || answers.moment;
     if ((s2.key === 'moment') && !hasMoment){
       ta.style.borderColor = '#ef4136';
-      if (stepMsg){ stepMsg.className = 'k-msg bad'; stepMsg.textContent = 'Tell us a little about the moment first — even a few words is enough to start.'; stepMsg.style.display = 'block'; }
+      if (stepMsg){ stepMsg.className = 'k-msg bad'; stepMsg.textContent = 'Tell us a little about the moment first. Even a few words is enough to start.'; stepMsg.style.display = 'block'; }
       ta.focus({ preventScroll: true });
       return;
     }
@@ -1264,12 +1264,12 @@ function blobToBase64(blob){
 async function toggleMic(btn, ta){
   if (__rec.active){ stopRecordingIfAny(); return; }
   if (!micSession.supported()){
-    micStatus("Your browser can't record here — you can type instead."); return;
+    micStatus("Your browser can't record here. You can type instead."); return;
   }
   // TC-90: reuse the ONE session mic stream (opens the OS prompt only on the first-ever use).
   let stream;
   try { stream = await micSession.acquireStream(); }
-  catch(e){ micStatus("We need microphone permission to hear you — you can type instead."); return; }
+  catch(e){ micStatus("We need microphone permission to hear you. You can type instead."); return; }
   __rec.stream = stream; __rec.chunks = []; __rec.active = true;
   const mr = new MediaRecorder(stream); // fresh per-turn recorder on the shared stream
   __rec.mr = mr;
@@ -1291,13 +1291,13 @@ async function toggleMic(btn, ta){
       if (r.ok && d.text){
         if (document.body.contains(ta)){ ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + d.text; ta.dispatchEvent(new Event('input')); ta.focus({ preventScroll: true }); }
         micStatus('');
-      } else { micStatus((d && d.error) || "We couldn't catch that — try again or type it."); }
-    } catch(e){ micStatus("We couldn't catch that — try again or type it."); }
+      } else { micStatus((d && d.error) || "We couldn't catch that. Try again or type it."); }
+    } catch(e){ micStatus("We couldn't catch that. Try again or type it."); }
     setMic(btn, 'idle');
   };
   mr.start(); setMic(btn, 'recording'); micStatus("Listening... tap again when you're done.");
   // Backstop: auto-stop a long recording so it stays short and transcribes cleanly.
-  __rec.timer = setTimeout(() => { if (__rec.active) { micStatus('Got it — that was a long one, writing it down...'); stopRecordingIfAny(); } }, 60000);
+  __rec.timer = setTimeout(() => { if (__rec.active) { micStatus('Got it, that was a long one, writing it down...'); stopRecordingIfAny(); } }, 60000);
 }
 
 // TC-111 — ONE voice everywhere: dictation into a field (Add-someone, the paste box, the note
@@ -1317,11 +1317,11 @@ function cancelDictateRecording(){
 }
 async function dictateHandsFree(btn, ta){
   if (__drec.active){ cancelDictateRecording(); return; } // tap while listening = cancel (escape hatch)
-  if (!micSession.supported()){ micStatus("Your browser can't record here — you can type instead."); return; }
+  if (!micSession.supported()){ micStatus("Your browser can't record here. You can type instead."); return; }
   // TC-90: reuse the ONE session mic stream (opens the OS prompt only on the first-ever use).
   let stream;
   try { stream = await micSession.acquireStream(); }
-  catch(e){ micStatus("We need microphone permission to hear you — you can type instead."); return; }
+  catch(e){ micStatus("We need microphone permission to hear you. You can type instead."); return; }
   __drec.chunks = []; __drec.active = true; __drec.aborted = false; __drec.spoke = false; __drec.spokeAt = 0; __drec.silenceStart = 0; __drec.btn = btn;
   // VAD: read the shared session analyser; end the turn shortly after speech settles into silence —
   // identical patience knobs (CREC_*) to the main conversation so dictation FEELS the same as Della.
@@ -1364,8 +1364,8 @@ async function dictateHandsFree(btn, ta){
       if (r.ok && d.text){
         if (document.body.contains(ta)){ ta.value = (ta.value.trim() ? ta.value.trim() + ' ' : '') + d.text; ta.dispatchEvent(new Event('input')); ta.focus({ preventScroll: true }); }
         micStatus('');
-      } else { micStatus((d && d.error) || "We couldn't catch that — try again or type it."); }
-    } catch(e){ micStatus("We couldn't catch that — try again or type it."); }
+      } else { micStatus((d && d.error) || "We couldn't catch that. Try again or type it."); }
+    } catch(e){ micStatus("We couldn't catch that. Try again or type it."); }
     setMic(btn, 'idle');
   };
   try { mr.start(); } catch(e){ cancelDictateRecording(); return; }
@@ -1459,7 +1459,7 @@ async function setupHomeVoice(){
   const her = window.__HER_NAME || '';
   const withHer = her ? (' with ' + her) : '';
   if (prompt) prompt.textContent = (voiceReady ? 'Tap to talk' : 'Tap to type') + withHer;
-  stage.setAttribute('aria-label', 'Talk it through' + withHer + (voiceReady ? ' — tap to start' : ' — tap to type'));
+  stage.setAttribute('aria-label', 'Talk it through' + withHer + (voiceReady ? ', tap to start' : ', tap to type'));
 }
 window.addEventListener('tc-voice-gate-ready', setupHomeVoice);
 setupHomeVoice();
@@ -1653,7 +1653,7 @@ async function onSpokenName(text){
 function knownPersonPhrase(p){
   const nm = escapeHtml(p && p.name ? p.name : 'them');
   const detail = p && p.hasDetail && p.detail ? String(p.detail).trim() : '';
-  if (detail) return `<b>${nm}</b> — ${escapeHtml(detail)}?`;
+  if (detail) return `<b>${nm}</b>, ${escapeHtml(detail)}?`;
   return `the <b>${nm}</b> you already have?`;
 }
 // The confirm-WHO step for a single spoken-name match. Names them back with a recognizable detail
@@ -1768,12 +1768,12 @@ function toProcessing(){
 async function beginHomeRecording(onText){
   const routeText = onText || renderHomeReflect; // where the transcript goes (home reflect, or a locked person)
   if (!micSession.supported()){
-    renderHomeError("Your browser can't record here — you can type instead."); return;
+    renderHomeError("Your browser can't record here. You can type instead."); return;
   }
   // TC-90: reuse the ONE session mic stream (no second permission prompt on later turns).
   let stream;
   try { stream = await micSession.acquireStream(); }
-  catch(e){ renderHomeError("We need microphone permission to hear you — you can type instead."); return; }
+  catch(e){ renderHomeError("We need microphone permission to hear you. You can type instead."); return; }
   __hrec.stream = stream; __hrec.chunks = []; __hrec.active = true;
   startLevelMeter(); // taps the shared analyser
   const mr = new MediaRecorder(stream); __hrec.mr = mr; // fresh per-turn recorder on the shared stream
@@ -1792,8 +1792,8 @@ async function beginHomeRecording(onText){
       const r = await fetch('/api/transcribe', { method: 'POST', headers, body: JSON.stringify({ audio: b64, mime: blob.type }) });
       const d = await r.json();
       if (r.ok && d.text) routeText(d.text);
-      else renderHomeError((d && d.error) || "We couldn't catch that — try again or type it.");
-    } catch(e){ renderHomeError("We couldn't catch that — try again or type it."); }
+      else renderHomeError((d && d.error) || "We couldn't catch that. Try again or type it.");
+    } catch(e){ renderHomeError("We couldn't catch that. Try again or type it."); }
   };
   mr.start(); hStatus("Listening... tap Done when you're finished.");
   __hrec.timer = setTimeout(() => { if (__hrec.active){ toProcessing(); stopHomeRecording(); } }, 60000);
@@ -1879,7 +1879,7 @@ function renderHomeReflect(text){
   // so the app never hears its own "make a plan, or remember this". Tap always works alongside.
   if (voiceReplyOn()){
     __confirmActive = true;
-    const ask = canRemember ? 'So — would you like to make a plan for them, or should I remember this about them?' : 'Would you like to make your plan from this?';
+    const ask = canRemember ? 'So, would you like to make a plan for them, or should I remember this about them?' : 'Would you like to make your plan from this?';
     reflectSpeakListen(`Here's what I heard: ${t}. ${ask}`, canRemember, doPlan, doRemember, 0);
   }
 }
@@ -1906,8 +1906,8 @@ function onReflectAnswer(text, canRemember, doPlan, doRemember, attempt){
   // Unclear → one gentle spoken re-ask, then settle to the buttons.
   if (attempt === 0){
     const re = canRemember
-      ? "Sorry — you can say, make a plan, or, remember this."
-      : "Sorry — say, make my plan, to go on.";
+      ? "Sorry, you can say: make a plan, or remember this."
+      : "Sorry, say: make my plan, to go on.";
     reflectSpeakListen(re, canRemember, doPlan, doRemember, 1);
     return;
   }
@@ -2195,7 +2195,7 @@ function cvTyping(on){
 function cvShowEscape(){
   const foot = document.getElementById('cvFoot'); if (!foot || foot.querySelector('.tc-makeplan')) return;
   const btn = document.createElement('button');
-  btn.type = 'button'; btn.className = 'tc-makeplan'; btn.textContent = "That's enough — make my plan →";
+  btn.type = 'button'; btn.className = 'tc-makeplan'; btn.textContent = "That's enough, make my plan →";
   btn.onclick = cvMakePlan;
   foot.appendChild(btn);
   // The escape used to be a faint link below the input row, which a tester never saw (it sat below
@@ -2882,7 +2882,7 @@ async function rememberFromText(text){
     if (!caps.length){ renderRememberEmpty(t, res && res.message); return; }
     __voiceQueue = caps.slice();
     renderNextRememberCard();
-  } catch(e){ renderHomeError((e && e.message) || "We couldn't do that just now — try again or type it."); }
+  } catch(e){ renderHomeError((e && e.message) || "We couldn't do that just now. Try again or type it."); }
 }
 function renderRememberEmpty(t, message){
   stage.innerHTML = `
@@ -3066,8 +3066,8 @@ function renderRememberCard(cap){
       return `<button type="button" class="cta ghost re-rematch" data-i="${i}" style="width:100%;justify-content:center;">Yes, it's ${escapeHtml(first(c.name))}${sub}</button>`;
     }).join('');
     const heading = one
-      ? `That matches your saved <b>${escapeHtml(candidates[0].name)}</b> — same person?`
-      : `You have a few people like <b>${escapeHtml(edited)}</b> — which one?`;
+      ? `That matches your saved <b>${escapeHtml(candidates[0].name)}</b>, same person?`
+      : `You have a few people like <b>${escapeHtml(edited)}</b>, which one?`;
     stage.innerHTML = `
       <div class="panel-body" style="text-align:center;">
         <div class="q-eyebrow">A quick check</div>
@@ -3161,7 +3161,7 @@ async function confirmRemember(cap, choice){
     const res = await window.TCCompanion.captureConfirm({ captureId: cap.captureId, personId: choice.personId || null, newPersonName: choice.newPersonName || null });
     __lastSavedName = (res && res.personName) || choice.newPersonName || cap.personName || cap.personHint || 'them';
     renderNextRememberCard();
-  } catch(e){ renderHomeError((e && e.message) || "We couldn't save that — try again."); }
+  } catch(e){ renderHomeError((e && e.message) || "We couldn't save that. Try again."); }
 }
 function renderRememberDone(){
   // If this came from the People "Note something" box, refresh that list now.
@@ -3195,7 +3195,7 @@ async function onLockedText(text){
     const cap = ((res && res.captures) || [])[0];
     if (!cap){ renderLockedEmpty(res && res.message); return; }
     renderLockedConfirm(cap);
-  } catch(e){ renderHomeError((e && e.message) || "We couldn't do that just now — try again."); }
+  } catch(e){ renderHomeError((e && e.message) || "We couldn't do that just now. Try again."); }
 }
 function renderLockedEmpty(message){
   stage.innerHTML = `
@@ -3236,7 +3236,7 @@ function renderLockedConfirm(cap){
       const cb = __voicePerson && __voicePerson.onSaved;
       closeFlow();
       if (typeof cb === 'function') cb();
-    } catch(e){ renderHomeError((e && e.message) || "We couldn't save that — try again."); }
+    } catch(e){ renderHomeError((e && e.message) || "We couldn't save that. Try again."); }
   };
   const doCancel = () => { stopConfirmListen(); closeFlow(); };
   document.getElementById('lkConfirm').onclick = doConfirm;
@@ -3462,11 +3462,11 @@ function setListenCue(state){
   if (state === 'hidden'){ el.hidden = true; el.innerHTML = ''; return; }
   const dot = state === 'thinking' ? '' : '<span class="re-listen-dot" aria-hidden="true"></span>';
   let txt = '';
-  if (state === 'listening') txt = 'Listening — say “yes,” or tap above';
-  else if (state === 'choice') txt = 'Listening — say “plan” or “remember,” or tap';
+  if (state === 'listening') txt = 'Listening, say "yes," or tap above';
+  else if (state === 'choice') txt = 'Listening, say "plan" or "remember," or tap';
   else if (state === 'speaking') txt = 'Reading it back to you...';
   else if (state === 'thinking') txt = 'One sec...';
-  else if (state === 'retry') txt = 'Didn’t catch that — say “yes,” or just tap';
+  else if (state === 'retry') txt = 'Didn't catch that, say "yes," or just tap';
   el.innerHTML = dot + '<span aria-live="polite">' + txt + '</span>';
   el.hidden = false;
 }
@@ -3825,7 +3825,7 @@ function renderError(msg){
   // offer a calm way out (close, or reach a real person).
   const repeated = genAttempts >= 2;
   const body = repeated
-    ? "We're still having trouble building your plan — this is on us, not you. Please try again in a few minutes, or email us at care@thoughtscount.com and we'll help personally."
+    ? "We're still having trouble building your plan. This is on us, not you. Please try again in a few minutes, or email us at care@thoughtscount.com and we'll help personally."
     : escapeHtml(msg);
   stage.innerHTML = `
     <div class="panel-body">

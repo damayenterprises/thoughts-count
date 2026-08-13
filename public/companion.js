@@ -481,7 +481,7 @@ function openSignIn() {
     <div class="panel-body">
       <div class="q-eyebrow">Welcome</div>
       <h2 class="q-title">Keep the people who matter close</h2>
-      <p class="q-help">Save the people you care about, their important dates, and your plans — and we'll gently remind you before each one. Just your email, no password.</p>
+      <p class="q-help">Save the people you care about, their important dates, and your plans, and we'll gently remind you before each one. Just your email, no password.</p>
       <input type="email" id="tcEmail" placeholder="you@email.com" autocomplete="email" />
       <div class="nav" style="justify-content:center;"><button class="cta" id="tcSendLink">Email me a sign-in link →</button></div>
       <div class="k-msg" id="tcAuthMsg"></div>
@@ -522,7 +522,7 @@ function renderCheckInbox(email, opts = {}) {
         </svg>
       </div>
       <h2 class="q-title" style="margin-top:14px;">Check your email</h2>
-      <p class="q-help" style="max-width:36ch;margin-left:auto;margin-right:auto;">We just sent a code to <b>${esc(email)}</b>. Enter it here to sign in — no password to remember.</p>
+      <p class="q-help" style="max-width:36ch;margin-left:auto;margin-right:auto;">We just sent a code to <b>${esc(email)}</b>. Enter it here to sign in. No password to remember.</p>
       ${noteHtml}
       <div class="tc-code-wrap" style="max-width:22ch;margin:16px auto 6px;">
         <input type="text" id="tcCode" inputmode="numeric" autocomplete="one-time-code" maxlength="8" placeholder="Enter your code" style="text-align:center;font-size:18px;" />
@@ -577,7 +577,7 @@ function promptSignInToRemember(transcript) {
     <div class="panel-body">
       <div class="q-eyebrow">Let me hold onto that</div>
       <h2 class="q-title">Keep them close</h2>
-      <p class="q-help">I've got what you said. Sign in with just your email and I'll keep this person — and the dates that matter to them — safe, and gently remind you before each one. No password.</p>
+      <p class="q-help">I've got what you said. Sign in with just your email and I'll keep this person, and the dates that matter to them, safe, and gently remind you before each one. No password.</p>
       <blockquote style="font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:16.5px;line-height:1.5;color:var(--tc-ink,#2c2a26);border-left:3px solid var(--tc-blue,#118ab9);margin:14px 0 16px;padding:2px 0 2px 14px;text-align:left;">“${esc(t)}”</blockquote>
       <input type="email" id="tcEmail" placeholder="you@email.com" autocomplete="email" />
       <div class="nav"><span></span><button class="cta" id="tcSendLink">Email me a link to keep them →</button></div>
@@ -813,7 +813,7 @@ function personCard(p) {
       <h4 style="justify-content:space-between;margin-bottom:6px;">
         <span>${esc(p.name)}${p.relationship ? ` <span class="tc-rel">· ${esc(p.relationship)}</span>` : ""}</span>
       </h4>
-      <div class="tc-dates">${dates.map(dateLine).join("") || `<div class="tc-empty">No dates yet — add one so we can gently remind you.</div>`}</div>
+      <div class="tc-dates">${dates.map(dateLine).join("") || `<div class="tc-empty">No dates yet. Add one so we can gently remind you.</div>`}</div>
       <button class="tc-add-date link-btn" data-pid="${p.id}">+ Add a date or reminder</button>
       <div class="tc-noticed-mount" data-pid="${p.id}"></div>
       ${savedHtml}
@@ -860,7 +860,7 @@ function renderHome(people, opts = {}) {
       <h2 class="q-title" style="margin-bottom:10px;">People I care about</h2>
       <div class="tc-promise">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
-        <span class="tc-promise-txt">We'll <b>gently nudge you before every date that matters</b> — birthdays, anniversaries, hard days — so you're always ready to show up.</span>
+        <span class="tc-promise-txt">We'll <b>gently nudge you before every date that matters</b>: birthdays, anniversaries, hard days, so you're always ready to show up.</span>
       </div>
       <p class="tc-account">Signed in as ${email} · <button class="link-btn tc-export">Export my data</button> · <button class="link-btn tc-signout">Sign out</button></p>
       <div style="height:14px"></div>
@@ -903,7 +903,7 @@ function renderHome(people, opts = {}) {
           <p class="tc-help-sm" style="margin:6px 0 0;">Record or share a memo about them and we'll listen, pull out who it's about, and let you confirm.</p>
 
           <!-- 1a: paste a bio / anything about them -->
-          <textarea id="np_paste" placeholder="Or paste something about them — a bio, a message, a note, or a screenshot — and we'll pull out who it's about" style="margin-top:12px;min-height:72px;"></textarea>
+          <textarea id="np_paste" placeholder="Or paste something about them: a bio, a message, a note, or a screenshot, and we'll pull out who it's about" style="margin-top:12px;min-height:72px;"></textarea>
           <div class="nav" style="justify-content:flex-end;"><button class="cta ghost" id="np_paste_go" type="button">Read it →</button></div>
 
           <!-- confirm cards (tap-to-edit) render here -->
