@@ -194,9 +194,9 @@ function consumePendingVoice() {
 const svgWrap = (paths, sz = 16, stroke = "currentColor") =>
   `<svg viewBox="0 0 24 24" width="${sz}" height="${sz}" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="flex:0 0 auto;">`
   + paths + `</svg>`;
-// Brand heart (matches the inline hero/modal heart) + optional clay accent circle.
-const heartSvg = (sz = 16, stroke = "#7d8a68") =>
-  svgWrap(`<path d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" stroke="#c28a63"/>`, sz, stroke);
+// Brand heart accent (24×24, mono, inherits button text color via currentColor).
+const heartSvg = (sz = 16, stroke = "currentColor") =>
+  svgWrap(`<path d="M12 20s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 10c0 5.5-7 10-7 10Z"/>`, sz, stroke);
 const listSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M4 6h16M4 12h16M4 18h16"/>`, sz, stroke);
 const plusSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M12 5v14M5 12h14"/>`, sz, stroke);
 const xSvg = (sz = 16, stroke = "currentColor") => svgWrap(`<path d="M6 6l12 12M18 6L6 18"/>`, sz, stroke);
@@ -442,7 +442,7 @@ function ensureModal() {
     <div class="panel">
       <div class="panel-head">
         <div class="brand">
-          <svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg>
+          <svg viewBox="0 0 100 100" width="24" height="24" aria-hidden="true"><path d="M50 12c21 0 36 14.5 36 33 0 18.5-15 33-36 33-4.6 0-9-0.7-13-2l-16 8 4.4-15.4C15.7 96.2 14 84.5 14 45 14 26.5 29 12 50 12Z" fill="none" stroke="#118ab9" stroke-width="7" stroke-linejoin="round"/><path fill="#ef4136" d="M50 63c-1 0-1.9-.4-2.6-1.1l-11-11a8.8 8.8 0 0 1 0-12.5 8.8 8.8 0 0 1 12.5 0l1.1 1.1 1.1-1.1a8.8 8.8 0 0 1 12.5 0 8.8 8.8 0 0 1 0 12.5l-11 11c-.7.7-1.6 1.1-2.6 1.1Z"/></svg>
           Thoughts Count
         </div>
         <button class="close" id="tcModalClose" aria-label="Close">${xSvg(18)}</button>
@@ -494,7 +494,7 @@ function openSignIn() {
     const msg = modalBody().querySelector("#tcAuthMsg");
     const btn = modalBody().querySelector("#tcSendLink");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = "k-msg bad"; msg.textContent = "Please enter a valid email address."; return; }
-    btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Sending your link…";
+    btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Sending your link...";
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
     if (error) { btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = error.message || "Could not send the link. Please try again."; return; }
     renderCheckInbox(email);
@@ -512,13 +512,13 @@ function openSignIn() {
 // opts.onRetry overrides the "use a different email" handler (default: openSignIn).
 function renderCheckInbox(email, opts = {}) {
   const noteHtml = opts.note
-    ? `<p class="tc-help-sm" style="text-align:center;max-width:34ch;margin:0 auto 16px;color:var(--ink,#3b362e);">${opts.noteHtml || esc(opts.note)}</p>` : "";
+    ? `<p class="tc-help-sm" style="text-align:center;max-width:34ch;margin:0 auto 16px;color:var(--tc-ink,#2c2a26);">${opts.noteHtml || esc(opts.note)}</p>` : "";
   modalBody().innerHTML = `
     <div class="panel-body" style="text-align:center;">
       <div class="tc-sent-badge" aria-hidden="true">
-        <svg viewBox="0 0 48 48" fill="none" stroke="#7d8a68" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <svg viewBox="0 0 48 48" fill="none" stroke="#118ab9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
           <rect x="8" y="13" width="32" height="22" rx="3"/><path d="M9 15l15 11 15-11"/>
-          <circle cx="37" cy="34" r="7" fill="#e4ecdb" stroke="#c28a63"/><path d="M34 34l2 2 4-4" stroke="#5f6c4c"/>
+          <circle cx="37" cy="34" r="7" fill="#e3f0f6" stroke="#118ab9"/><path d="M34 34l2 2 4-4" stroke="#118ab9"/>
         </svg>
       </div>
       <h2 class="q-title" style="margin-top:14px;">Check your email</h2>
@@ -548,7 +548,7 @@ function renderCheckInbox(email, opts = {}) {
   const verify = async () => {
     const token = (codeEl.value || "").replace(/\s+/g, "").trim();
     if (!/^\d{6,8}$/.test(token)) { msg.className = "k-msg bad"; msg.textContent = "That code should be the digits from your email."; return; }
-    btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Signing you in…";
+    btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Signing you in...";
     // type:"email" verifies BOTH a returning-user sign-in OTP and a new-user signup OTP.
     const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
     if (error) { btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = error.message || "That code didn't work. Check it and try again, or request a new one."; return; }
@@ -578,7 +578,7 @@ function promptSignInToRemember(transcript) {
       <div class="q-eyebrow">Let me hold onto that</div>
       <h2 class="q-title">Keep them close</h2>
       <p class="q-help">I've got what you said. Sign in with just your email and I'll keep this person — and the dates that matter to them — safe, and gently remind you before each one. No password.</p>
-      <blockquote style="font-family:'Fraunces',Georgia,serif;font-size:16.5px;line-height:1.5;color:var(--ink,#3b362e);border-left:3px solid var(--sage,#7d8a68);margin:14px 0 16px;padding:2px 0 2px 14px;text-align:left;">“${esc(t)}”</blockquote>
+      <blockquote style="font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:16.5px;line-height:1.5;color:var(--tc-ink,#2c2a26);border-left:3px solid var(--tc-blue,#118ab9);margin:14px 0 16px;padding:2px 0 2px 14px;text-align:left;">“${esc(t)}”</blockquote>
       <input type="email" id="tcEmail" placeholder="you@email.com" autocomplete="email" />
       <div class="nav"><span></span><button class="cta" id="tcSendLink">Email me a link to keep them →</button></div>
       <div class="k-msg" id="tcAuthMsg"></div>
@@ -592,7 +592,7 @@ function promptSignInToRemember(transcript) {
     const msg = modalBody().querySelector("#tcAuthMsg");
     const btn = modalBody().querySelector("#tcSendLink");
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = "k-msg bad"; msg.textContent = "Please enter a valid email address."; return; }
-    btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Sending your link…";
+    btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Sending your link...";
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
     if (error) { btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = error.message || "Could not send the link. Please try again."; return; }
     // Hold the request on THIS device so the magic-link return resumes it (Option 1).
@@ -715,7 +715,7 @@ async function addPlanFollowups(personId, plan) {
     // Truncate by code points, not UTF-16 units, so an emoji/accent can't be cut
     // in half. Array.from splits on code points.
     const chars = Array.from(label);
-    if (chars.length > 70) label = chars.slice(0, 67).join("").trimEnd() + "…";
+    if (chars.length > 70) label = chars.slice(0, 67).join("").trimEnd() + "...";
     if (seen.has(label + "|" + event_date)) continue;
     try {
       await addKeyDate(personId, { label, kind: "moment", event_date, recurs: false, lead_days: 0 });
@@ -731,7 +731,7 @@ async function openHome() {
   if (!user) { openSignIn(); return; }
   openModal();
   reviewOpen = false; // a fresh open of "People I care about" starts with the review panel closed
-  modalBody().innerHTML = `<div class="panel-body"><p class="q-help">Loading your people…</p></div>`;
+  modalBody().innerHTML = `<div class="panel-body"><p class="q-help">Loading your people...</p></div>`;
   const people = await loadPeople();
   try { reviewCount = await pendingCount(sb); } catch { reviewCount = 0; }
   renderHome(people);
@@ -846,7 +846,7 @@ function renderHome(people, opts = {}) {
 
   const controls = people.length > 1 ? `
     <div class="tc-controls">
-      <input type="text" id="tcSearch" placeholder="Search your people…" autocomplete="off" />
+      <input type="text" id="tcSearch" placeholder="Search your people..." autocomplete="off" />
       <select id="tcSort" class="tc-select">
         <option value="next">Sort: next date</option>
         <option value="alpha">Sort: name (A–Z)</option>
@@ -988,7 +988,7 @@ function renderHome(people, opts = {}) {
   };
   const exportBtn = modalBody().querySelector(".tc-export");
   if (exportBtn) exportBtn.onclick = async () => {
-    exportBtn.disabled = true; const prev = exportBtn.textContent; exportBtn.textContent = "Preparing…";
+    exportBtn.disabled = true; const prev = exportBtn.textContent; exportBtn.textContent = "Preparing...";
     try { await exportUserData(sb, user); } catch (e) { console.error("export failed", e); }
     exportBtn.disabled = false; exportBtn.textContent = prev;
   };
@@ -1023,7 +1023,7 @@ function renderHome(people, opts = {}) {
     const name = modalBody().querySelector("#np_name").value.trim();
     const msg = modalBody().querySelector("#np_msg");
     if (!name) { msg.className = "k-msg bad"; msg.textContent = "A name helps us make it personal."; return; }
-    msg.className = "k-msg"; msg.textContent = "Saving…";
+    msg.className = "k-msg"; msg.textContent = "Saving...";
     try {
       // The "anything worth remembering" field is the on-ramp to the ONE memory store — it
       // becomes this person's first noticed item, not a separate people.notes blob (TC-49).
@@ -1428,7 +1428,7 @@ function openAddDate(personId) {
     const msg = box.querySelector("#kd_msg");
     const label = labelEl.value.trim(), event_date = box.querySelector("#kd_date").value;
     if (!label || !event_date) { msg.className = "k-msg bad"; msg.textContent = "A label and a date are both needed."; return; }
-    msg.className = "k-msg"; msg.textContent = "Saving…";
+    msg.className = "k-msg"; msg.textContent = "Saving...";
     try { await addKeyDate(personId, { label, kind: kindEl.value, event_date, recurs: recEl.checked, lead_days: Number(leadEl.value) }); renderHome(await loadPeople()); }
     catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save."; }
   };
@@ -1487,7 +1487,7 @@ async function mountSaveToPerson(stageEl, plan) {
 
   card.querySelector("#tcSavePlan").onclick = async () => {
     const msg = card.querySelector("#tcSaveMsg");
-    msg.className = "k-msg"; msg.textContent = "Saving…";
+    msg.className = "k-msg"; msg.textContent = "Saving...";
     try {
       let personId = sel.value;
       if (personId === "__new") {

@@ -169,7 +169,7 @@ export function mountNoticed(container, sb, person, opts = {}) {
         <div class="tc-noticed-head">Things you've noticed</div>
         <div class="tc-noticed-list">${rows}</div>
         <div class="tc-noticed-add">
-          <input type="text" class="tc-noticed-input" placeholder="Something worth remembering…" />
+          <input type="text" class="tc-noticed-input" placeholder="Something worth remembering..." />
           <button class="link-btn tc-noticed-save">Add</button>
         </div>
         <div class="k-msg tc-noticed-msg"></div>
@@ -186,7 +186,7 @@ export function mountNoticed(container, sb, person, opts = {}) {
     const add = async () => {
       const text = (input.value || "").trim();
       if (!text) { input.focus(); return; }
-      setMsg("Reading…");
+      setMsg("Reading...");
       try {
         // Context-locked capture: reads the text into structured fact(s) on THIS person (TC-50).
         const r = await captureNote(sb, person.id, text);
@@ -227,7 +227,7 @@ export function mountNoticed(container, sb, person, opts = {}) {
         const save = async () => {
           const val = (ei.value || "").trim();
           if (!val) return;
-          setMsg("Saving…");
+          setMsg("Saving...");
           try { await memoryPost(sb, { op: "update_fact", factId: f.id, patch: { object: val } }); await refresh(); onChange(); }
           catch (e) { setMsg(e.message, true); }
         };
@@ -246,7 +246,7 @@ export function mountNoticed(container, sb, person, opts = {}) {
         tools.innerHTML = `<span class="tc-noticed-confirm">Remove this? <button class="link-btn tc-noticed-yes">Yes</button> · <button class="link-btn tc-noticed-no">Keep</button></span>`;
         tools.querySelector(".tc-noticed-no").onclick = () => render();
         tools.querySelector(".tc-noticed-yes").onclick = async () => {
-          setMsg("Removing…");
+          setMsg("Removing...");
           try { await memoryPost(sb, { op: "delete_fact", factId: btn.dataset.fid }); await refresh(); onChange(); }
           catch (e) { setMsg(e.message, true); }
         };
@@ -273,7 +273,7 @@ export function mountPersonDelete(container, sb, person, { onDeleted } = {}) {
       container.querySelector(".tc-person-del-no").onclick = render;
       container.querySelector(".tc-person-del-yes").onclick = async () => {
         const msg = container.querySelector(".tc-person-del-msg");
-        msg.className = "k-msg tc-person-del-msg"; msg.textContent = "Removing…";
+        msg.className = "k-msg tc-person-del-msg"; msg.textContent = "Removing...";
         try { await memoryPost(sb, { op: "delete_person", personId: person.id }); if (typeof onDeleted === "function") onDeleted(); }
         catch (e) { msg.className = "k-msg tc-person-del-msg bad"; msg.textContent = e.message; render(); }
       };

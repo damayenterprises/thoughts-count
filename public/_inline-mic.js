@@ -25,7 +25,7 @@ const INLINE_MIC_CSS = `
 .tc-imic[data-multiline="true"] .tc-imic-btn { top: 6px; }
 .tc-imic-btn:hover { color: var(--sage-deep); background: var(--mist); }
 .tc-imic-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist); color: var(--sage-deep); }
-.tc-imic-btn[data-state="active"] { color: var(--clay-deep); background: #f6e3da; }
+.tc-imic-btn[data-state="active"] { color: var(--clay-deep); background: #fdeceb; }
 .tc-imic-btn[data-state="active"]::after { content: ""; position: absolute; inset: 0; border-radius: 999px; border: 1.5px solid var(--clay); opacity: .6; animation: tc-imic-pulse 1.8s ease-out infinite; }
 @keyframes tc-imic-pulse { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(1.5); opacity: 0; } }
 .tc-imic-btn[data-state="thinking"] { color: var(--ink-soft); pointer-events: none; }
@@ -99,7 +99,7 @@ export function mountInlineMic(field, opts = {}) {
     btn.className = "tc-imic-btn";
     btn.setAttribute("data-state", "idle");
     btn.setAttribute("aria-label", ariaLabel);
-    btn.innerHTML = window.micSvg(18, "currentColor", "#c28a63");
+    btn.innerHTML = window.micSvg(18, "currentColor", "#ef4136");
     wrap.appendChild(btn);
 
     if (mode === "capture") {

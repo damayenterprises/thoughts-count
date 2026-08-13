@@ -126,28 +126,28 @@ function ensureStyles() {
   s.id = "tcCaptureCss";
   s.textContent = `
   .tc-toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(12px);z-index:2147483000;
-    background:#3c4634;color:#f4f1e9;padding:12px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(0,0,0,.22);
+    background:#2c2a26;color:#f7f3ec;padding:12px 16px;border-radius:12px;box-shadow:0 8px 30px rgba(64,52,34,.22);
     display:flex;align-items:center;gap:12px;font:inherit;font-size:.95rem;opacity:0;transition:opacity .18s,transform .18s;max-width:min(92vw,440px);}
   .tc-toast.show{opacity:1;transform:translateX(-50%) translateY(0);}
   .tc-toast b{font-weight:600;}
-  .tc-toast .tc-toast-undo{background:none;border:none;color:#e7c9a9;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;padding:0;}
+  .tc-toast .tc-toast-undo{background:none;border:none;color:#8fcbe6;font:inherit;font-weight:600;cursor:pointer;text-decoration:underline;padding:0;}
   .tc-qc{margin:12px 0;}
   .tc-qc-row{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;}
   .tc-qc-row input{flex:1 1 140px;min-width:0;}
   .tc-qc-row .tc-qc-save{flex:0 0 auto;}
-  .tc-qc-hint{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;color:#5f6c4c;
-    background:#eef2e6;border:1px solid #dde5cf;border-radius:10px;padding:8px 10px;font-size:.84rem;margin-bottom:8px;}
-  .tc-qc-hint button{background:none;border:none;color:#7a7466;cursor:pointer;font:inherit;font-size:1rem;line-height:1;padding:0 2px;}
-  .tc-review-item{border:1px solid #e5e0d4;border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fffdf8;}
-  .tc-review-heard{font-style:italic;color:#4a4636;}
-  .tc-review-who{color:#7a7466;font-size:.9rem;margin:6px 0 10px;}
+  .tc-qc-hint{display:flex;gap:8px;align-items:flex-start;justify-content:space-between;color:#5a554c;
+    background:#e3f0f6;border:1px solid #cfe3ef;border-radius:10px;padding:8px 10px;font-size:.84rem;margin-bottom:8px;}
+  .tc-qc-hint button{background:none;border:none;color:#8a8377;cursor:pointer;font:inherit;font-size:1rem;line-height:1;padding:0 2px;}
+  .tc-review-item{border:1px solid #e7ded0;border-radius:12px;padding:12px 14px;margin-bottom:10px;background:#fdfbf7;}
+  .tc-review-heard{font-style:italic;color:#2c2a26;}
+  .tc-review-who{color:#8a8377;font-size:.9rem;margin:6px 0 10px;}
   .tc-review-acts{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
   .tc-review-assign{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px;}
   .tc-review-assign .tc-rv-sel{flex:1 1 160px;min-width:0;}
-  .tc-review-empty{color:#7a7466;text-align:center;padding:18px 0;}
+  .tc-review-empty{color:#8a8377;text-align:center;padding:18px 0;}
   .tc-badge-dot{display:inline-flex;align-items:center;justify-content:center;min-width:18px;height:18px;padding:0 5px;
-    border-radius:9px;background:#c28a63;color:#fff;font-size:.72rem;font-weight:700;margin-left:6px;}
-  @keyframes tcFlash{0%{background:#fbf4e6;box-shadow:0 0 0 2px #e7c9a9 inset;}100%{background:transparent;box-shadow:none;}}
+    border-radius:9px;background:#118ab9;color:#fff;font-size:.72rem;font-weight:700;margin-left:6px;}
+  @keyframes tcFlash{0%{background:#f0f7fb;box-shadow:0 0 0 2px #cfe3ef inset;}100%{background:transparent;box-shadow:none;}}
   .tc-flash{animation:tcFlash 1.8s ease-out 1;border-radius:12px;}
   `;
   document.head.appendChild(s);
@@ -241,7 +241,7 @@ export function mountQuickCapture(container, sb, { contactKind = "personal", onC
   const submit = async () => {
     const text = (input.value || "").trim();
     if (!text) { input.focus(); return; }
-    btn.disabled = true; setMsg("Reading…");
+    btn.disabled = true; setMsg("Reading...");
     try {
       const result = await captureExtract(sb, { rawText: text, source: "typed" });
       if (!result.captures?.length) { setMsg(result.message || "Nothing to save there yet.", false); btn.disabled = false; return; }
@@ -314,7 +314,7 @@ export function mountToReview(container, sb, { people = [], contactKind = "perso
       // result to the host so it can surface the new/updated card immediately (no reload).
       const act = async (fn, { save = true } = {}) => {
         try {
-          setMsg("Saving…");
+          setMsg("Saving...");
           const res = await fn();
           await refresh();
           if (save && res && res.ok && res.status === "confirmed") {
@@ -641,7 +641,7 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
     const doConfirm = async (personId) => {
       const nm = nameEl.value.trim();
       if (!nm && !personId) { setMsg("A name helps us make it personal.", true); nameEl.focus(); return; }
-      setMsg("Saving…");
+      setMsg("Saving...");
       try {
         const res = await captureResolve(sb, {
           captureId: state.captureId,

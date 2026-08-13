@@ -98,7 +98,7 @@ function ensureScrim() {
   m.className = "scrim tc-roster-scrim";
   m.id = "tcRosterScrim";
   m.innerHTML = `<div class="panel tc-roster-panel"><div class="panel-head tc-imp-head">
-      <div class="brand"><svg viewBox="0 0 24 24" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg> My roster</div>
+      <div class="brand"><svg viewBox="0 0 100 100" width="24" height="24" aria-hidden="true"><path d="M50 12c21 0 36 14.5 36 33 0 18.5-15 33-36 33-4.6 0-9-0.7-13-2l-16 8 4.4-15.4C15.7 96.2 14 84.5 14 45 14 26.5 29 12 50 12Z" fill="none" stroke="#118ab9" stroke-width="7" stroke-linejoin="round"/><path fill="#ef4136" d="M50 63c-1 0-1.9-.4-2.6-1.1l-11-11a8.8 8.8 0 0 1 0-12.5 8.8 8.8 0 0 1 12.5 0l1.1 1.1 1.1-1.1a8.8 8.8 0 0 1 12.5 0 8.8 8.8 0 0 1 0 12.5l-11 11c-.7.7-1.6 1.1-2.6 1.1Z"/></svg> My roster</div>
       <button class="close" id="tcRosClose" aria-label="Close">✕</button>
     </div><div id="tcRosBody"></div></div>`;
   document.body.appendChild(m);
@@ -116,7 +116,7 @@ async function openRoster() {
   if (!isPro()) { ensureScrim(); openScrim(); renderUpgrade(); return; }
   reviewOpen = false; // a fresh open starts with the review panel closed
   ensureScrim(); openScrim();
-  body().innerHTML = `<div class="panel-body"><p class="q-help">Loading your roster…</p><div class="tc-spin"></div></div>`;
+  body().innerHTML = `<div class="panel-body"><p class="q-help">Loading your roster...</p><div class="tc-spin"></div></div>`;
   await reload();
 }
 async function reload() {
@@ -210,7 +210,7 @@ function render() {
   }
 
   const controls = `<div class="tc-controls" style="margin-top:14px;">
-      <input type="text" id="tcRosSearch" placeholder="Search your roster…" autocomplete="off" value="${esc(query)}" />
+      <input type="text" id="tcRosSearch" placeholder="Search your roster..." autocomplete="off" value="${esc(query)}" />
       <select id="tcRosSort" class="tc-select">
         <option value="next"${sortBy === "next" ? " selected" : ""}>Sort: next date</option>
         <option value="alpha"${sortBy === "alpha" ? " selected" : ""}>Sort: name (A–Z)</option>
@@ -263,7 +263,7 @@ function wireExport() {
   const btn = body().querySelector("#tcExportBtn");
   if (!btn) return;
   btn.onclick = async () => {
-    btn.disabled = true; const prev = btn.textContent; btn.textContent = "Preparing…";
+    btn.disabled = true; const prev = btn.textContent; btn.textContent = "Preparing...";
     try { await exportUserData(sb, user); } catch (e) { console.error("export failed", e); }
     btn.disabled = false; btn.textContent = prev;
   };
