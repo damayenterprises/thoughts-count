@@ -40,7 +40,7 @@ export async function runDigest(recipients = REPORT_RECIPIENTS) {
 }
 
 // ---- email HTML ---------------------------------------------------------
-const C = { paper: "#f5efe3", card: "#fffbf4", line: "#e7ddca", ink: "#3b362e", soft: "#7a7263", sage: "#5f6c4c", clay: "#a97350" };
+const C = { paper: "#f7f3ec", card: "#fdfbf7", line: "#e7ded0", ink: "#2c2a26", soft: "#5a554c", sage: "#0a5876", clay: "#118ab9" };
 
 function seoSection(seo) {
   // Not connected at all.
@@ -135,7 +135,7 @@ function digestHtml({ allSum, weekSum, rangeLabel, seo }) {
 <div style="margin:0;padding:24px;background:${C.paper};font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;color:${C.ink};">
   <div style="max-width:600px;margin:0 auto;background:${C.card};border:1px solid ${C.line};border-radius:20px;overflow:hidden;">
     <div style="padding:22px 28px;border-bottom:1px solid ${C.line};">
-      <div style="font-family:Georgia,serif;font-size:20px;font-weight:600;">🤍 Thoughts Count — Weekly Report</div>
+      <div style="font-family:Georgia,serif;font-size:20px;font-weight:600;color:#118ab9;">&#10084; Thoughts Count — Weekly Report</div>
       <div style="font-size:13px;color:${C.soft};margin-top:4px;">${rangeLabel}</div>
     </div>
 
@@ -152,7 +152,7 @@ function digestHtml({ allSum, weekSum, rangeLabel, seo }) {
         ${wf.plans_generated || 0} received a plan. ${wf.emails_submitted || 0} had it emailed to them.
       </div>
 
-      <div style="margin:16px 6px 0;padding:12px 14px;background:#eef1e7;border:1px solid ${C.line};border-radius:12px;font-size:13px;color:${C.ink};">
+      <div style="margin:16px 6px 0;padding:12px 14px;background:#e3f0f6;border:1px solid ${C.line};border-radius:12px;font-size:13px;color:${C.ink};">
         <b style="color:${C.sage};">Growth this week:</b> ${wf.unique_emails || 0} new outside email${wf.unique_emails === 1 ? "" : "s"}
         <span style="color:${C.soft};">(excludes you &amp; JC)</span>
         &nbsp;·&nbsp; <b style="color:${C.clay};">Team:</b> ${wf.team_emails || 0} email${wf.team_emails === 1 ? "" : "s"}, ${wf.reminders_sent || 0} reminder${wf.reminders_sent === 1 ? "" : "s"} sent
