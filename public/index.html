@@ -30,61 +30,92 @@
 <script type="application/ld+json">{"@context":"https://schema.org","@type":"WebSite","name":"Thoughts Count","url":"https://thoughtscount.com/","description":"Personal guidance on what to say, the gesture that fits, and how to keep showing up for the people you care about.","publisher":{"@type":"Organization","name":"Thoughts Count"}}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,400;1,9..144,500&family=Nunito:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@1,9..144,400;1,9..144,500&display=swap" rel="stylesheet" />
+<link rel="manifest" href="/manifest.json" />
+<link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+<meta name="theme-color" content="#118ab9" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="default" />
+<meta name="apple-mobile-web-app-title" content="Thoughts Count" />
 <style>
   :root {
-    --paper: #dfeae6;
-    --paper-2: #e5eee9;
-    --cloud: #f8fbf9;
-    --ink: #34382f;
-    --ink-soft: #5f6b60;
-    --sage: #7d8a68;
-    --sage-deep: #5f6c4c;
-    --clay: #c28a63;
-    --clay-deep: #a97350;
-    --blush: #e7efe9;
-    --mist: #dfeae1;
-    --line: #d9e4dd;
-    --shadow: 0 2px 6px rgba(80,60,30,.04), 0 14px 40px rgba(80,60,30,.06);
-    --shadow-soft: 0 1px 3px rgba(80,60,30,.05);
-    --shadow-art: 0 10px 40px rgba(90,60,25,.14), 0 2px 8px rgba(90,60,25,.08);
+    /* ===== REBRAND v2 tokens (TC-75) — source of truth ===== */
+    /* BRAND: blue (logo primary) */
+    --tc-blue:        #118ab9;
+    --tc-blue-hover:  #0f7ba4;
+    --tc-blue-active: #0d6c91;
+    --tc-blue-deep:   #0a5876;
+    --tc-blue-tint:   #e3f0f6;
+    --tc-blue-tint-2: #f0f7fb;
+    /* ACCENT: red heart */
+    --tc-red:         #ef4136;
+    --tc-red-hover:   #e02f24;
+    --tc-red-active:  #c9271d;
+    --tc-red-tint:    #fdeceb;
+    /* EARTHY WARM NEUTRALS (the canvas) */
+    --tc-paper:       #f7f3ec;
+    --tc-paper-2:     #f1ebe1;
+    --tc-surface:     #fdfbf7;
+    --tc-surface-hi:  #ffffff;
+    --tc-ink:         #2c2a26;
+    --tc-ink-soft:    #5a554c;
+    --tc-ink-mute:    #8a8377;
+    --tc-line:        #e7ded0;
+    --tc-line-strong: #d8cdba;
+    /* SEMANTIC */
+    --tc-success:     #4f9d7a;  --tc-success-tint: #e7f1ea;
+    --tc-warn:        #cf8a3b;
+    /* effects (warm brown-alpha shadows) */
+    --tc-shadow-sm: 0 1px 2px rgba(64,52,34,.05), 0 2px 6px rgba(64,52,34,.05);
+    --tc-shadow-md: 0 2px 8px rgba(64,52,34,.06), 0 14px 34px rgba(64,52,34,.08);
+    --tc-shadow-lg: 0 8px 24px rgba(64,52,34,.08), 0 28px 60px rgba(64,52,34,.10);
+    --tc-focus:     0 0 0 3px rgba(17,138,185,.35);
+    /* type */
+    --tc-font: 'Montserrat', system-ui, -apple-system, 'Segoe UI', sans-serif;
+    --tc-serif: 'Fraunces', Georgia, serif;
+    /* radii */
+    --r-sm: 10px; --r-md: 16px; --r-lg: 22px; --r-xl: 28px; --r-pill: 999px;
+
+    /* ===== legacy aliases → new tokens (old names kept, all resolve to new palette) ===== */
+    --paper: var(--tc-paper);
+    --paper-2: var(--tc-paper-2);
+    --cloud: var(--tc-surface);
+    --ink: var(--tc-ink);
+    --ink-soft: var(--tc-ink-soft);
+    --sage: var(--tc-blue);          /* old brand green → new brand blue */
+    --sage-deep: var(--tc-blue-deep);
+    --clay: var(--tc-red);           /* old accent clay → red accent (CTA/heart) */
+    --clay-deep: var(--tc-red-active);
+    --blush: var(--tc-blue-tint);
+    --mist: var(--tc-blue-tint-2);
+    --line: var(--tc-line);
+    --shadow: var(--tc-shadow-md);
+    --shadow-soft: var(--tc-shadow-sm);
+    --shadow-art: var(--tc-shadow-lg);
   }
   * { box-sizing: border-box; }
   html { scroll-behavior: smooth; }
   body {
     margin: 0;
-    font-family: 'Nunito', system-ui, -apple-system, sans-serif;
-    color: var(--ink);
-    background: #dfeae6;
-    line-height: 1.7;
+    font-family: var(--tc-font);
+    color: var(--tc-ink);
+    background: var(--tc-paper);
+    line-height: 1.6;
     -webkit-font-smoothing: antialiased;
   }
 
-  /* ---------- full-page ambient gradient (slow drifting clouds) ---------- */
+  /* ---------- flat warm canvas + single static warm bloom (rebrand §3) ---------- */
   #bg { position: fixed; inset: 0; z-index: -2; overflow: hidden;
-    background: linear-gradient(160deg, #e6f0ea 0%, #dde9e8 50%, #d9e5ec 100%); }
-  #bg .cloud { position: absolute; border-radius: 50%; filter: blur(66px); opacity: 0.6; will-change: transform; }
-  /* greens and blues intermixed, each roaming far across the whole screen */
-  #bg .c1 { width: 58vw; height: 58vw; left: 4vw;  top: 2vh;    background: #9fc596; animation: drift1 26s ease-in-out infinite alternate; }
-  #bg .c2 { width: 54vw; height: 54vw; right: 2vw; top: 6vh;    background: #a2bdd8; animation: drift2 30s ease-in-out infinite alternate; animation-delay: -12s; }
-  #bg .c3 { width: 60vw; height: 60vw; left: 20vw; bottom: 2vh; background: #8fbfb4; animation: drift3 28s ease-in-out infinite alternate; animation-delay: -6s; }
-  #bg .c4 { width: 52vw; height: 52vw; right: 6vw; bottom: 4vh; background: #a9c3e2; animation: drift4 32s ease-in-out infinite alternate; animation-delay: -18s; }
-  #bg .c5 { width: 48vw; height: 48vw; left: 34vw; top: 30vh;   background: #b3d2ac; opacity: 0.5; animation: drift5 24s ease-in-out infinite alternate; animation-delay: -9s; }
-  #bg .c6 { width: 50vw; height: 50vw; left: 2vw;  bottom: 6vh; background: #98bcd8; animation: drift6 34s ease-in-out infinite alternate; animation-delay: -15s; }
-  @keyframes drift1 { from { transform: translate(-8vw,-6vh) scale(1); }   to { transform: translate(26vw,20vh) scale(1.22); } }
-  @keyframes drift2 { from { transform: translate(6vw,-4vh) scale(1.1); }  to { transform: translate(-24vw,18vh) scale(1); } }
-  @keyframes drift3 { from { transform: translate(-4vw,6vh) scale(1); }    to { transform: translate(22vw,-22vh) scale(1.18); } }
-  @keyframes drift4 { from { transform: translate(4vw,4vh) scale(1.05); }  to { transform: translate(-26vw,-18vh) scale(1.2); } }
-  @keyframes drift5 { from { transform: translate(0,0) scale(1); }         to { transform: translate(-20vw,14vh) scale(1.25); } }
-  @keyframes drift6 { from { transform: translate(-6vw,4vh) scale(1); }    to { transform: translate(24vw,-16vh) scale(1.15); } }
-  @media (prefers-reduced-motion: reduce) { #bg .cloud { animation: none !important; } }
-  h1, h2, h3, .serif { font-family: 'Fraunces', Georgia, serif; font-weight: 500; letter-spacing: -0.005em; }
-  a { color: var(--sage-deep); }
+    background:
+      radial-gradient(120% 80% at 15% 0%, rgba(17,138,185,.05), transparent 60%),
+      var(--tc-paper); }
+  h1, h2, h3, .serif { font-family: var(--tc-font); font-weight: 700; letter-spacing: -0.01em; }
+  a { color: var(--tc-blue); }
 
-  .bar { display: flex; align-items: center; justify-content: space-between; padding: 22px 30px; max-width: 1080px; margin: 0 auto; }
-  .brand { font-family: 'Fraunces', serif; font-size: 30px; font-weight: 600; color: var(--ink); display: flex; align-items: center; gap: 14px; }
-  .brand svg { width: auto; height: 44px; flex: 0 0 auto; }
-  .bar .promise { font-size: 14px; color: var(--ink-soft); font-style: italic; font-family: 'Fraunces', serif; }
+  .bar { display: flex; align-items: center; justify-content: space-between; padding: 18px 30px; max-width: 1080px; margin: 0 auto; }
+  .brand { font-family: var(--tc-font); font-size: 17px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: var(--tc-blue-deep); display: flex; align-items: center; gap: 12px; }
+  .brand svg { width: auto; height: 34px; flex: 0 0 auto; }
+  .bar .promise { font-size: 14px; color: var(--ink-soft); font-style: italic; font-family: var(--tc-serif); }
   .bar-right { display: flex; align-items: center; gap: 16px; position: relative; }
   .bar-menu { display: flex; align-items: center; gap: 16px; }
   .bar-menu-toggle { display: none; background: none; border: none; padding: 8px; margin: -8px; cursor: pointer; color: var(--sage-deep); line-height: 0; border-radius: 10px; transition: background .15s ease; }
@@ -105,7 +136,7 @@
   .tc-date-when { color: var(--clay-deep); font-weight: 700; font-size: 13.5px; white-space: nowrap; }
   .tc-empty { color: var(--ink-soft); font-size: 14px; font-style: italic; }
   .tc-add-date { color: var(--sage-deep) !important; font-weight: 700; margin-top: 10px; }
-  .tc-addwrap h4 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 17px; margin: 0 0 12px; }
+  .tc-addwrap h4 { font-family: var(--tc-font); font-weight: 600; font-size: 17px; margin: 0 0 12px; }
   .tc-showup { width: 100%; justify-content: center; margin-top: 14px; }
   .tc-savedplans { margin-top: 14px; }
   .tc-sp-label { font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase; color: var(--ink-soft); margin-bottom: 7px; }
@@ -151,8 +182,8 @@
   .tc-controls #tcSearch { flex: 1; min-width: 0; }
   .tc-controls .tc-select { width: auto; flex: 0 0 auto; padding: 10px 12px; font-size: 14px; }
   @media (max-width: 480px) { .tc-controls { flex-direction: column; } .tc-controls .tc-select { width: 100%; } }
-  .tc-next { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--ink); background: #e4ecdb; border-radius: 999px; padding: 4px 12px; margin-bottom: 4px; }
-  .tc-next b { color: var(--clay-deep); font-weight: 700; }
+  .tc-next { display: inline-flex; align-items: center; gap: 7px; font-size: 13.5px; color: var(--ink); background: var(--tc-blue-tint); border-radius: 999px; padding: 4px 12px; margin-bottom: 4px; }
+  .tc-next b { color: var(--tc-blue-deep); font-weight: 700; }
   .tc-next-dot { width: 7px; height: 7px; border-radius: 50%; background: var(--sage); flex: 0 0 auto; }
   .tc-help-sm { font-size: 13px; color: var(--ink-soft); margin: -4px 0 12px; line-height: 1.5; }
   .tc-field-label { display: block; margin: 12px 0 6px; font-size: 13.5px; color: var(--ink-soft); }
@@ -175,72 +206,91 @@
      greets higher in the fold. Scoped to wide AND tall screens only — mobile/short viewports
      keep the base 34px rhythm above (untouched). */
   @media (min-width: 760px) and (min-height: 760px) { .hero { padding-top: 16px; } }
-  .hero h1 { font-size: clamp(30px, 4.6vw, 50px); line-height: 1.1; font-weight: 500; margin: 0 auto 12px; max-width: 15ch; }
-  .hero h1 em { font-style: italic; color: var(--clay-deep); }
-  .hero p.lead { font-size: clamp(16px, 2vw, 19px); color: var(--ink-soft); max-width: 40ch; margin: 0 auto 16px; }
-  .cta { display: inline-flex; align-items: center; gap: 10px; background: var(--clay); color: #fff; border: none; padding: 15px 34px; border-radius: 999px; font-size: 16.5px; font-weight: 700; cursor: pointer; box-shadow: var(--shadow); transition: transform .14s ease, background .2s ease; font-family: inherit; }
-  .cta:hover { background: var(--clay-deep); transform: translateY(-1px); }
-  .cta.sage { background: var(--sage); }
-  .cta.sage:hover { background: var(--sage-deep); }
-  .cta.ghost { background: transparent; color: var(--sage-deep); box-shadow: none; border: 1.5px solid var(--line); }
-  .cta.ghost:hover { background: var(--cloud); }
-  .reassure { margin-top: 16px; font-size: 13.5px; color: var(--ink-soft); }
-  .reassure b { color: var(--sage-deep); font-weight: 700; }
+  /* ---------- hero = signature BLUE PANEL (rebrand §3) ---------- */
+  .hero { position: relative; color: var(--tc-surface-hi);
+    background: linear-gradient(165deg, #1595c6 0%, var(--tc-blue) 55%, #0f7ea9 100%); }
+  .hero.wrap { max-width: none; padding-left: 0; padding-right: 0; }
+  .hero-inner { max-width: 1080px; margin: 0 auto; padding: 44px 30px 52px; }
+  .hero h1 { font-size: clamp(38px, 6vw, 60px); line-height: 1.05; font-weight: 700; letter-spacing: -0.01em; margin: 0 auto 14px; max-width: 18ch; color: var(--tc-surface-hi); }
+  .hero h1 em { font-family: var(--tc-serif); font-style: italic; font-weight: 500; color: #eaf6fb; }
+  .hero p.lead { font-size: clamp(16px, 2vw, 18px); color: rgba(255,255,255,.92); max-width: 46ch; margin: 0 auto 16px; line-height: 1.6; }
+  .cta { display: inline-flex; align-items: center; gap: 10px; background: var(--tc-red); color: #fff; border: none; padding: 15px 34px; border-radius: var(--r-pill); font-size: 16px; font-weight: 700; letter-spacing: .02em; cursor: pointer; box-shadow: var(--tc-shadow-md); transition: transform .14s ease, background .2s ease; font-family: inherit; }
+  .cta:hover { background: var(--tc-red-hover); transform: translateY(-1px); }
+  .cta:focus-visible { outline: none; box-shadow: var(--tc-focus); }
+  /* secondary = blue (Save/Continue/"in your own words") */
+  .cta.sage { background: var(--tc-blue); }
+  .cta.sage:hover { background: var(--tc-blue-hover); }
+  /* ghost — on the blue panel it reads as a white outline; on paper as an ink outline */
+  .cta.ghost { background: transparent; color: var(--tc-ink); box-shadow: none; border: 1.5px solid var(--tc-line-strong); }
+  .cta.ghost:hover { background: var(--tc-paper-2); }
+  .hero .cta.ghost { color: #fff; border-color: rgba(255,255,255,.6); }
+  .hero .cta.ghost:hover { background: rgba(255,255,255,.12); }
+  .reassure { margin-top: 16px; font-size: 13.5px; color: rgba(255,255,255,.85); }
+  .reassure b { color: #fff; font-weight: 700; }
 
   /* ---------- trust strip (compact, visual) ---------- */
-  .trust { border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); background: rgba(255,255,255,0.22); }
+  .trust { border-bottom: 1px solid var(--tc-line); background: var(--tc-paper); }
   .trust-inner { max-width: 1080px; margin: 0 auto; padding: 20px 30px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
-  .trust .t { display: flex; gap: 11px; align-items: center; font-size: 14.5px; font-weight: 600; color: var(--ink); }
+  .trust .t { display: flex; gap: 11px; align-items: center; font-size: 14.5px; font-weight: 600; color: var(--tc-ink); }
   .trust .t svg { width: 24px; height: 24px; flex: 0 0 auto; }
 
-  /* ---------- sections ---------- */
-  .section { padding: 56px 0; }
-  .section h2 { text-align: center; font-size: clamp(25px, 3.4vw, 34px); font-weight: 500; margin: 0 0 8px; }
-  .section .sub { text-align: center; color: var(--ink-soft); margin: 0 auto 40px; max-width: 42ch; font-size: 16.5px; }
+  /* ---------- sections (alternate paper / blue-tint-2) ---------- */
+  .section { padding: clamp(56px, 9vw, 96px) 0; }
+  .section.tint { background: var(--tc-blue-tint-2); }
+  .section h2 { text-align: center; font-size: clamp(24px, 3vw, 32px); font-weight: 700; letter-spacing: -0.005em; margin: 0 0 8px; }
+  .section .sub { text-align: center; color: var(--ink-soft); margin: 0 auto 40px; max-width: 42ch; font-size: 16px; line-height: 1.6; }
   .steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 22px; }
-  .step { background: var(--cloud); border: 1px solid var(--line); border-radius: 24px; padding: 0 0 26px; box-shadow: var(--shadow); overflow: hidden; }
+  .step { background: var(--tc-surface); border: 1px solid var(--tc-line); border-radius: var(--r-lg); padding: 0 0 26px; box-shadow: var(--tc-shadow-sm); overflow: hidden; }
   .step .scene { width: 100%; height: 130px; display: block; }
   .step .scene svg { width: 100%; height: 100%; display: block; }
-  .step h3 { font-size: 20px; font-weight: 500; margin: 20px 24px 6px; }
+  .step h3 { font-size: 20px; font-weight: 600; margin: 20px 24px 6px; }
   .step p { margin: 0 24px; color: var(--ink-soft); font-size: 14.5px; }
 
-  .moments { display: flex; flex-wrap: wrap; gap: 10px; justify-content: center; margin-top: 34px; }
-  .moments .chip { background: var(--cloud); border: 1px solid var(--line); border-radius: 999px; padding: 9px 17px; font-size: 14px; color: var(--ink-soft); box-shadow: var(--shadow-soft); font-family: inherit; cursor: pointer; transition: border-color .15s ease, color .15s ease, transform .12s ease; }
-  .moments .chip:hover { border-color: var(--sage); color: var(--ink); transform: translateY(-1px); }
+  /* ---------- occasion CATEGORY CARDS (rebrand §4 — retires the chip pills) ---------- */
+  .moments { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; margin-top: 8px; }
+  .moments .chip { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; text-align: left;
+    background: var(--tc-surface); border: 1px solid var(--tc-line); border-radius: var(--r-lg);
+    padding: 22px 18px; min-height: 120px; box-shadow: var(--tc-shadow-sm); font-family: inherit; cursor: pointer;
+    transition: border-color .15s ease, transform .12s ease, box-shadow .15s ease; }
+  .moments .chip .m-ic { width: 32px; height: 32px; flex: 0 0 auto; color: var(--tc-blue); }
+  .moments .chip .m-ic svg { width: 32px; height: 32px; display: block; }
+  .moments .chip .m-label { font-size: 18px; font-weight: 600; line-height: 1.25; color: var(--tc-ink); }
+  .moments .chip:hover { border-color: var(--tc-blue); transform: translateY(-3px); box-shadow: var(--tc-shadow-md); }
+  .moments .chip:focus-visible { outline: none; box-shadow: var(--tc-focus); }
 
   /* ---------- what you get (hero) ---------- */
-  .gets { margin: -4px auto 16px; font-size: 14.5px; color: var(--ink-soft); max-width: 46ch; line-height: 1.6; }
-  .gets b { color: var(--sage-deep); font-weight: 700; }
+  .gets { margin: -4px auto 16px; font-size: 14.5px; color: rgba(255,255,255,.9); max-width: 46ch; line-height: 1.6; }
+  .gets b { color: #fff; font-weight: 700; }
 
   /* ---------- a real example ---------- */
-  .example-card { max-width: 620px; margin: 0 auto; background: var(--cloud); border: 1px solid var(--line); border-radius: 24px; padding: 30px 34px 28px; box-shadow: var(--shadow); }
+  .example-card { max-width: 620px; margin: 0 auto; background: var(--tc-surface); border: 1px solid var(--tc-line); border-radius: var(--r-xl); padding: 30px 34px 28px; box-shadow: var(--tc-shadow-md); }
   .example-eyebrow { text-align: center; }
   .example-situation { font-family: 'Fraunces', serif; font-style: italic; font-size: 19px; color: var(--ink); text-align: center; margin: 12px 0 22px; line-height: 1.5; }
   .example-lines { display: grid; gap: 15px; }
   .example-line { font-size: 14.5px; color: var(--ink-soft); line-height: 1.6; }
-  .example-line span { display: block; color: var(--sage-deep); font-weight: 700; font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase; margin-bottom: 3px; }
+  .example-line span { display: block; color: var(--tc-blue-deep); font-weight: 700; font-size: 12.5px; letter-spacing: .03em; text-transform: uppercase; margin-bottom: 3px; }
   .example-foot { text-align: center; color: var(--ink-soft); font-size: 13.5px; font-style: italic; margin: 22px 0 0; }
 
   /* ---------- quote ---------- */
-  .quote-band { background: transparent; }
-  .quote-band .wrap { padding: 56px 30px; text-align: center; }
-  .quote-band blockquote { font-family: 'Fraunces', serif; font-style: italic; font-size: clamp(21px, 3vw, 28px); line-height: 1.5; max-width: 22ch; margin: 0 auto 14px; color: var(--ink); }
+  .quote-band { background: var(--tc-blue-tint-2); }
+  .quote-band .wrap { padding: clamp(56px, 9vw, 96px) 30px; text-align: center; }
+  .quote-band blockquote { font-family: var(--tc-serif); font-style: italic; font-size: clamp(21px, 3vw, 28px); line-height: 1.5; max-width: 22ch; margin: 0 auto 14px; color: var(--tc-ink); }
   .quote-band .who { font-size: 14px; color: var(--ink-soft); }
-  .quote-band .concept-tag { font-size: 12px; color: #b3a58c; margin-top: 6px; }
+  .quote-band .concept-tag { font-size: 12px; color: var(--tc-ink-mute); margin-top: 6px; }
 
   /* ---------- modal ---------- */
-  .scrim { position: fixed; inset: 0; background: rgba(59,54,46,.44); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; padding: 30px 16px; overflow-y: auto; z-index: 50; }
+  .scrim { position: fixed; inset: 0; background: rgba(44,42,38,.46); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; padding: 30px 16px; overflow-y: auto; z-index: 50; }
   .scrim.open { display: flex; }
   /* The intake/voice overlay (#scrim) must sit ABOVE the companion "People" modal
      (also .scrim, added to the DOM later) so a voice note tapped from inside People
      is visible, not hidden behind it. */
   #scrim { z-index: 70; }
   /* Slice 2 (orb-home): the conversation surface must feel like the SAME warm sanctuary world
-     as the home hero, NOT a clinical white card. A soft green→blue ambient gradient (the same
-     palette family as #bg) carries Della's world in with her; the panel-head brand is quiet. */
-  .panel { background: linear-gradient(168deg, #eef4ee 0%, #e7eeeb 46%, #e4ecf1 100%);
-           width: 100%; max-width: 660px; border-radius: 26px; box-shadow: 0 24px 70px rgba(50,35,15,.3); overflow: hidden; margin: auto 0; }
-  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid rgba(198,210,192,.5); background: transparent; }
+     as the home hero, NOT a clinical white card. A soft warm-paper→blue-tint ambient wash
+     carries Della's world in with her; the panel-head brand is quiet. */
+  .panel { background: linear-gradient(168deg, var(--tc-surface) 0%, var(--tc-paper) 46%, var(--tc-blue-tint-2) 100%);
+           width: 100%; max-width: 660px; border-radius: 26px; box-shadow: var(--tc-shadow-lg); overflow: hidden; margin: auto 0; }
+  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--tc-line); background: transparent; }
   .panel-head .brand { font-size: 19px; }
   .close { background: none; border: none; font-size: 22px; color: var(--ink-soft); cursor: pointer; line-height: 1; padding: 4px 9px; border-radius: 10px; }
   .close:hover { background: var(--paper-2); }
@@ -281,7 +331,7 @@
   .loading .lantern { width: 120px; height: auto; margin: 0 auto 20px; display: block; }
   .loading .glow { transform-origin: center; animation: breathe 3.4s ease-in-out infinite; }
   @keyframes breathe { 0%,100% { opacity:.45 } 50% { opacity:.95 } }
-  .loading p.big { font-family: 'Fraunces', serif; font-size: 21px; color: var(--ink); margin: 0 0 8px; }
+  .loading p.big { font-family: var(--tc-font); font-weight: 700; font-size: 21px; color: var(--ink); margin: 0 0 8px; }
   .loading .lines { max-width: 32ch; margin: 0 auto; font-size: 14.5px; color: var(--ink-soft); }
 
   /* ---------- plan ---------- */
@@ -291,18 +341,18 @@
   .block { background: var(--cloud); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; margin-bottom: 15px; box-shadow: var(--shadow); }
   /* TC-66: slim sage-tinted "I'll remember that" band pinned at the top of the plan (conversation
      memory-save confirmation). Calm sage register — not the clay/alert one. Fades/slides in. */
-  .tc-remember-band { display: flex; align-items: center; gap: 11px; background: #eef2e6; border: 1px solid #d3ddc2; border-radius: 16px; padding: 12px 16px; margin: 0 0 15px; color: #46503a; font-size: 14.5px; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; }
+  .tc-remember-band { display: flex; align-items: center; gap: 11px; background: var(--tc-blue-tint); border: 1px solid #cbe1ec; border-radius: 16px; padding: 12px 16px; margin: 0 0 15px; color: var(--tc-blue-deep); font-size: 14.5px; opacity: 0; transform: translateY(-6px); transition: opacity .2s ease, transform .2s ease; }
   .tc-remember-band.in { opacity: 1; transform: translateY(0); }
-  .tc-remember-band .rb-ic { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px; background: #dbe5cb; display: inline-flex; align-items: center; justify-content: center; color: var(--sage-deep); }
+  .tc-remember-band .rb-ic { flex: 0 0 auto; width: 26px; height: 26px; border-radius: 8px; background: #d3e8f1; display: inline-flex; align-items: center; justify-content: center; color: var(--tc-blue-deep); }
   .tc-remember-band .rb-ic svg { width: 15px; height: 15px; }
   .tc-remember-band .rb-text { flex: 1 1 auto; line-height: 1.35; }
   .tc-remember-band .rb-undo { flex: 0 0 auto; background: transparent; border: none; color: var(--sage-deep); font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 4px 6px; border-radius: 8px; line-height: 1; }
   .tc-remember-band .rb-undo:hover { text-decoration: underline; }
-  .block h4 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 0 0 13px; display: flex; align-items: center; gap: 11px; }
+  .block h4 { font-family: var(--tc-font); font-weight: 600; font-size: 18px; margin: 0 0 13px; display: flex; align-items: center; gap: 11px; }
   .block h4 .ic { width: 30px; height: 30px; border-radius: 10px; background: var(--mist); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
   .block h4 .ic svg { width: 17px; height: 17px; }
-  .block.say h4 .ic { background: #e4ecdb; }
-  .block.avoid h4 .ic { background: #f2e4d6; }
+  .block.say h4 .ic { background: var(--tc-blue-tint); }
+  .block.avoid h4 .ic { background: var(--tc-red-tint); }
   .block p { margin: 0; color: var(--ink); font-size: 15.2px; }
   .block ul { margin: 0; padding-left: 2px; list-style: none; }
   .block ul li { position: relative; padding-left: 24px; margin-bottom: 11px; font-size: 15.2px; }
@@ -314,8 +364,8 @@
   .block.say ul li.say-line { display: flex; align-items: baseline; gap: 8px; }
   .block.say ul li.say-line .say-text { flex: 1 1 auto; }
   .tc-copy { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; border: none; background: transparent; color: var(--ink-soft, #9a927f); cursor: pointer; font: inherit; font-size: 12.5px; line-height: 1; padding: 3px 7px; border-radius: 7px; opacity: .6; transition: opacity .15s ease, color .15s ease, background .15s ease; }
-  .tc-copy:hover, .tc-copy:focus-visible { opacity: 1; color: var(--sage-deep, #5f6c4c); background: rgba(95,108,76,.09); outline: none; }
-  .tc-copy.copied { color: var(--sage-deep, #5f6c4c); opacity: 1; }
+  .tc-copy:hover, .tc-copy:focus-visible { opacity: 1; color: var(--tc-blue-deep); background: rgba(17,138,185,.09); outline: none; }
+  .tc-copy.copied { color: var(--tc-blue-deep); opacity: 1; }
   .tc-copy .lbl { font-weight: 600; }
   .followup .fu-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 4px; }
 
@@ -343,7 +393,7 @@
   .gift .g-why b { color: var(--sage-deep); font-weight: 700; }
   .gift .g-foot { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
   .gift .price { font-size: 12.5px; background: var(--paper-2); border-radius: 999px; padding: 4px 12px; color: var(--ink-soft); font-weight: 700; }
-  .gift .local-badge { font-size: 12px; background: #e4ecdb; color: var(--sage-deep); border-radius: 999px; padding: 4px 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
+  .gift .local-badge { font-size: 12px; background: var(--tc-blue-tint); color: var(--tc-blue-deep); border-radius: 999px; padding: 4px 11px; font-weight: 700; display: inline-flex; align-items: center; gap: 4px; }
   .gift .g-link { font-size: 13.5px; font-weight: 700; color: var(--clay-deep); text-decoration: none; display: inline-flex; align-items: center; gap: 4px; }
   .gift .g-link:hover { text-decoration: underline; }
   .more-places { margin-top: 18px; padding-top: 16px; border-top: 1px solid var(--line); }
@@ -359,43 +409,43 @@
   .followup .g { font-size: 15px; }
   .followup .body { flex: 1; }
   .remind-btn { display: inline-flex; align-items: center; gap: 6px; margin-top: 8px; background: var(--mist); color: var(--sage-deep); border: 1px solid var(--line); border-radius: 999px; padding: 6px 13px; font-size: 13px; font-weight: 700; cursor: pointer; font-family: inherit; transition: background .15s ease; }
-  .remind-btn:hover { background: #dbe2c8; }
-  .remind-btn.done { background: #e4ecdb; color: var(--sage-deep); border-color: #cdddb8; }
+  .remind-btn:hover { background: var(--tc-blue-tint); }
+  .remind-btn.done { background: var(--tc-success-tint); color: var(--tc-success); border-color: #cfe6d9; }
   .remind-btn svg { width: 15px; height: 15px; }
 
   .closing { text-align: center; font-style: italic; color: var(--ink-soft); font-family: 'Fraunces', serif; font-size: 18px; padding: 14px 22px 4px; line-height: 1.5; }
 
   /* email-me-my-plan */
   .keep { background: var(--cloud); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; margin: 4px 0 2px; box-shadow: var(--shadow); }
-  .keep h4 { font-family: 'Fraunces', serif; font-weight: 500; font-size: 18px; margin: 0 0 4px; }
+  .keep h4 { font-family: var(--tc-font); font-weight: 600; font-size: 18px; margin: 0 0 4px; }
   .keep p.k-sub { margin: 0 0 14px; color: var(--ink-soft); font-size: 14px; }
   .keep .k-row { display: flex; gap: 10px; flex-wrap: wrap; }
   .keep input[type=email] { flex: 1; min-width: 200px; }
   .keep .k-remind { display: flex; align-items: center; gap: 9px; margin-top: 13px; font-size: 14px; color: var(--ink); cursor: pointer; }
   .keep .k-remind input { width: 17px; height: 17px; accent-color: var(--sage); cursor: pointer; }
   .keep .k-msg { margin-top: 12px; font-size: 14px; }
-  .keep .k-msg.ok { color: var(--sage-deep); font-weight: 700; }
-  .keep .k-msg.bad { color: #a04a2e; }
-  .keep .k-privacy { margin-top: 10px; font-size: 12px; color: #b3a58c; }
+  .keep .k-msg.ok { color: var(--tc-success); font-weight: 700; }
+  .keep .k-msg.bad { color: var(--tc-red-active); }
+  .keep .k-privacy { margin-top: 10px; font-size: 12px; color: var(--tc-ink-mute); }
   /* TC-71: unified "Keep this plan" card holding both save ways (email + to a person). */
   .keep-unified .keep-way-label { font-size: 13px; font-weight: 700; color: var(--sage-deep); text-transform: uppercase; letter-spacing: .03em; margin-bottom: 9px; }
   .keep-unified .keep-way-person { margin-top: 4px; }
-  .keep-or { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; color: #b3a58c; font-size: 12.5px; }
+  .keep-or { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; color: var(--tc-ink-mute); font-size: 12.5px; }
   .keep-or::before, .keep-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   /* TC-71: secondary actions demoted to a quiet row below the single save card. */
   .plan-secondary { padding: 18px 32px 2px; }
   .plan-actions { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
-  .plan-actions .ps-dot { color: #cbbfa4; }
+  .plan-actions .ps-dot { color: var(--tc-line-strong); }
   .plan-actions .link-btn { font-size: 14px; }
-  .disclaimer { text-align: center; font-size: 12.5px; color: #b3a58c; padding: 16px 32px 4px; }
-  .err { background: #f3e4da; border: 1px solid #e2c3b1; color: #8a4f34; border-radius: 14px; padding: 15px 17px; font-size: 15px; margin-bottom: 16px; }
+  .disclaimer { text-align: center; font-size: 12.5px; color: var(--tc-ink-mute); padding: 16px 32px 4px; }
+  .err { background: var(--tc-red-tint); border: 1px solid #f3c9c5; color: var(--tc-red-active); border-radius: 14px; padding: 15px 17px; font-size: 15px; margin-bottom: 16px; }
 
   /* ---------- footer ---------- */
   footer { text-align: center; padding: 54px 24px 60px; color: var(--ink-soft); }
   footer .promise-big { font-family: 'Fraunces', serif; font-size: clamp(21px, 3vw, 27px); color: var(--ink); font-style: italic; margin-bottom: 10px; }
-  footer .small { font-size: 13px; color: #b3a58c; margin-top: 20px; }
-  footer .colophon { border-top: 1px solid var(--line, #e7ddca); max-width: 520px; margin: 28px auto 0; padding-top: 18px; font-size: 13px; color: #b3a58c; }
-  footer .colophon a { color: #b3a58c; text-decoration: none; }
+  footer .small { font-size: 13px; color: var(--tc-ink-mute); margin-top: 20px; }
+  footer .colophon { border-top: 1px solid var(--line, #e7ddca); max-width: 520px; margin: 28px auto 0; padding-top: 18px; font-size: 13px; color: var(--tc-ink-mute); }
+  footer .colophon a { color: var(--tc-ink-mute); text-decoration: none; }
   footer .colophon a:hover { color: var(--sage-deep); text-decoration: underline; }
   footer .colophon .sep { opacity: .5; margin: 0 8px; }
   footer .colophon .copyright { display: block; margin-top: 6px; }
@@ -429,7 +479,7 @@
   /* Voice front door (TC-51): ONE "tell us what's happening" section, two input
      methods (talk / type) as equal siblings — not two separate calls to action. */
   .hero-start { margin: 6px auto 0; }
-  .hero-start-label { font-family: 'Fraunces', serif; font-style: italic; font-size: 15px; color: var(--ink-soft); margin-bottom: 12px; }
+  .hero-start-label { font-family: var(--tc-font); font-weight: 500; font-size: 14px; color: rgba(255,255,255,.85); margin-bottom: 12px; }
   .hero-actions { display: flex; flex-direction: row; flex-wrap: wrap; justify-content: center; align-items: center; gap: 12px; }
   .hero-actions .cta { justify-content: center; }
 
@@ -440,16 +490,17 @@
   .hero-orb-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 4px auto 2px; }
   .hero-orb-wrap .stage { position: relative; width: 240px; height: 240px; display: flex; align-items: center; justify-content: center;
                           cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; outline: none; }
-  .hero-orb-wrap .stage:focus-visible { box-shadow: 0 0 0 3px var(--cloud), 0 0 0 6px var(--sage); }
+  .hero-orb-wrap .stage:focus-visible { box-shadow: 0 0 0 3px rgba(255,255,255,.9), 0 0 0 6px rgba(255,255,255,.4); }
   .hero-orb-wrap .orb { position: relative; width: 200px; height: 200px; border-radius: 50%; will-change: transform; }
   .hero-orb-wrap .orbIW { overflow: visible; }
   .hero-orb-wrap .orbIW canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; display: block;
-                                 box-shadow: 0 14px 40px rgba(120,70,40,.20); }
+                                 box-shadow: 0 14px 40px rgba(10,50,70,.28); }
+  /* halo on the blue panel: a warm red-coral inner glow fading to a light-blue haze */
   .hero-orb-wrap .orbIW .halo { position: absolute; inset: -24px; border-radius: 50%; z-index: -1; will-change: transform, opacity;
-                                background: radial-gradient(circle, rgba(199,123,89,.30) 0%, rgba(159,197,150,.16) 46%, rgba(159,197,150,0) 72%);
+                                background: radial-gradient(circle, rgba(239,65,54,.28) 0%, rgba(255,255,255,.14) 46%, rgba(255,255,255,0) 72%);
                                 filter: blur(8px); }
-  .hero-orb-prompt { font-size: 17px; color: var(--ink); font-weight: 700; }
-  .hero-typelink { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--sage-deep);
+  .hero-orb-prompt { font-size: 17px; color: #fff; font-weight: 700; }
+  .hero-typelink { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.92);
                    cursor: pointer; padding: 4px 8px; text-decoration: underline; text-underline-offset: 3px; opacity: .95; transition: opacity .15s ease; }
   .hero-typelink:hover { opacity: 1; }
 
@@ -475,7 +526,7 @@
   /* TC-81: quiet inline "View your last plan" recovery affordance. */
   .tc-lastplan { margin: 16px auto 0; display: none; }
   .tc-lastplan.show { display: block; }
-  .tc-lastplan-link { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: var(--sage-deep); cursor: pointer; padding: 6px 8px; display: inline-flex; align-items: center; gap: 6px; line-height: 1; opacity: .9; transition: opacity .15s ease; }
+  .tc-lastplan-link { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.92); cursor: pointer; padding: 6px 8px; display: inline-flex; align-items: center; gap: 6px; line-height: 1; opacity: .9; transition: opacity .15s ease; }
   .tc-lastplan-link:hover { opacity: 1; text-decoration: underline; }
   /* TC-81: gentle, non-blocking toast (bottom-center, thumb zone, auto-dismiss). */
   .tc-toast { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%) translateY(12px); z-index: 9999; max-width: min(420px, calc(100vw - 32px)); background: var(--ink, #3b362e); color: #fff; border-radius: 14px; box-shadow: 0 8px 30px rgba(40,34,24,.28); padding: 13px 14px 13px 18px; display: flex; align-items: center; gap: 12px; font-size: 14px; line-height: 1.4; opacity: 0; pointer-events: none; transition: opacity .28s ease, transform .28s ease; }
@@ -485,11 +536,11 @@
   @media (prefers-reduced-motion: reduce) { .tc-toast { transition: opacity .28s ease; transform: translateX(-50%); } .tc-toast.show { transform: translateX(-50%); } }
   /* (orb-home: #homeMicBtn retired — the hero orb is now the mic; its nudge keyframes removed.) */
   .tc-listen { --level: 0; position: relative; width: 132px; height: 132px; margin: 8px auto 4px; display: grid; place-items: center; }
-  .tc-listen-core { position: relative; z-index: 2; width: 64px; height: 64px; border-radius: 50%; background: var(--sage); box-shadow: 0 6px 18px rgba(95,108,76,.28); display: grid; place-items: center; animation: tc-breathe 3.6s ease-in-out infinite; transform: scale(calc(1 + var(--level) * 0.14)); transition: transform .12s ease-out; }
+  .tc-listen-core { position: relative; z-index: 2; width: 64px; height: 64px; border-radius: 50%; background: var(--sage); box-shadow: 0 6px 18px rgba(17,138,185,.28); display: grid; place-items: center; animation: tc-breathe 3.6s ease-in-out infinite; transform: scale(calc(1 + var(--level) * 0.14)); transition: transform .12s ease-out; }
   .tc-listen-ripple { position: absolute; border-radius: 50%; border: 1.5px solid var(--sage); opacity: 0; width: 64px; height: 64px; animation: tc-ripple 3.6s ease-out infinite; }
   .tc-listen-ripple.r2 { animation-delay: 1.2s; }
   .tc-listen-ripple.r3 { animation-delay: 2.4s; }
-  @keyframes tc-breathe { 0%,100% { box-shadow: 0 6px 18px rgba(95,108,76,.22); } 50% { box-shadow: 0 8px 26px rgba(95,108,76,.34); } }
+  @keyframes tc-breathe { 0%,100% { box-shadow: 0 6px 18px rgba(17,138,185,.22); } 50% { box-shadow: 0 8px 26px rgba(17,138,185,.34); } }
   /* Settling: when the user taps Done, the ripples fade and the core eases to rest —
      a calm hand-off from "listening" to "taking that in", not a hard stop. */
   .tc-listen.settling .tc-listen-ripple { animation: none; opacity: 0; transition: opacity .5s ease; }
@@ -500,8 +551,8 @@
   /* TC-63: hands-free confirm cue — a calm "say yes, or tap" line shown under an
      add/update confirm card while we listen for a spoken answer. Tap always works. */
   .re-listen-cue { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 12px; font-size: 13px; color: var(--ink-soft, #7a7263); min-height: 18px; }
-  .re-listen-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--clay, #c28a63); animation: re-listen-pulse 1.6s ease-out infinite; }
-  @keyframes re-listen-pulse { 0% { box-shadow: 0 0 0 0 rgba(194,138,99,.45); } 100% { box-shadow: 0 0 0 10px rgba(194,138,99,0); } }
+  .re-listen-dot { flex: 0 0 auto; width: 8px; height: 8px; border-radius: 50%; background: var(--tc-blue); animation: re-listen-pulse 1.6s ease-out infinite; }
+  @keyframes re-listen-pulse { 0% { box-shadow: 0 0 0 0 rgba(17,138,185,.45); } 100% { box-shadow: 0 0 0 10px rgba(17,138,185,0); } }
   @media (prefers-reduced-motion: reduce) { .re-listen-dot { animation: none !important; } }
 
   /* TC-89: tap-to-edit person name on the voice confirm card. Reads as gently-editable text
@@ -526,7 +577,7 @@
      a small brand-styled switch (not a native checkbox) to match the hand-crafted UI. */
   .tc-readaloud { display: inline-flex; align-items: center; gap: 10px; margin-top: 18px; font-size: 13px; color: var(--ink-soft, #7a7263); cursor: pointer; user-select: none; }
   .tc-switch-input { position: absolute; opacity: 0; width: 0; height: 0; }
-  .tc-switch { position: relative; flex: 0 0 auto; width: 34px; height: 20px; border-radius: 999px; background: #cfc8b8; transition: background .18s ease; }
+  .tc-switch { position: relative; flex: 0 0 auto; width: 34px; height: 20px; border-radius: 999px; background: var(--tc-line-strong); transition: background .18s ease; }
   .tc-switch::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px; border-radius: 50%; background: #fff; box-shadow: 0 1px 2px rgba(0,0,0,.2); transition: transform .18s ease; }
   .tc-switch-input:checked + .tc-switch { background: var(--sage, #7d8a68); }
   .tc-switch-input:checked + .tc-switch::after { transform: translateX(14px); }
@@ -554,7 +605,7 @@
   .tc-imic[data-multiline="true"] .tc-imic-btn { top: 6px; }
   .tc-imic-btn:hover { color: var(--sage-deep); background: var(--mist); }
   .tc-imic-btn:focus-visible { outline: none; box-shadow: 0 0 0 3px var(--mist); color: var(--sage-deep); }
-  .tc-imic-btn[data-state="active"] { color: var(--sage-deep); background: #e8eede; }
+  .tc-imic-btn[data-state="active"] { color: var(--sage-deep); background: var(--tc-blue-tint); }
   .tc-imic-btn[data-state="active"]::after { content: ""; position: absolute; inset: 0; border-radius: 999px; border: 1.5px solid var(--sage); opacity: .6; animation: tc-imic-pulse 1.8s ease-out infinite; }
   @keyframes tc-imic-pulse { 0% { transform: scale(1); opacity: .6; } 100% { transform: scale(1.5); opacity: 0; } }
   .tc-imic-btn[data-state="thinking"] { color: var(--ink-soft); pointer-events: none; }
@@ -602,18 +653,11 @@
   })();
 </script>
 
-<div id="bg" aria-hidden="true">
-  <div class="cloud c1"></div>
-  <div class="cloud c2"></div>
-  <div class="cloud c3"></div>
-  <div class="cloud c4"></div>
-  <div class="cloud c5"></div>
-  <div class="cloud c6"></div>
-</div>
+<div id="bg" aria-hidden="true"></div>
 
 <div class="bar">
   <div class="brand">
-    <svg viewBox="0 0 172.03 155.18" aria-hidden="true"><path fill="#788b62" d="M55.3,140.54l-33.48,14.48c-1.3.56-4.77-.48-5.79-1.45-1.14-1.09-2.09-4.2-1.6-6.01l7.37-26.77C-4.65,97.06-7.22,53.65,15.12,26.88S81.62-4.01,114.35,2.99c13.72,2.93,26.15,8.73,36.52,17.85,24.13,21.21,27.07,59.69,11.64,87.31-19.81,35.45-68.93,44.34-107.21,32.4ZM55.6,131.77c32.09,10.2,74.14,5.92,94.55-20.96,15.63-20.59,17.78-49.61,4.44-71.9-8.39-14.02-22.76-22.07-38.04-26.28-12.55-3.46-24.81-3.92-37.81-3.34C41.15,10.97,9.01,29.61,9.05,69.61c.02,19.09,7.22,36.22,22.58,48.12l-7.48,26.99,13.51-5.92c5.84-2.56,11.24-5.56,17.93-7.04Z"/><path fill="#c77b59" d="M124.39,61.63c6.93,19.88-15.67,37.71-33.11,48.17-14.64-8.82-33.11-22.73-33.76-39.31-.24-6.07,1.45-12.14,6.06-16.06,8.67-7.35,21.24-5.21,28.09,3.39,4.6-5.72,11.05-8.61,18.32-7.72,5.9.72,12.09,4.9,14.41,11.53ZM117.97,68.44c-.08-7.78-6.58-12.23-13.37-10.64-9.12,2.14-8.84,10.9-12.96,11.2-3.84.28-3.9-6.31-10.49-10.14-3.38-1.97-7.77-1.74-10.92.09s-5.49,5.18-5.49,9.43c.77,14.12,14.46,24.43,26.73,32.56,11.08-7.33,26.65-19.3,26.51-32.5Z"/></svg>
+    <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 12c21 0 36 14.5 36 33 0 18.5-15 33-36 33-4.6 0-9-0.7-13-2l-16 8 4.4-15.4C15.7 96.2 14 84.5 14 45 14 26.5 29 12 50 12Z" fill="none" stroke="#118ab9" stroke-width="7" stroke-linejoin="round"/><path fill="#ef4136" d="M50 63c-1 0-1.9-.4-2.6-1.1l-11-11a8.8 8.8 0 0 1 0-12.5 8.8 8.8 0 0 1 12.5 0l1.1 1.1 1.1-1.1a8.8 8.8 0 0 1 12.5 0 8.8 8.8 0 0 1 0 12.5l-11 11c-.7.7-1.6 1.1-2.6 1.1Z"/></svg>
     Thoughts Count
   </div>
   <div class="bar-right">
@@ -657,9 +701,10 @@
 
 <main>
   <section class="hero wrap">
+   <div class="hero-inner">
     <h1>Show up for the moments that <em>matter most.</em></h1>
-    <p class="lead">A new baby or a hard week, a big promotion or just because. Tell us what's happening and who they are to you, and we'll help you find the words, the gesture, and the perfect way to show you care.</p>
-    <p class="gets">You'll get: <b>what to say</b> · <b>what to do</b> · <b>what to send</b> · <b>how to keep showing up</b></p>
+    <p class="lead">Thoughtful guidance for life's meaningful moments.</p>
+    <p class="gets">What to say · what to do · what to send · how to keep showing up</p>
     <div class="hero-start">
       <div class="hero-start-label">I want to show up for someone...</div>
       <!-- TC-90/orb-home: Della's presence orb IS the front door. The orb is the mic —
@@ -687,49 +732,55 @@
       </div>
     </div>
     <div class="reassure">No account needed · <b>Free to try</b> · Ready in about a minute</div>
+   </div>
   </section>
 
   <div class="trust">
     <div class="trust-inner">
-      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/></svg>A calm place to think it through</div>
-      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path stroke="#c28a63" d="M9 12l2 2 4-4"/></svg>Your details stay yours</div>
-      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16m0 0c-1.5-2-4-3-6.5-3V7C8 7 10.5 8 12 10c1.5-2 4-3 6.5-3v10c-2.5 0-5 1-6.5 3Z"/></svg>Personal to the person you have in mind</div>
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#118ab9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/></svg>A calm place to think it through</div>
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#118ab9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path stroke="#ef4136" d="M9 12l2 2 4-4"/></svg>Your details stay yours</div>
+      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#118ab9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16m0 0c-1.5-2-4-3-6.5-3V7C8 7 10.5 8 12 10c1.5-2 4-3 6.5-3v10c-2.5 0-5 1-6.5 3Z"/></svg>Personal to the person you have in mind</div>
     </div>
   </div>
 
   <section class="section wrap">
+    <h2>What's the moment?</h2>
+    <p class="sub">Pick what's closest, or tell us in your own words.</p>
+    <div class="moments">
+      <button type="button" class="chip" onclick="openFlow('New baby')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="11" r="6"/><path d="M13 10h.01M19 10h.01M13.5 13.5a3.5 3 0 0 0 5 0"/><path d="M7 28v-2a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v2"/></svg></span><span class="m-label">New baby</span></button>
+      <button type="button" class="chip" onclick="openFlow('New job or promotion')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="22" height="14" rx="2"/><path d="M12 11V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M5 17h22"/></svg></span><span class="m-label">New job or promotion</span></button>
+      <button type="button" class="chip" onclick="openFlow('Engagement or wedding')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5h8l4 5-8 9-8-9 4-5Z"/><path d="M8 10h16"/></svg></span><span class="m-label">Engagement or wedding</span></button>
+      <button type="button" class="chip" onclick="openFlow('Graduation')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7 4 13l12 6 12-6-12-6Z"/><path d="M9 15.5V21c0 1.7 3.1 3 7 3s7-1.3 7-3v-5.5M26 14v6"/></svg></span><span class="m-label">Graduation</span></button>
+      <button type="button" class="chip" onclick="openFlow('Birthday')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16h20v10H6zM6 21h20M16 16v-4"/><path d="M16 8a1.5 1.5 0 1 0 0-2 1.5 1.5 0 0 0 0 2Z"/></svg></span><span class="m-label">Birthday</span></button>
+      <button type="button" class="chip" onclick="openFlow('A thank-you, just because')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9h20v14H6zM6 10l10 7 10-7"/></svg></span><span class="m-label">Thank-you, just because</span></button>
+      <button type="button" class="chip" onclick="openFlow('A hard diagnosis')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h5l3 6 6-14 3 8h5"/></svg></span><span class="m-label">A hard diagnosis</span></button>
+      <button type="button" class="chip" onclick="openFlow('Lost a loved one')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 27s-9-5.7-9-12.6A5.4 5.4 0 0 1 16 10a5.4 5.4 0 0 1 9 4.4C25 21.3 16 27 16 27Z"/></svg></span><span class="m-label">Lost a loved one</span></button>
+      <button type="button" class="chip" onclick="openFlow('Just a hard week')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20a6 6 0 0 1 0-12 7 7 0 0 1 13.3 2.5A5 5 0 0 1 24 20H9Z"/></svg></span><span class="m-label">Just a hard week</span></button>
+    </div>
+    <div style="text-align:center; margin-top:32px;">
+      <button class="cta sage" onclick="openFlow()">Or tell us in your own words</button>
+    </div>
+  </section>
+
+  <section class="section tint wrap">
     <h2>You're not looking for a product.</h2>
     <p class="sub">You're looking for the quiet certainty that you got it just right, big moment or small. So we start with a real conversation.</p>
     <div class="steps">
       <div class="step">
-        <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e3ece4"/><circle cx="150" cy="60" r="120" fill="#eef4ee"/><path d="M95 78q0-24 24-24h62q24 0 24 24v10q0 24-24 24h-42l-20 18v-18h0q-24 0-24-24Z" fill="#ffffff" stroke="#bcccc0" stroke-width="2"/><path d="M112 74h76M112 88h54" stroke="#9fb3a6" stroke-width="3" stroke-linecap="round"/></svg></span>
+        <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#f0f7fb"/><circle cx="150" cy="60" r="120" fill="#e3f0f6"/><path d="M95 78q0-24 24-24h62q24 0 24 24v10q0 24-24 24h-42l-20 18v-18h0q-24 0-24-24Z" fill="#fdfbf7" stroke="#9dcbe1" stroke-width="2"/><path d="M112 74h76M112 88h54" stroke="#118ab9" stroke-width="3" stroke-linecap="round"/></svg></span>
         <h3>Tell us, in your words</h3>
         <p>What happened, and who they are to you. We listen first.</p>
       </div>
       <div class="step">
-        <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e1eae6"/><circle cx="150" cy="66" r="120" fill="#ecf2ee"/><path d="M150 104s-40-24-40-52a20 20 0 0 1 40-12 20 20 0 0 1 40 12c0 28-40 52-40 52Z" fill="#f4d9c6" stroke="#c58f68" stroke-width="2.5"/></svg></span>
+        <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#f6efe6"/><circle cx="150" cy="66" r="120" fill="#f0f7fb"/><path d="M150 104s-40-24-40-52a20 20 0 0 1 40-12 20 20 0 0 1 40 12c0 28-40 52-40 52Z" fill="#fadbd9" stroke="#ef4136" stroke-width="2.5"/></svg></span>
         <h3>We think it through</h3>
         <p>The way a thoughtful friend would: what helps, not just what's easy.</p>
       </div>
       <div class="step">
-        <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#e4ece6"/><circle cx="150" cy="60" r="120" fill="#eef4ef"/><rect x="112" y="30" width="76" height="78" rx="8" fill="#ffffff" stroke="#a9b788" stroke-width="2.5"/><path d="M126 50h48M126 64h48M126 78h30" stroke="#9aab77" stroke-width="3" stroke-linecap="round"/><path d="M118 62l30 24 40-46" fill="none" stroke="#7d8a68" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg></span>
+        <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#f0f7fb"/><circle cx="150" cy="60" r="120" fill="#e3f0f6"/><rect x="112" y="30" width="76" height="78" rx="8" fill="#fdfbf7" stroke="#9dcbe1" stroke-width="2.5"/><path d="M126 50h48M126 64h48M126 78h30" stroke="#118ab9" stroke-width="3" stroke-linecap="round"/><path d="M118 62l30 24 40-46" fill="none" stroke="#118ab9" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" opacity="0.5"/></svg></span>
         <h3>You get a plan that fits</h3>
         <p>What to say, gestures that fit, and how to keep showing up.</p>
       </div>
-    </div>
-    <div class="moments">
-      <button type="button" class="chip" onclick="openFlow('New baby')">New baby</button>
-      <button type="button" class="chip" onclick="openFlow('New job or promotion')">New job or promotion</button>
-      <button type="button" class="chip" onclick="openFlow('Engagement or wedding')">Engagement or wedding</button>
-      <button type="button" class="chip" onclick="openFlow('Graduation')">Graduation</button>
-      <button type="button" class="chip" onclick="openFlow('Birthday')">Birthday</button>
-      <button type="button" class="chip" onclick="openFlow('A thank-you, just because')">Thank-you, just because</button>
-      <button type="button" class="chip" onclick="openFlow('A hard diagnosis')">A hard diagnosis</button>
-      <button type="button" class="chip" onclick="openFlow('Lost a loved one')">Lost a loved one</button>
-      <button type="button" class="chip" onclick="openFlow('Just a hard week')">Just a hard week</button>
-    </div>
-    <div style="text-align:center; margin-top:36px;">
-      <button class="cta sage" onclick="openFlow()">Or tell us in your own words →</button>
     </div>
   </section>
 
@@ -756,9 +807,8 @@
 
 <footer>
   <div class="promise-big">Helping good intentions become meaningful actions.</div>
-  <div>Not to help you buy better gifts, but to help you build stronger relationships.</div>
   <div style="margin-top:16px;font-size:14.5px;">
-    <a href="/guides/" style="color:var(--sage-deep);font-weight:700;">Guides: what to say &amp; do when it matters →</a>
+    <a href="/guides/" style="color:var(--tc-blue-deep);font-weight:700;">Guides: what to say &amp; do when it matters</a>
   </div>
   <div class="colophon">
     Thoughts Count
@@ -776,25 +826,26 @@
   .tc-bubble { max-width: 84%; padding: 12px 15px; border-radius: 18px; font-size: 15.5px; line-height: 1.5; white-space: pre-wrap; word-wrap: break-word; }
   /* Slice 2 (orb-home): supporting cast beneath HER. Warm, softly translucent bubbles/field that
      sit ON the panel's warm sanctuary gradient — never a clinical white card. */
-  .tc-bubble.her { align-self:flex-start; background: rgba(255,255,255,.72); color: var(--ink,#2e2a24); border-bottom-left-radius: 6px; }
-  .tc-bubble.me { align-self:flex-end; background: var(--clay,#c98a63); color:#fff; border-bottom-right-radius: 6px; }
-  .tc-typing { align-self:flex-start; display:inline-flex; gap:5px; padding:15px 16px; background:rgba(255,255,255,.72); border-radius:18px; border-bottom-left-radius:6px; }
-  .tc-typing i { width:7px; height:7px; border-radius:50%; background:#b9b1a2; animation: tc-blink 1.2s infinite both; }
+  .tc-bubble.her { align-self:flex-start; background: var(--tc-surface-hi); color: var(--tc-ink); border:1px solid var(--tc-line); border-bottom-left-radius: 6px; }
+  /* user bubble = brand BLUE (keeps scarce red for the heart + CTA only) */
+  .tc-bubble.me { align-self:flex-end; background: var(--tc-blue); color:#fff; border-bottom-right-radius: 6px; }
+  .tc-typing { align-self:flex-start; display:inline-flex; gap:5px; padding:15px 16px; background:var(--tc-surface-hi); border:1px solid var(--tc-line); border-radius:18px; border-bottom-left-radius:6px; }
+  .tc-typing i { width:7px; height:7px; border-radius:50%; background:var(--tc-ink-mute); animation: tc-blink 1.2s infinite both; }
   .tc-typing i:nth-child(2){ animation-delay:.18s } .tc-typing i:nth-child(3){ animation-delay:.36s }
   @keyframes tc-blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
   @media (prefers-reduced-motion: reduce){ .tc-typing i{ animation:none } }
   .tc-chat-inputrow { display:flex; gap:10px; align-items:flex-end; margin-top:14px; }
-  .tc-chat-input { flex:1; resize:none; border:1.5px solid rgba(198,210,192,.7); border-radius:16px; padding:12px 14px; font-family:inherit; font-size:15.5px; line-height:1.45; max-height:120px; background:rgba(255,255,255,.78); color:var(--ink,#2e2a24); }
-  .tc-chat-input:focus { outline:none; border-color: var(--sage,#8a9a72); box-shadow: 0 0 0 3px rgba(138,154,114,.15); }
-  .tc-send { flex:none; width:46px; height:46px; border-radius:50%; border:none; background:var(--clay,#c98a63); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition: background .18s ease; }
-  .tc-send:hover:not(:disabled){ background:var(--clay-deep,#b0714b); }
+  .tc-chat-input { flex:1; resize:none; border:1.5px solid var(--tc-line-strong); border-radius:16px; padding:12px 14px; font-family:inherit; font-size:15.5px; line-height:1.45; max-height:120px; background:var(--tc-surface); color:var(--tc-ink); }
+  .tc-chat-input:focus { outline:none; border-color: var(--tc-blue); box-shadow: var(--tc-focus); }
+  .tc-send { flex:none; width:46px; height:46px; border-radius:50%; border:none; background:var(--tc-blue); color:#fff; cursor:pointer; display:inline-flex; align-items:center; justify-content:center; transition: background .18s ease; }
+  .tc-send:hover:not(:disabled){ background:var(--tc-blue-hover); }
   .tc-send:disabled { opacity:.45; cursor:default; }
   .tc-chat-foot { text-align:center; margin-top:14px; min-height:18px; }
   /* The "make my plan" escape reads as a clear, tappable pill (not a faint text link a tester
      missed below the fold), while staying visually secondary to continuing the conversation. */
-  .tc-makeplan { display:inline-flex; align-items:center; gap:6px; background:rgba(255,255,255,.72); border:1.5px solid rgba(138,154,114,.6); border-radius:999px; color:var(--sage-deep,#5f6d4a); font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; padding:9px 18px; box-shadow:0 1px 4px rgba(95,109,74,.1); transition:background .15s, border-color .15s; }
-  .tc-makeplan:hover { background:rgba(255,255,255,.96); border-color:var(--sage,#8a9a72); }
-  .tc-chat-hint { text-align:center; font-size:12px; color:var(--ink-soft,#8a8577); margin-top:10px; }
+  .tc-makeplan { display:inline-flex; align-items:center; gap:6px; background:var(--tc-surface-hi); border:1.5px solid var(--tc-line-strong); border-radius:999px; color:var(--tc-blue-deep); font-size:14px; font-weight:700; cursor:pointer; font-family:inherit; padding:9px 18px; box-shadow:var(--tc-shadow-sm); transition:background .15s, border-color .15s; }
+  .tc-makeplan:hover { background:var(--tc-surface-hi); border-color:var(--tc-blue); }
+  .tc-chat-hint { text-align:center; font-size:12px; color:var(--tc-ink-mute); margin-top:10px; }
   /* TC-89 (rework): the "…add to someone you know" door on the primary voice/conversation screen. */
   .tc-cv-known { text-align:center; margin-top:10px; }
   .tc-cv-known .link-btn { font-size:13.5px; color:var(--sage-deep,#5f6d4a); }
@@ -819,7 +870,7 @@
   .tc-cv-orbstage .orbIW canvas { position:absolute; inset:0; width:100%; height:100%; border-radius:50%; display:block;
                                    box-shadow:0 10px 30px rgba(120,70,40,.20); }
   .tc-cv-orbstage .orbIW .halo { position:absolute; inset:-18px; border-radius:50%; z-index:-1; will-change:transform,opacity;
-    background:radial-gradient(circle, rgba(199,123,89,.30) 0%, rgba(159,197,150,.16) 46%, rgba(159,197,150,0) 72%); filter:blur(7px); }
+    background:radial-gradient(circle, rgba(239,65,54,.24) 0%, rgba(17,138,185,.14) 46%, rgba(17,138,185,0) 72%); filter:blur(7px); }
   /* CSS breath/pulse body per state (mirrors the hero), the canvas carries color */
   .tc-cv-orbstage[data-state="idle"]      .orbIW { animation:orbIdleBreath 5.4s ease-in-out infinite; }
   .tc-cv-orbstage[data-state="listening"] .orbIW { animation:orbListenRipple 2.6s ease-in-out infinite; }
@@ -833,12 +884,12 @@
   .tc-cv-plabel { font-size:14px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
 
   /* Soft full-width state tint on the bar background — the accessible hue cue kept from TC-88. */
-  .tc-cv-statebar[data-state="speaking"]  { background:linear-gradient(180deg, rgba(246,232,222,.55), rgba(246,232,222,0)); }
-  .tc-cv-statebar[data-state="speaking"]  .tc-cv-plabel { color:var(--clay-deep,#a97350); }
-  .tc-cv-statebar[data-state="listening"] { background:linear-gradient(180deg, rgba(232,238,222,.55), rgba(232,238,222,0)); }
-  .tc-cv-statebar[data-state="listening"] .tc-cv-plabel { color:var(--sage-deep,#5f6c4c); }
-  .tc-cv-statebar[data-state="thinking"]  { background:linear-gradient(180deg, rgba(223,234,225,.55), rgba(223,234,225,0)); }
-  .tc-cv-statebar[data-state="thinking"]  .tc-cv-plabel { color:var(--ink-soft,#5f6b60); }
+  .tc-cv-statebar[data-state="speaking"]  { background:linear-gradient(180deg, rgba(253,236,235,.6), rgba(253,236,235,0)); }
+  .tc-cv-statebar[data-state="speaking"]  .tc-cv-plabel { color:var(--tc-red-active,#c9271d); }
+  .tc-cv-statebar[data-state="listening"] { background:linear-gradient(180deg, rgba(227,240,246,.6), rgba(227,240,246,0)); }
+  .tc-cv-statebar[data-state="listening"] .tc-cv-plabel { color:var(--tc-blue-deep,#0a5876); }
+  .tc-cv-statebar[data-state="thinking"]  { background:linear-gradient(180deg, rgba(241,235,225,.6), rgba(241,235,225,0)); }
+  .tc-cv-statebar[data-state="thinking"]  .tc-cv-plabel { color:var(--tc-ink-soft,#5a554c); }
 </style>
 
 <!-- ================= CONVERSATION MODAL ================= -->
@@ -846,7 +897,7 @@
   <div class="panel">
     <div class="panel-head">
       <div class="brand">
-        <svg viewBox="0 0 172.03 155.18" aria-hidden="true"><path fill="#788b62" d="M55.3,140.54l-33.48,14.48c-1.3.56-4.77-.48-5.79-1.45-1.14-1.09-2.09-4.2-1.6-6.01l7.37-26.77C-4.65,97.06-7.22,53.65,15.12,26.88S81.62-4.01,114.35,2.99c13.72,2.93,26.15,8.73,36.52,17.85,24.13,21.21,27.07,59.69,11.64,87.31-19.81,35.45-68.93,44.34-107.21,32.4ZM55.6,131.77c32.09,10.2,74.14,5.92,94.55-20.96,15.63-20.59,17.78-49.61,4.44-71.9-8.39-14.02-22.76-22.07-38.04-26.28-12.55-3.46-24.81-3.92-37.81-3.34C41.15,10.97,9.01,29.61,9.05,69.61c.02,19.09,7.22,36.22,22.58,48.12l-7.48,26.99,13.51-5.92c5.84-2.56,11.24-5.56,17.93-7.04Z"/><path fill="#c77b59" d="M124.39,61.63c6.93,19.88-15.67,37.71-33.11,48.17-14.64-8.82-33.11-22.73-33.76-39.31-.24-6.07,1.45-12.14,6.06-16.06,8.67-7.35,21.24-5.21,28.09,3.39,4.6-5.72,11.05-8.61,18.32-7.72,5.9.72,12.09,4.9,14.41,11.53ZM117.97,68.44c-.08-7.78-6.58-12.23-13.37-10.64-9.12,2.14-8.84,10.9-12.96,11.2-3.84.28-3.9-6.31-10.49-10.14-3.38-1.97-7.77-1.74-10.92.09s-5.49,5.18-5.49,9.43c.77,14.12,14.46,24.43,26.73,32.56,11.08-7.33,26.65-19.3,26.51-32.5Z"/></svg>
+        <svg viewBox="0 0 100 100" aria-hidden="true"><path d="M50 12c21 0 36 14.5 36 33 0 18.5-15 33-36 33-4.6 0-9-0.7-13-2l-16 8 4.4-15.4C15.7 96.2 14 84.5 14 45 14 26.5 29 12 50 12Z" fill="none" stroke="#118ab9" stroke-width="7" stroke-linejoin="round"/><path fill="#ef4136" d="M50 63c-1 0-1.9-.4-2.6-1.1l-11-11a8.8 8.8 0 0 1 0-12.5 8.8 8.8 0 0 1 12.5 0l1.1 1.1 1.1-1.1a8.8 8.8 0 0 1 12.5 0 8.8 8.8 0 0 1 0 12.5l-11 11c-.7.7-1.6 1.1-2.6 1.1Z"/></svg>
         Thoughts Count
       </div>
       <button class="close" onclick="closeFlow()" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
@@ -887,7 +938,7 @@ const STEPS = [
   { key: "about", eyebrow: "Tell us about them", title: "What are they like?", help: "Anything that helps us make this feel like them: their personality, what they're going through, your history together.", picks: [], placeholder: "e.g. She's private and doesn't like a fuss, but she's been carrying a lot. We usually just chat about our kids." },
   { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure, guide me"], placeholder: "Optional. Anything about your style or what you're comfortable with." },
   { key: "constraints", eyebrow: "Time & budget", title: "What can you give right now?", help: "Totally okay if it's not much. Sometimes the most meaningful gesture is free.", picks: ["Just a little time","An afternoon","No budget","Under $25","$25-75","$75-150","Money's not the issue"], placeholder: "Optional. For example, I'm slammed this week but want to do something meaningful.",
-    extra: { key: "location", label: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4" stroke="#c28a63"/></svg>What town or ZIP are they in?', hint: "Optional. If you add it, we'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
+    extra: { key: "location", label: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4" stroke="#118ab9"/></svg>What town or ZIP are they in?', hint: "Optional. If you add it, we'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
 ];
 
 const answers = {};   // raw free-text per step
@@ -1110,14 +1161,14 @@ function renderStep(){
       <div class="q-eyebrow">${sEyebrow} · ${idx+1} of ${STEPS.length}</div>
       <h2 class="q-title">${sTitle}</h2>
       <p class="q-help">${sHelp}</p>
-      ${idx === 0 ? `<p class="q-reassure" style="margin:-4px 0 4px;font-size:12.5px;color:#b3a58c;">Takes about a minute. Most people breeze through. Only this first question is needed.</p>` : ''}
+      ${idx === 0 ? `<p class="q-reassure" style="margin:-4px 0 4px;font-size:12.5px;color:var(--tc-ink-mute);">Takes about a minute. Most people breeze through. Only this first question is needed.</p>` : ''}
       ${picksHtml}
       <textarea id="freetext" placeholder="${s.placeholder}">${current}</textarea>
       <div class="mic-wrap" style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span id="micStatus" style="font-size:12.5px;color:var(--ink-soft,#7a7263);"></span>
       </div>
       ${s.extra ? `<label style="display:block;margin-top:14px;font-size:13.5px;color:var(--ink-soft);">${s.extra.label}</label>
-      ${s.extra.hint ? `<p style="margin:3px 0 0;font-size:12.5px;line-height:1.5;color:#b3a58c;">${s.extra.hint}</p>` : ''}
+      ${s.extra.hint ? `<p style="margin:3px 0 0;font-size:12.5px;line-height:1.5;color:var(--tc-ink-mute);">${s.extra.hint}</p>` : ''}
       <input type="text" id="extrafield" style="margin-top:6px;" placeholder="${s.extra.placeholder}" value="${(answers[s.extra.key]||'').replace(/"/g,'&quot;')}" />` : ''}
       <div class="k-msg bad" id="stepMsg" style="display:none;margin-top:14px;"></div>
       <div class="nav">
@@ -1165,7 +1216,7 @@ function renderStep(){
     const s2 = STEPS[idx];
     const hasMoment = (picks.moment && picks.moment.length) || answers.moment;
     if ((s2.key === 'moment') && !hasMoment){
-      ta.style.borderColor = '#c28a63';
+      ta.style.borderColor = '#ef4136';
       if (stepMsg){ stepMsg.className = 'k-msg bad'; stepMsg.textContent = 'Tell us a little about the moment first — even a few words is enough to start.'; stepMsg.style.display = 'block'; }
       ta.focus({ preventScroll: true });
       return;
@@ -1203,9 +1254,9 @@ function setMic(btn, state){
     btn.setAttribute('data-state', state === 'recording' ? 'active' : (state === 'thinking' ? 'thinking' : 'idle'));
     return;
   }
-  if (state === 'recording'){ if (lbl) lbl.textContent = 'Stop & write it'; btn.style.background = '#f6e3da'; btn.style.borderColor = '#d8a58c'; btn.disabled = false; }
-  else if (state === 'thinking'){ if (lbl) lbl.textContent = 'one sec…'; btn.disabled = true; }
-  else { if (lbl) lbl.textContent = 'Speak your answer'; btn.style.background = '#fffbf4'; btn.style.borderColor = '#d8ccae'; btn.disabled = false; }
+  if (state === 'recording'){ if (lbl) lbl.textContent = 'Stop & write it'; btn.style.background = '#fdeceb'; btn.style.borderColor = '#f0b3ae'; btn.disabled = false; }
+  else if (state === 'thinking'){ if (lbl) lbl.textContent = 'one sec...'; btn.disabled = true; }
+  else { if (lbl) lbl.textContent = 'Speak your answer'; btn.style.background = '#fdfbf7'; btn.style.borderColor = '#d8cdba'; btn.disabled = false; }
 }
 function blobToBase64(blob){
   return new Promise((res, rej) => { const fr = new FileReader(); fr.onerror = rej; fr.onload = () => { const s = String(fr.result || ''); res(s.slice(s.indexOf(',') + 1)); }; fr.readAsDataURL(blob); });
@@ -1230,7 +1281,7 @@ async function toggleMic(btn, ta){
     // The mic stays live for the next dictation/turn (no re-prompt).
     const blob = new Blob(__rec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size){ setMic(btn, 'idle'); micStatus(''); return; }
-    setMic(btn, 'thinking'); micStatus('Writing down what you said…');
+    setMic(btn, 'thinking'); micStatus('Writing down what you said...');
     try {
       const b64 = await blobToBase64(blob);
       const headers = { 'content-type': 'application/json' };
@@ -1244,9 +1295,9 @@ async function toggleMic(btn, ta){
     } catch(e){ micStatus("We couldn't catch that — try again or type it."); }
     setMic(btn, 'idle');
   };
-  mr.start(); setMic(btn, 'recording'); micStatus("Listening… tap again when you're done.");
+  mr.start(); setMic(btn, 'recording'); micStatus("Listening... tap again when you're done.");
   // Backstop: auto-stop a long recording so it stays short and transcribes cleanly.
-  __rec.timer = setTimeout(() => { if (__rec.active) { micStatus('Got it — that was a long one, writing it down…'); stopRecordingIfAny(); } }, 60000);
+  __rec.timer = setTimeout(() => { if (__rec.active) { micStatus('Got it — that was a long one, writing it down...'); stopRecordingIfAny(); } }, 60000);
 }
 
 // TC-111 — ONE voice everywhere: dictation into a field (Add-someone, the paste box, the note
@@ -1303,7 +1354,7 @@ async function dictateHandsFree(btn, ta){
     if (__drec.aborted){ return; }
     const blob = new Blob(__drec.chunks, { type: mr.mimeType || 'audio/webm' });
     if (!blob.size || !__drec.spoke){ setMic(btn, 'idle'); micStatus(''); return; } // silence → no-op
-    setMic(btn, 'thinking'); micStatus('Writing down what you said…');
+    setMic(btn, 'thinking'); micStatus('Writing down what you said...');
     try {
       const b64 = await blobToBase64(blob);
       const headers = { 'content-type': 'application/json' };
@@ -1318,7 +1369,7 @@ async function dictateHandsFree(btn, ta){
     setMic(btn, 'idle');
   };
   try { mr.start(); } catch(e){ cancelDictateRecording(); return; }
-  setMic(btn, 'recording'); micStatus('Listening…');
+  setMic(btn, 'recording'); micStatus('Listening...');
   // Hard-cap backstop so the mic can never hang if VAD never fires (same cap as the conversation).
   __drec.timer = setTimeout(() => { if (__drec.active) stopDictateRecording(); }, CREC_MAX_MS);
 }
@@ -1527,7 +1578,7 @@ function renderPersonPicker(people, filter){
     ? (matched.length ? '' : `<p class="q-help" style="margin:8px 0;">No one named “${escapeHtml(filter)}” yet.</p>`)
     : (people.length ? '' : `<p class="q-help" style="margin:8px 0;">You don't have anyone saved yet.</p>`);
   const sayBtn = voiceCanRecord()
-    ? `<button type="button" class="cta ghost" id="vpSay" style="width:100%;justify-content:center;">${micSvg(17,'currentColor','#c28a63')}<span style="margin-left:8px;">Say a name</span></button>`
+    ? `<button type="button" class="cta ghost" id="vpSay" style="width:100%;justify-content:center;">${micSvg(17,'currentColor','#118ab9')}<span style="margin-left:8px;">Say a name</span></button>`
     : '';
   stage.innerHTML = `
     <div class="panel-body" style="text-align:center;">
@@ -1682,7 +1733,7 @@ function renderHomeListening(){
         <span class="tc-listen-core">${micSvg(28, '#fff', '#fff')}</span>
       </div>
       <p class="big" id="homeListenHeading" style="margin-top:14px;" aria-live="polite">I'm listening...</p>
-      ${(__voicePerson && __voicePerson.name) ? `<p class="lines" style="color:var(--accent,#c28a63);font-weight:600;margin-bottom:2px;">Adding to ${escapeHtml(__voicePerson.name)}</p>` : ''}
+      ${(__voicePerson && __voicePerson.name) ? `<p class="lines" style="color:var(--tc-blue-deep);font-weight:600;margin-bottom:2px;">Adding to ${escapeHtml(__voicePerson.name)}</p>` : ''}
       <p class="lines" id="homeListenSub">Take your time. Tell me what's happening and who it's about.</p>
       <div id="homeMicStatus" style="font-size:12.5px;color:var(--ink-soft,#7a7263);margin-top:8px;"></div>
       <div id="homeListenControls" style="margin-top:20px;display:flex;gap:12px;justify-content:center;align-items:center;">
@@ -1709,7 +1760,7 @@ function renderHomeListening(){
 function toProcessing(){
   const box = document.querySelector('.tc-listen');
   if (box){ box.classList.add('settling'); box.style.setProperty('--level', '0'); }
-  const h = document.getElementById('homeListenHeading'); if (h) h.textContent = 'Taking that in…';
+  const h = document.getElementById('homeListenHeading'); if (h) h.textContent = 'Taking that in...';
   const sub = document.getElementById('homeListenSub'); if (sub) sub.textContent = 'A moment while I put it together.';
   const ctrls = document.getElementById('homeListenControls'); if (ctrls) ctrls.style.display = 'none';
   hStatus('');
@@ -1744,7 +1795,7 @@ async function beginHomeRecording(onText){
       else renderHomeError((d && d.error) || "We couldn't catch that — try again or type it.");
     } catch(e){ renderHomeError("We couldn't catch that — try again or type it."); }
   };
-  mr.start(); hStatus("Listening… tap Done when you're finished.");
+  mr.start(); hStatus("Listening... tap Done when you're finished.");
   __hrec.timer = setTimeout(() => { if (__hrec.active){ toProcessing(); stopHomeRecording(); } }, 60000);
 }
 function stopHomeRecording(){ try { if (__hrec.active && __hrec.mr && __hrec.mr.state === 'recording') __hrec.mr.stop(); } catch(e){} }
@@ -2022,7 +2073,7 @@ function renderConverse(){
     <div class="tc-chat">
       <div class="tc-chat-log" id="cvLog"></div>
       <div class="tc-chat-inputrow">
-        <textarea id="cvInput" class="tc-chat-input" rows="1" placeholder="Type your reply…" autocomplete="off"></textarea>
+        <textarea id="cvInput" class="tc-chat-input" rows="1" placeholder="Type your reply..." autocomplete="off"></textarea>
         <button type="button" class="tc-send" id="cvSend" aria-label="Send">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 19V5"/><path d="M5 12l7-7 7 7"/></svg>
         </button>
@@ -3119,7 +3170,7 @@ function renderRememberDone(){
   const first = String(name).trim().split(/\s+/)[0] || 'them';
   stage.innerHTML = `
     <div class="panel-body" style="text-align:center;">
-      <div style="display:flex;justify-content:center;"><svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true"><path fill="none" stroke="#7d8a68" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#c28a63" stroke-width="1.6"/></svg></div>
+      <div style="display:flex;justify-content:center;"><svg viewBox="0 0 24 24" width="34" height="34" aria-hidden="true"><path fill="none" stroke="#118ab9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" d="M12 20s-7-4.2-7-9.3A4 4 0 0 1 12 8a4 4 0 0 1 7-2.7c1.4 1.9.9 4.4-.6 6.2"/><circle cx="17.5" cy="15.5" r="2.4" fill="none" stroke="#ef4136" stroke-width="1.6"/></svg></div>
       <h2 class="q-title" style="font-size:22px;margin-top:8px;">${escapeHtml(first)} is on your list.</h2>
       <p class="q-help">I'll help you remember and show up for them.</p>
       <div style="display:flex;flex-direction:column;gap:10px;align-items:center;margin-top:16px;">
@@ -3413,8 +3464,8 @@ function setListenCue(state){
   let txt = '';
   if (state === 'listening') txt = 'Listening — say “yes,” or tap above';
   else if (state === 'choice') txt = 'Listening — say “plan” or “remember,” or tap';
-  else if (state === 'speaking') txt = 'Reading it back to you…';
-  else if (state === 'thinking') txt = 'One sec…';
+  else if (state === 'speaking') txt = 'Reading it back to you...';
+  else if (state === 'thinking') txt = 'One sec...';
   else if (state === 'retry') txt = 'Didn’t catch that — say “yes,” or just tap';
   el.innerHTML = dot + '<span aria-live="polite">' + txt + '</span>';
   el.hidden = false;
@@ -3808,9 +3859,9 @@ const GIFT_ICONS = {
   gift_card: '<rect x="13" y="18" width="22" height="15" rx="2.5"/><path d="M13 24h22"/><path d="M24 18v-3"/><path d="M24 15c1.7 1.7 1.7 3 0 3s-1.7-1.3 0-3Z"/>',
   other: '<rect x="14" y="21" width="20" height="15" rx="2"/><path d="M12 21h24v-5H12z"/><path d="M24 16v20"/><path d="M24 16s-3-6-6-4 1 4 6 4Zm0 0s3-6 6-4-1 4-6 4Z"/>',
 };
-const TILE_BG = ['linear-gradient(135deg,#e6efe8,#dbe9e4)','linear-gradient(135deg,#e3ede9,#d8e6e6)','linear-gradient(135deg,#e6ece2,#dbe6df)'];
+const TILE_BG = ['linear-gradient(135deg,#e3f0f6,#d3e8f1)','linear-gradient(135deg,#f0f7fb,#e3f0f6)','linear-gradient(135deg,#f6efe6,#efe5d6)'];
 function giftTile(cat, i){
-  return `<span class="tile" style="background:${TILE_BG[i%3]}"><svg viewBox="0 0 48 48" fill="none" stroke="#6a7550" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GIFT_ICONS[cat]||GIFT_ICONS.other}</svg></span>`;
+  return `<span class="tile" style="background:${TILE_BG[i%3]}"><svg viewBox="0 0 48 48" fill="none" stroke="#118ab9" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${GIFT_ICONS[cat]||GIFT_ICONS.other}</svg></span>`;
 }
 function etsyLink(q){ return 'https://www.etsy.com/search?q=' + encodeURIComponent(q||'thoughtful gift'); }
 function mapsLink(q, loc){ return 'https://www.google.com/maps/search/?api=1&query=' + encodeURIComponent((q || 'gift shop') + ' near ' + (loc || '')); }
@@ -4051,7 +4102,7 @@ function renderPlan(p){
   const li = arr => (arr||[]).map(x => `<li>${escapeHtml(x)}</li>`).join('');
   // TC-86: the "what you might say" lines get an unobtrusive copy button (sendable copy).
   const sayLi = arr => (arr||[]).map((x, i) => `<li class="say-line"><span class="say-text">${escapeHtml(x)}</span><button type="button" class="tc-copy" data-copy-say="${i}" aria-label="Copy this line" title="Copy">${TC_COPY_SVG}</button></li>`).join('');
-  const icon = d => `<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#5f6c4c" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
+  const icon = d => `<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#0a5876" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
   const actions = (p.thoughtful_actions||[]).map(a => `
     <div class="action">
       <div class="a-title">${escapeHtml(a.action)}</div>
@@ -4091,8 +4142,8 @@ function renderPlan(p){
   // plans (grief/illness/loss) we soften the whole thing: gentler question, no thumbs,
   // and NO "what was off?" critique chips — you don't ask a grieving person to rate a
   // plan's quality. We still capture helped / needed-something-different for the signal.
-  const fbPill = 'border:1px solid #d8ccae;background:#fffbf4;color:#3b362e;border-radius:999px;padding:9px 18px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;line-height:1;';
-  const fbChip = 'border:1px solid #e0d6bf;background:#fbf7ee;color:#5f5646;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;line-height:1;';
+  const fbPill = 'border:1px solid #d8cdba;background:#fdfbf7;color:#2c2a26;border-radius:999px;padding:9px 18px;font:inherit;font-size:14px;font-weight:600;cursor:pointer;line-height:1;';
+  const fbChip = 'border:1px solid #e7ded0;background:#f7f3ec;color:#5a554c;border-radius:999px;padding:7px 14px;font:inherit;font-size:13px;cursor:pointer;line-height:1;';
   const fbHard = !!(window.__tcBucket && window.__tcBucket.valence === 'hard_time');
   const fbAsk = fbHard ? "Did this feel right for what you're facing?" : "Did this help you feel more ready?";
   const thumbUpSvg = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7 10v10H4V10h3Zm0 0 4.5-7a2 2 0 0 1 2 2.5L12.5 9H19a2 2 0 0 1 2 2.3l-1.2 6.5A2 2 0 0 1 17.8 20H7"/></svg>';
@@ -4239,7 +4290,7 @@ function renderPlan(p){
     const wantReminders = document.getElementById('wantReminders').checked;
     const msg = document.getElementById('emailMsg');
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = 'k-msg bad'; msg.textContent = 'Please enter a valid email address.'; return; }
-    emailBtn.disabled = true; msg.className = 'k-msg'; msg.textContent = 'Sending…';
+    emailBtn.disabled = true; msg.className = 'k-msg'; msg.textContent = 'Sending...';
     try {
       const r = await fetch('/api/send-plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, plan: p, wantReminders, test: window.__tcTest }) });
       const d = await r.json();

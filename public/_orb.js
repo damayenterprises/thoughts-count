@@ -1,8 +1,11 @@
 // Thoughts Count — Della's "Inner Weather" presence orb.
 //
-// A warm living nebula in a sphere: the app's green->blue background palette blended
-// with a terracotta-clay (#c77b59) heart, drifting/folding/pulsing so she reads ALIVE.
+// REBRAND colorway (TC-75): a warm living nebula in a sphere — a warm RED-CORAL heart
+// core (#ef4136, echoes the logo heart) breathing inside thoughtful BLUE "inner weather"
+// (brand #118ab9), with an earthy-amber bridge so she never goes clinical/LED.
 // Rendered on <canvas> (like Lantern was) so hues truly BLEND, not stack — NO white glow.
+// Engine/logic untouched; only the pigment palette, base wash, heart bloom + vignette
+// COLOR VALUES were re-authored per Design-System v2 §7.
 //
 // This is the PRODUCTION port of the approved prototype (public/orb.html on branch
 // orb-prototype, tip 798bb77): Inner Weather, life:"energetic", with the calmed Speaking
@@ -25,20 +28,21 @@
 // The canvas reads the stage's data-state attribute fresh each frame (the prototype
 // pattern), so setState just flips the attribute — no per-frame subscription.
 
-// Pigment palette — cool app family + warm clay heart.
+// Pigment palette (REBRAND §7) — blue "inner weather" around a warm red-coral heart,
+// with an earthy-amber bridge so it stays human.
 //   col = saturated core of the pigment,  edge = same hue fading to transparent
 function makePigments() {
   return [
-    // warm terracotta-clay HEART — biased to center, larger, the anchor
-    // FIX 2: warmer/more-present clay so she reads alive at rest, not only mid-speech.
-    { col:[206,116,78],  edge:[172,92,64],  a:0.74, ox: 0.00, oy: 0.08, rx: 0.66, ry: 0.10, sp: 0.22, ph: 0.0, warm:true },
-    { col:[224,148,102], edge:[196,118,78], a:0.56, ox: 0.10, oy: -0.06, rx: 0.50, ry: 0.14, sp: 0.30, ph: 1.6, warm:true },
-    // green — more saturated so the green reads clearly, not a whisper
-    { col:[150,202,132], edge:[112,150,100], a:0.58, ox:-0.34, oy: 0.16, rx: 0.58, ry: 0.20, sp: 0.26, ph: 2.4 },
-    { col:[128,192,176], edge:[96,156,146], a:0.54, ox: 0.30, oy: 0.24, rx: 0.54, ry: 0.18, sp: 0.24, ph: 3.6 }, // teal
-    // blue
-    { col:[150,184,220], edge:[108,146,198], a:0.48, ox:-0.20, oy:-0.28, rx: 0.52, ry: 0.22, sp: 0.29, ph: 4.7 },
-    { col:[172,212,158], edge:[130,178,120], a:0.46, ox: 0.24, oy:-0.22, rx: 0.48, ry: 0.20, sp: 0.20, ph: 5.9 }  // light green
+    // red-coral HEART anchor — biased to center, the emotional anchor (echoes the logo)
+    { col:[239,90,80],   edge:[200,64,58],  a:0.72, ox: 0.00, oy: 0.08, rx: 0.64, ry: 0.10, sp: 0.22, ph: 0.0, warm:true },
+    // amber bridge — keeps the warm→cool transition human, never clinical
+    { col:[236,150,110], edge:[206,120,84], a:0.52, ox: 0.10, oy: -0.06, rx: 0.50, ry: 0.14, sp: 0.30, ph: 1.6, warm:true },
+    // brand blue
+    { col:[45,150,196],  edge:[24,112,150], a:0.56, ox:-0.34, oy: 0.16, rx: 0.58, ry: 0.20, sp: 0.26, ph: 2.4 },
+    { col:[120,190,214], edge:[80,150,182], a:0.52, ox: 0.30, oy: 0.24, rx: 0.54, ry: 0.18, sp: 0.24, ph: 3.6 }, // sky/teal
+    // deep blue rim
+    { col:[70,138,180],  edge:[40,100,140], a:0.48, ox:-0.20, oy:-0.28, rx: 0.52, ry: 0.22, sp: 0.29, ph: 4.7 },
+    { col:[240,170,150], edge:[214,132,116], a:0.42, ox: 0.24, oy:-0.22, rx: 0.48, ry: 0.20, sp: 0.20, ph: 5.9 }  // warm blush light
   ];
 }
 
@@ -107,9 +111,9 @@ export function mountOrb(stageEl, opts) {
     //   blue is pushed toward the rim, so the warm bloom below reads through at rest.
     ctx.globalCompositeOperation = "source-over";
     var base = ctx.createRadialGradient(cx, cy * 0.86, R * 0.05, cx, cy, R);
-    base.addColorStop(0.0, "rgba(178,196,150,1)");   // warmer, more saturated green center
-    base.addColorStop(0.55, "rgba(150,188,178,1)");  // green-teal
-    base.addColorStop(1.0, "rgba(146,170,198,1)");   // blue rim
+    base.addColorStop(0.0, "rgba(244,196,168,1)");   // warm amber center (lets the red heart read through)
+    base.addColorStop(0.55, "rgba(150,190,206,1)");  // warm→blue bridge
+    base.addColorStop(1.0, "rgba(64,132,176,1)");    // deep brand-blue rim
     ctx.fillStyle = base;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
@@ -145,19 +149,21 @@ export function mountOrb(stageEl, opts) {
     //   cool wash, so she read pale. Push the idle alpha up and deepen the terracotta.
     var heartA = Math.min(0.82, 0.56 * sf.warm + breath * 0.06);
     var wb = ctx.createRadialGradient(hx, hy, 0, hx, hy, heartR);
-    wb.addColorStop(0.0, rgba([208,116,78], heartA));
-    wb.addColorStop(0.45, rgba([200,110,76], heartA * 0.58));
-    wb.addColorStop(1.0, rgba([200,110,76], 0));
+    wb.addColorStop(0.0, rgba([239,92,82], heartA));
+    wb.addColorStop(0.45, rgba([214,72,64], heartA * 0.58));
+    wb.addColorStop(1.0, rgba([214,72,64], 0));
     ctx.fillStyle = wb;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
     // ---- colored rim vignette for a spherical read (NOT a white sheen) ----
     //   FIX 4b: deepened + reaching a touch further in so the sphere separates from the
     //   near-identical page background instead of dissolving into it. Still subtle/on-brand.
+    //   §7: the orb now sits ON the blue hero panel — deepen the rim a touch (0.34→0.38)
+    //   so the sphere separates from the panel instead of dissolving into it.
     var vg = ctx.createRadialGradient(cx, cy * 0.9, R * 0.5, cx, cy, R);
-    vg.addColorStop(0, "rgba(48,52,43,0)");
-    vg.addColorStop(0.82, "rgba(48,52,43,0.10)");
-    vg.addColorStop(1, "rgba(48,52,43,0.34)");
+    vg.addColorStop(0, "rgba(30,44,58,0)");
+    vg.addColorStop(0.82, "rgba(30,44,58,0.12)");
+    vg.addColorStop(1, "rgba(30,44,58,0.38)");
     ctx.fillStyle = vg;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
