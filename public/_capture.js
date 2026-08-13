@@ -187,7 +187,7 @@ function announceResult(sb, result, onChange) {
       },
     });
   } else if (b.length) {
-    showToast(`Added to your “To review” list`, {});
+    showToast(`Added to your "To review" list`, {});
   }
 }
 
@@ -198,7 +198,7 @@ const HINT_KEY = "tc_qc_hint_seen";
 // dismissible tip so its purpose is obvious. Returns "" once dismissed.
 export function qcHintHtml() {
   if (localStorage.getItem(HINT_KEY)) return "";
-  return `<div class="tc-qc-hint" id="tcQcHint"><span>Tip: jot anything about someone here — “Maria just started a new job” — and we'll file it to the right person.</span><button class="tc-qc-hint-x" aria-label="Dismiss" style="display:inline-flex;align-items:center;">${xSvg(15, "currentColor")}</button></div>`;
+  return `<div class="tc-qc-hint" id="tcQcHint"><span>Tip: jot anything about someone here, like "Maria just started a new job", and we'll file it to the right person.</span><button class="tc-qc-hint-x" aria-label="Dismiss" style="display:inline-flex;align-items:center;">${xSvg(15, "currentColor")}</button></div>`;
 }
 export function wireQcHint(root) {
   const x = (root || document).querySelector("#tcQcHint .tc-qc-hint-x");
@@ -271,7 +271,7 @@ export function mountToReview(container, sb, { people = [], contactKind = "perso
 
   function render(items) {
     if (!items.length) {
-      container.innerHTML = `<div class="tc-review-empty">Nothing to review — you're all caught up.</div>`;
+      container.innerHTML = `<div class="tc-review-empty">Nothing to review. You're all caught up.</div>`;
       return;
     }
     container.innerHTML = items.map((it) => {
@@ -286,8 +286,8 @@ export function mountToReview(container, sb, { people = [], contactKind = "perso
       } else {
         const proposedName = it.proposed_person_id ? nameOf(it.proposed_person_id) : "";
         const confirmLabel = it.proposed_person_id
-          ? `Confirm${proposedName ? ` — ${esc(firstName(proposedName))}` : ""}`
-          : `Confirm — add ${esc(firstName(hint) || "them")}`;
+          ? `Confirm${proposedName ? `: ${esc(firstName(proposedName))}` : ""}`
+          : `Confirm, add ${esc(firstName(hint) || "them")}`;
         actions = `
             <button class="cta tc-rv-confirm" data-cid="${it.id}">${confirmLabel}</button>
             <button class="link-btn tc-rv-assign" data-cid="${it.id}">Assign to someone else</button>
@@ -295,7 +295,7 @@ export function mountToReview(container, sb, { people = [], contactKind = "perso
       }
       return `
         <div class="tc-review-item" data-cid="${it.id}">
-          <div class="tc-review-heard">“${esc(it.raw_text || "")}”</div>
+          <div class="tc-review-heard">"${esc(it.raw_text || "")}"</div>
           <div class="tc-review-who">${esc(it.match_evidence || "Who is this about?")}</div>
           <div class="tc-review-acts">${actions}</div>
           <div class="tc-rv-assignbox" hidden></div>
@@ -509,12 +509,12 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
     }
     if (state.kind === "update" && state.personName) {
       const d = preview.personHasDetail && preview.personDetail ? ` (${esc(preview.personDetail)})` : "";
-      return `Looks like <b>${esc(state.personName)}</b>${d} — already in your people. We'll add this to them.`;
+      return `Looks like <b>${esc(state.personName)}</b>${d}, already in your people. We'll add this to them.`;
     }
     if (state.kind === "pick" && state.candidates.length) {
-      return `There's more than one match — tap the right person, or keep the name to add someone new.`;
+      return `There's more than one match. Tap the right person, or keep the name to add someone new.`;
     }
-    return `New to your people — we'll add them.`;
+    return `New to your people. We'll add them.`;
   }
 
   function draw() {
@@ -544,7 +544,7 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
     const confirmLabel = isPick
       ? "Add someone new →"
       : (isObituary ? "Keep them →" : (state.kind === "update" ? "Add to them →" : "Add them →"));
-    const eyebrow = isObituary ? `Read from ${src}. Take your time.` : `Found from ${src} — check it over`;
+    const eyebrow = isObituary ? `Read from ${src}. Take your time.` : `Found from ${src}. Check it over`;
     // TC-99: for a non-birthday event (a wedding, a graduation, a loss) show an editable Occasion +
     // date the user can accept or fix. A year-less date shows as "June 15" (no bogus year); a full
     // date shows as "June 15, 2027". The date field is plain text so the user can type either.

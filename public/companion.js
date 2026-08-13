@@ -849,7 +849,7 @@ function renderHome(people, opts = {}) {
       <input type="text" id="tcSearch" placeholder="Search your people..." autocomplete="off" />
       <select id="tcSort" class="tc-select">
         <option value="next">Sort: next date</option>
-        <option value="alpha">Sort: name (A–Z)</option>
+        <option value="alpha">Sort: name (A-Z)</option>
         <option value="recent">Sort: recently added</option>
       </select>
     </div>` : "";
@@ -939,8 +939,8 @@ function renderHome(people, opts = {}) {
     });
 
     listEl().innerHTML = people.length
-      ? (view.length ? view.map(personCard).join("") : `<div class="tc-empty" style="padding:10px 0;text-align:center;">No one matches “${esc(query)}”.</div>`)
-      : `<div class="tc-empty" style="padding:8px 0 14px;text-align:center;">No one saved yet. Add the first person who matters to you — a friend, a teammate, someone you manage.</div>`;
+      ? (view.length ? view.map(personCard).join("") : `<div class="tc-empty" style="padding:10px 0;text-align:center;">No one matches "${esc(query)}".</div>`)
+      : `<div class="tc-empty" style="padding:8px 0 14px;text-align:center;">No one saved yet. Add the first person who matters to you: a friend, a teammate, someone you manage.</div>`;
     wireCards();
   }
 
@@ -1405,9 +1405,9 @@ function openAddDate(personId) {
   box.className = "block tc-addwrap";
   box.innerHTML = `
     <h4>Add a date or reminder</h4>
-    <p class="tc-help-sm">A recurring date like a birthday, or a one-time nudge to reach out — say, to check in a few weeks from now.</p>
+    <p class="tc-help-sm">A recurring date like a birthday, or a one-time nudge to reach out. Say, to check in a few weeks from now.</p>
     <select id="kd_kind" class="tc-select">${kindOpts}</select>
-    <input type="text" id="kd_label" placeholder="Label (e.g. Birthday, or “Check in after her move”)" style="margin-top:10px;" />
+    <input type="text" id="kd_label" placeholder="Label (e.g. Birthday, or 'Check in after her move')" style="margin-top:10px;" />
     <input type="date" id="kd_date" style="margin-top:10px;" />
     <label class="k-remind" style="margin-top:10px;"><input type="checkbox" id="kd_recurs" checked /> Happens every year</label>
     <label class="tc-field-label" for="kd_lead">Remind me</label>
@@ -1463,7 +1463,7 @@ async function mountSaveToPerson(stageEl, plan) {
   const opts = people.map((p) => `<option value="${p.id}">${esc(p.name)}</option>`).join("");
   const followups = (plan.follow_up || []).filter((f) => Number.isFinite(f.days_from_now) && f.days_from_now > 0);
   const followupOpt = followups.length ? `
-    <label class="k-remind" style="margin-top:12px;"><input type="checkbox" id="tcRemindFollow" checked /> Also remind me to follow through — we'll gently nudge you the morning each of this plan's ${followups.length} “keep showing up” date${followups.length > 1 ? "s" : ""} arrives</label>` : "";
+    <label class="k-remind" style="margin-top:12px;"><input type="checkbox" id="tcRemindFollow" checked /> Also remind me to follow through. We'll gently nudge you the morning each of this plan's ${followups.length} "keep showing up" date${followups.length > 1 ? "s" : ""} arrives</label>` : "";
   card.innerHTML = `
     ${divider}
     <div class="keep-way-label">Save it to People I care about</div>
@@ -1510,8 +1510,8 @@ async function mountSaveToPerson(stageEl, plan) {
       }
       msg.className = "k-msg ok";
       msg.textContent = reminderCount
-        ? `Saved — we'll nudge you on ${reminderCount} date${reminderCount > 1 ? "s" : ""} to follow through. Find them under “People I care about”.`
-        : "Saved — open “People I care about” to add their dates and turn on reminders.";
+        ? `Saved. We'll nudge you on ${reminderCount} date${reminderCount > 1 ? "s" : ""} to follow through. Find them under "People I care about".`
+        : "Saved. Open \"People I care about\" to add their dates and turn on reminders.";
       card.querySelector("#tcSavePlan").innerHTML = `${checkSvg(16, "currentColor")}<span>Saved</span>`;
       card.querySelector("#tcSavePlan").style.cssText += ";display:inline-flex;align-items:center;gap:8px;justify-content:center;";
       card.querySelector("#tcSavePlan").disabled = true;

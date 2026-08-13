@@ -200,7 +200,7 @@ function render() {
     // Empty roster: lead with Import as the single hero action (progressive disclosure) — no
     // quick-capture until there are people to file notes onto.
     body().innerHTML = head + `<div class="tc-empty" style="padding:26px 0;text-align:center;">
-        <p class="q-help" style="text-align:center;">No one here yet. Import a CSV from any CRM or spreadsheet — we'll map the columns and dedupe for you.</p>
+        <p class="q-help" style="text-align:center;">No one here yet. Import a CSV from any CRM or spreadsheet, and we'll map the columns and dedupe for you.</p>
         <button class="cta" id="tcImportBtn2">＋ Import your contacts</button>
       </div></div>`;
     body().querySelector("#tcImportBtn").onclick = launchImport;
@@ -213,12 +213,12 @@ function render() {
       <input type="text" id="tcRosSearch" placeholder="Search your roster..." autocomplete="off" value="${esc(query)}" />
       <select id="tcRosSort" class="tc-select">
         <option value="next"${sortBy === "next" ? " selected" : ""}>Sort: next date</option>
-        <option value="alpha"${sortBy === "alpha" ? " selected" : ""}>Sort: name (A–Z)</option>
+        <option value="alpha"${sortBy === "alpha" ? " selected" : ""}>Sort: name (A-Z)</option>
         <option value="recent"${sortBy === "recent" ? " selected" : ""}>Sort: recently added</option>
       </select>
     </div>`;
 
-  const rows = slice.map(rowHtml).join("") || `<div class="tc-empty" style="padding:16px 0;">No one matches “${esc(query)}”.</div>`;
+  const rows = slice.map(rowHtml).join("") || `<div class="tc-empty" style="padding:16px 0;">No one matches "${esc(query)}".</div>`;
   const pager = pages > 1 ? `<div class="tc-pager">
       <button class="link-btn" id="tcPrev"${page === 0 ? " disabled" : ""}>← Prev</button>
       <span class="tc-pager-mid">Page ${page + 1} of ${pages}</span>
@@ -334,5 +334,5 @@ function fubStub() {
   const actions = body().querySelector(".tc-ros-actions") || body();
   let note = body().querySelector("#tcFubNote");
   if (!note) { note = document.createElement("div"); note.id = "tcFubNote"; note.className = "k-msg"; note.style.cssText = "flex-basis:100%;text-align:right;"; actions.appendChild(note); }
-  note.className = "k-msg"; note.textContent = "Follow Up Boss sync is coming soon — for now, export a CSV and import it here.";
+  note.className = "k-msg"; note.textContent = "Follow Up Boss sync is coming soon. For now, export a CSV and import it here.";
 }

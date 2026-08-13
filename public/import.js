@@ -70,12 +70,12 @@ function pickView() {
   return `<div class="panel-body">
     <div class="q-eyebrow">Your book of business</div>
     <h2 class="q-title" style="margin-bottom:4px;">Bring your people in</h2>
-    <p class="q-help">Drop in a file from anywhere — a CRM export, a spreadsheet, your contacts. Any columns, any order. We'll figure out the rest.</p>
+    <p class="q-help">Drop in a file from anywhere: a CRM export, a spreadsheet, your contacts. Any columns, any order. We'll figure out the rest.</p>
     <label class="tc-drop" id="tcDrop">
       <input type="file" id="tcFile" accept=".csv,.tsv,.txt,text/csv,.xlsx,.xls,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/vnd.ms-excel" hidden />
       <div class="tc-drop-ic">＋</div>
       <div class="tc-drop-main">Choose a CSV or Excel file</div>
-      <div class="tc-drop-sub">or drag it here · .csv or .xlsx, with or without a header row — we map the columns for you</div>
+      <div class="tc-drop-sub">or drag it here · .csv or .xlsx, with or without a header row. We map the columns for you</div>
     </label>
     <div class="k-msg" id="tcImpMsg"></div>
   </div>`;
@@ -101,7 +101,7 @@ async function handleFile(file) {
     // Parse to a raw matrix (array of cell-arrays) — one shape for CSV and Excel alike.
     const matrix = isExcel ? await readExcel(file) : await readDelimited(file);
     const clean = (matrix || []).filter((r) => r.some((c) => String(c ?? "").trim() !== ""));
-    if (!clean.length) { msg("We couldn't find any rows in that file — try another export.", "bad"); return; }
+    if (!clean.length) { msg("We couldn't find any rows in that file. Try another export.", "bad"); return; }
 
     const { headers, rows } = shapeMatrix(clean);
     if (!headers.length || !rows.length) { msg("We couldn't find any contacts in that file.", "bad"); return; }
@@ -285,7 +285,7 @@ function previewView() {
   return `<div class="panel-body">
     <div class="q-eyebrow">A quick glance</div>
     <h2 class="q-title" style="margin-bottom:4px;">${n} contact${n === 1 ? "" : "s"} ready</h2>
-    <p class="q-help">Here's how we read your columns. Change anything that looks off — most files need no changes at all.</p>
+    <p class="q-help">Here's how we read your columns. Change anything that looks off. Most files need no changes at all.</p>
     <div class="tc-map">${rows}</div>
     <div class="nav" style="margin-top:18px;"><button class="link-btn" id="tcBack">← Choose another file</button><button class="cta" id="tcCommit">Import ${n} contact${n === 1 ? "" : "s"} →</button></div>
     <div class="k-msg" id="tcImpMsg"></div>
@@ -327,7 +327,7 @@ async function commit() {
   // V#6: guard the request size so a genuinely huge file gets a clear message, not an
   // opaque "failed to start". (Roughly ~25–30k contacts; realistic books are far smaller.)
   if (JSON.stringify(rows).length > MAX_PAYLOAD_BYTES) {
-    msg(`This file is a little too large to bring in all at once (~${rows.length} contacts). For now, split it into two smaller files and import each — we'll still dedupe across them.`, "bad");
+    msg(`This file is a little too large to bring in all at once (~${rows.length} contacts). For now, split it into two smaller files and import each, and we'll still dedupe across them.`, "bad");
     return;
   }
   show(`<div class="panel-body"><div class="q-eyebrow">Bringing them in</div>
@@ -384,7 +384,7 @@ function summaryView(s) {
   // PERSONAL list, so never say "roster" here (UX Finding 2, applied to the summary).
   if (s.updated) bits.push(`<b>${s.updated}</b> already saved`);
   if (s.needs_review) bits.push(`<b>${s.needs_review}</b> to review`);
-  const line = bits.length ? bits.join(" · ") : "Nothing new — you're all caught up";
+  const line = bits.length ? bits.join(" · ") : "Nothing new. You're all caught up";
   const reviewCta = s.needs_review
     ? `<button class="cta" id="tcGoReview">One quick check (${s.needs_review}) →</button>`
     : `<button class="cta" id="tcDoneBtn">See my roster →</button>`;
@@ -392,7 +392,7 @@ function summaryView(s) {
     <div class="tc-check">✓</div>
     <h2 class="q-title" style="margin:10px 0 6px;">Your people are in</h2>
     <p class="q-help" style="text-align:center;">${line}.</p>
-    ${s.skipped ? `<p class="tc-mut" style="font-size:13px;">${s.skipped} row${s.skipped === 1 ? "" : "s"} couldn't be read and were set aside — nothing else was held up.</p>` : ""}
+    ${s.skipped ? `<p class="tc-mut" style="font-size:13px;">${s.skipped} row${s.skipped === 1 ? "" : "s"} couldn't be read and were set aside. Nothing else was held up.</p>` : ""}
     <div style="margin-top:18px;">${reviewCta}</div>
   </div>`;
 }
@@ -452,7 +452,7 @@ function renderReview(cands) {
       const nm = esc(c.existing?.name || inc.name || "This person");
       return `<div class="block tc-cand" data-id="${c.id}">
         <div class="tc-cand-q">${nm} is already one of your personal people. Where should they live?</div>
-        <div class="tc-cand-sub" style="margin:2px 0 12px;">We've kept them as one person — you just choose where they belong.</div>
+        <div class="tc-cand-sub" style="margin:2px 0 12px;">We've kept them as one person. You just choose where they belong.</div>
         <div class="tc-cand-actions">
           <button class="cta ghost tc-place-personal" data-id="${c.id}">Keep in personal</button>
           <button class="cta tc-place-roster" data-id="${c.id}">Move to my roster</button>
@@ -467,7 +467,7 @@ function renderReview(cands) {
     if (inc._crosskind) {
       const nm = esc(c.existing?.name || inc.name || "This person");
       const sub = inc.email || inc.phone || inc.relationship
-        ? `Looks like the same person you just imported — ${esc(inc.email || inc.phone || inc.relationship)}.`
+        ? `Looks like the same person you just imported: ${esc(inc.email || inc.phone || inc.relationship)}.`
         : `Looks like the same person you just imported.`;
       return `<div class="block tc-cand" data-id="${c.id}">
         <div class="tc-cand-q">${nm} is already one of your personal people.</div>
@@ -475,7 +475,7 @@ function renderReview(cands) {
         <div class="tc-cand-actions tc-cand-actions-col">
           <button class="cta tc-place-personal" data-id="${c.id}">Keep them in personal</button>
           <button class="cta ghost tc-place-roster" data-id="${c.id}">Move them to my roster</button>
-          <button class="cta ghost tc-keep" data-id="${c.id}">These are different people — keep both</button>
+          <button class="cta ghost tc-keep" data-id="${c.id}">These are different people, keep both</button>
         </div>
         <div class="k-msg" data-msg="${c.id}"></div>
       </div>`;
@@ -488,8 +488,8 @@ function renderReview(cands) {
         <div class="tc-cand-side"><div class="tc-cand-tag">Just imported</div><div class="tc-cand-name">${esc(inc.name || "New contact")}</div>${candLine(null, inc)}</div>
       </div>
       <div class="tc-cand-actions">
-        <button class="cta ghost tc-keep" data-id="${c.id}">Different people — keep both</button>
-        <button class="cta tc-merge" data-id="${c.id}">Same person — merge</button>
+        <button class="cta ghost tc-keep" data-id="${c.id}">Different people, keep both</button>
+        <button class="cta tc-merge" data-id="${c.id}">Same person, merge</button>
       </div>
       <div class="k-msg" data-msg="${c.id}"></div>
     </div>`;
@@ -504,7 +504,7 @@ function renderReview(cands) {
   show(`<div class="panel-body">
     <div class="q-eyebrow">One quick check</div>
     <h2 class="q-title" style="margin-bottom:4px;">${title}</h2>
-    <p class="q-help">A couple of one-tap choices about people you already have — that's it.</p>
+    <p class="q-help">A couple of one-tap choices about people you already have. That's it.</p>
     ${cards}
     <div class="nav" style="margin-top:6px;"><span></span><button class="cta ghost" id="tcReviewDone">Finish for now →</button></div>
   </div>`);

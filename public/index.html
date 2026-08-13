@@ -1575,7 +1575,7 @@ function renderPersonPicker(people, filter){
   // contradicts the rows above it (typing "chris" with two Chrises listed must not also say
   // "No one named chris yet.") — TC-89 rework.
   const emptyMsg = f
-    ? (matched.length ? '' : `<p class="q-help" style="margin:8px 0;">No one named “${escapeHtml(filter)}” yet.</p>`)
+    ? (matched.length ? '' : `<p class="q-help" style="margin:8px 0;">No one named "${escapeHtml(filter)}" yet.</p>`)
     : (people.length ? '' : `<p class="q-help" style="margin:8px 0;">You don't have anyone saved yet.</p>`);
   const sayBtn = voiceCanRecord()
     ? `<button type="button" class="cta ghost" id="vpSay" style="width:100%;justify-content:center;">${micSvg(17,'currentColor','#118ab9')}<span style="margin-left:8px;">Say a name</span></button>`
@@ -3113,7 +3113,7 @@ function renderRememberCard(cap){
       return `<button type="button" class="cta ghost rp-pick" data-i="${i}" style="width:100%;justify-content:flex-start;text-align:left;">${escapeHtml(p.name)}${sub ? `<span style="font-weight:400;color:var(--ink-soft);margin-left:6px;">${sub}</span>` : ''}</button>`;
     }).join('');
     const emptyMsg = f
-      ? (matched.length ? '' : `<p class="q-help" style="margin:8px 0;">No one named “${escapeHtml(filter)}” yet.</p>`)
+      ? (matched.length ? '' : `<p class="q-help" style="margin:8px 0;">No one named "${escapeHtml(filter)}" yet.</p>`)
       : (people.length ? '' : `<p class="q-help" style="margin:8px 0;">You don't have anyone saved yet.</p>`);
     stage.innerHTML = `
       <div class="panel-body" style="text-align:center;">
@@ -4347,7 +4347,7 @@ function downloadReminder(f, plan){
     + String(dtEnd.getDate()).padStart(2,'0');
   const uid = 'tc-' + Math.random().toString(36).slice(2) + '@thoughtscount';
   const esc = s => String(s||'').replace(/([,;\\])/g, '\\$1').replace(/\n/g, '\\n');
-  const title = label ? (label + ' — ' + (f.gesture || 'reach out')) : ('Thoughts Count: ' + (f.gesture || 'reach out'));
+  const title = label ? (label + ': ' + (f.gesture || 'reach out')) : ('Thoughts Count: ' + (f.gesture || 'reach out'));
   const ics = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
@@ -4358,7 +4358,7 @@ function downloadReminder(f, plan){
     'DTSTART;VALUE=DATE:' + ymd,
     'DTEND;VALUE=DATE:' + ymdEnd,
     'SUMMARY:' + esc(title),
-    'DESCRIPTION:' + esc((f.when ? f.when + ' — ' : '') + (f.gesture||'') + '\n\nA gentle reminder from Thoughts Count (' + context + ').'),
+    'DESCRIPTION:' + esc((f.when ? f.when + ': ' : '') + (f.gesture||'') + '\n\nA gentle reminder from Thoughts Count (' + context + ').'),
     'BEGIN:VALARM',
     'TRIGGER:-PT9H',
     'ACTION:DISPLAY',

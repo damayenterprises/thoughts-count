@@ -53,7 +53,7 @@ function displayObject(relation, object) {
 function noticedLine(f) {
   const subj = String(f.subject || "").trim();
   const body = displayObject(f.relation, f.object);
-  return GENERIC_SUBJECT.has(subj.toLowerCase()) ? body : `${subj} — ${body}`;
+  return GENERIC_SUBJECT.has(subj.toLowerCase()) ? body : `${subj}: ${body}`;
 }
 
 // The person's noticed items as plain strings — used to pre-fill the intake and to hand the
@@ -122,7 +122,7 @@ export async function captureNote(sb, personId, text) {
     const caps = result?.captures || [];
     const count = caps.reduce((n, c) => n + (c.count || 0), 0);
     if (count > 0) return { saved: true, count };
-    return { saved: false, count: 0, message: result?.message || "Nothing to save there yet — try naming what you noticed." };
+    return { saved: false, count: 0, message: result?.message || "Nothing to save there yet. Try naming what you noticed." };
   } catch (e) {
     console.error("captureNote falling back to plain note", e);
     await memoryPost(sb, { op: "create_fact", personId, subject: "them", relation: "note", object, source: "typed", factClass: "DURABLE" });
@@ -162,7 +162,7 @@ export function mountNoticed(container, sb, person, opts = {}) {
               <button class="link-btn tc-noticed-del" data-fid="${f.id}" aria-label="Remove">Remove</button>
             </span>
           </div>`).join("")
-      : `<div class="tc-empty tc-noticed-empty">Nothing noted yet — jot down anything worth remembering about ${esc(firstName(person.name))}.</div>`;
+      : `<div class="tc-empty tc-noticed-empty">Nothing noted yet. Jot down anything worth remembering about ${esc(firstName(person.name))}.</div>`;
 
     container.innerHTML = `
       <div class="tc-noticed">
