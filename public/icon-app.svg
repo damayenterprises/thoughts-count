@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="Thoughts Count app icon">
+  <rect width="512" height="512" rx="114" fill="#118ab9"/>
+  <!-- solid white speech bubble with lower-left tail, kept within the inner ~80% safe zone -->
+  <path fill="#ffffff" d="M256 128c74 0 128 50 128 116 0 66-54 116-128 116-15 0-30-2-43-6l-56 30 15-53c-27-22-44-53-44-87 0-66 54-116 128-116Z"/>
+  <!-- red heart centered in the bubble -->
+  <path fill="#ef4136" d="M256 316c-3.6 0-7-1.4-9.6-4l-39.6-39.6a31.6 31.6 0 0 1 0-45 31.6 31.6 0 0 1 45 0l4.2 4.2 4.2-4.2a31.6 31.6 0 0 1 45 0 31.6 31.6 0 0 1 0 45L265.6 312c-2.6 2.6-6 4-9.6 4Z"/>
+</svg>

@@ -1,0 +1,15 @@
+{
+  "name": "Thoughts Count",
+  "short_name": "Thoughts Count",
+  "description": "Thoughtful guidance for life's meaningful moments.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#118ab9",
+  "background_color": "#f7f3ec",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" },
+    { "src": "/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}
