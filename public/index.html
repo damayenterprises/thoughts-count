@@ -121,7 +121,7 @@
   .bar-menu-toggle { display: none; background: none; border: none; padding: 8px; margin: -8px; cursor: pointer; color: var(--sage-deep); line-height: 0; border-radius: 10px; transition: background .15s ease; }
   .bar-menu-toggle:hover { background: var(--mist); }
   .bar-menu-toggle svg { display: block; width: 26px; height: 26px; }
-  .tc-authbtn { background: var(--sage); color: #fff; border: none; padding: 8px 16px; border-radius: 999px; font-size: 14px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: var(--shadow-soft); transition: background .18s ease, transform .12s ease; }
+  .tc-authbtn { background: var(--tc-blue); color: #fff; border: none; padding: 9px 18px; border-radius: 999px; font-size: 15px; font-weight: 700; cursor: pointer; font-family: inherit; box-shadow: var(--tc-shadow-sm); transition: background .18s ease, transform .12s ease; }
   .tc-authbtn:hover { background: var(--sage-deep); transform: translateY(-1px); }
   .tc-authbtn.ghost { background: transparent; color: var(--sage-deep); border: 1.5px solid var(--line); box-shadow: none; }
   .tc-authbtn.ghost:hover { background: var(--cloud); }
@@ -200,12 +200,12 @@
   /* ---------- hero ---------- */
   /* orb-home FIX 4a: tightened vertical rhythm so Della's orb is at least half-visible on
      first paint (she greets the user on landing instead of sitting below the fold). */
-  .hero { text-align: center; padding: 34px 0 40px; }
+  .hero { text-align: center; }
   /* orb-home Task A: on TALL DESKTOP viewports the orb sat a touch low in the greeting zone.
      Lift the whole hero (and Della's orb with it) by trimming the hero's top padding so she
      greets higher in the fold. Scoped to wide AND tall screens only — mobile/short viewports
-     keep the base 34px rhythm above (untouched). */
-  @media (min-width: 760px) and (min-height: 760px) { .hero { padding-top: 16px; } }
+     keep the base rhythm. */
+  @media (min-width: 760px) and (min-height: 760px) { .hero .hero-inner { padding-top: 28px; } }
   /* ---------- hero = signature BLUE PANEL (rebrand §3) ---------- */
   .hero { position: relative; color: var(--tc-surface-hi);
     background: linear-gradient(165deg, #1595c6 0%, var(--tc-blue) 55%, #0f7ea9 100%); }
@@ -459,9 +459,9 @@
   /* Header: collapse the right nav into a hamburger menu on phones, and keep the
      bigger brand prominent without overflowing a narrow (~360px) screen. */
   @media (max-width: 600px) {
-    .bar { padding: 18px 16px; }
-    .brand { font-size: 25px; gap: 11px; }
-    .brand svg { height: 38px; }
+    .bar { padding: 16px 16px; }
+    .brand { font-size: 15px; letter-spacing: .1em; gap: 9px; }
+    .brand svg { height: 30px; }
     .bar-menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
     .bar-menu {
       position: absolute; top: calc(100% + 10px); right: 0; z-index: 60;
