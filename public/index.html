@@ -570,7 +570,7 @@
   footer .colophon .sep { opacity: .5; margin: 0 8px; }
   footer .colophon .copyright { display: block; margin-top: 6px; }
 
-  @media (max-width: 520px) { .moments { grid-template-columns: 1fr; } }
+  @media (max-width: 520px) { .moments { grid-template-columns: repeat(2, 1fr); gap: 12px; } .moments .chip { min-height: 96px; padding: 16px 14px; } .moments .chip .m-label { font-size: 15px; } .moments .chip .m-ic, .moments .chip .m-ic svg { width: 26px; height: 26px; } }
   @media (max-width: 720px) {
     .steps { grid-template-columns: 1fr; }
     .trust-inner { gap: 18px; }
@@ -620,6 +620,7 @@
                                 background: radial-gradient(circle, rgba(239,65,54,.28) 0%, rgba(255,255,255,.14) 46%, rgba(255,255,255,0) 72%);
                                 filter: blur(8px); }
   .hero-orb-prompt { font-size: 17px; color: #fff; font-weight: 700; margin-top: -16px; }
+  .hero-orb-prompt .her-name { font-family: var(--tc-serif); font-style: italic; font-weight: 500; }
   .hero-typelink { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.92);
                    cursor: pointer; padding: 4px 8px; text-decoration: underline; text-underline-offset: 3px; opacity: .95; transition: opacity .15s ease; }
   .hero-typelink:hover { opacity: 1; }
@@ -745,8 +746,9 @@
       var qs = new URLSearchParams(location.search);
       var q = qs.get('bg');
       if (q === 'living') localStorage.setItem('tc_bg', 'living');
-      else if (q === 'solid') localStorage.removeItem('tc_bg');
-      var on = (q === 'living') || (!q && localStorage.getItem('tc_bg') === 'living');
+      else if (q === 'solid') localStorage.setItem('tc_bg', 'solid');
+      // Living flowing-blue is the DEFAULT now; ?bg=solid (persisted) is the escape hatch.
+      var on = q ? (q === 'living') : (localStorage.getItem('tc_bg') !== 'solid');
       if (on) {
         document.body.classList.add('living-bg');
         // populate #bg with base wash + 6 drifting blobs (only when living)
@@ -1637,9 +1639,11 @@ async function setupHomeVoice(){
   // Before the name has arrived we show a clean "Tap to talk" / "Tap to type" (no "with her"),
   // then re-render on the 'tc-her-name' event once it's known.
   const her = window.__HER_NAME || '';
-  const withHer = her ? (' with ' + her) : '';
-  if (prompt) prompt.textContent = (voiceReady ? 'Tap to talk' : 'Tap to type') + withHer;
-  stage.setAttribute('aria-label', 'Talk it through' + withHer + (voiceReady ? ', tap to start' : ', tap to type'));
+  const herClean = her.replace(/[<>&"]/g, '');
+  const label = (voiceReady ? 'Tap to talk' : 'Tap to type');
+  // Her name carries a subtle Fraunces-italic "signature" so she reads as a person, not a label.
+  if (prompt) prompt.innerHTML = herClean ? (label + ' with <span class="her-name">' + herClean + '</span>') : label;
+  stage.setAttribute('aria-label', 'Talk it through' + (her ? ' with ' + her : '') + (voiceReady ? ', tap to start' : ', tap to type'));
 }
 window.addEventListener('tc-voice-gate-ready', setupHomeVoice);
 setupHomeVoice();
