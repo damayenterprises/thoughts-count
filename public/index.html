@@ -3640,7 +3640,7 @@ function setListenCue(state){
   else if (state === 'choice') txt = 'Listening, say "plan" or "remember," or tap';
   else if (state === 'speaking') txt = 'Reading it back to you...';
   else if (state === 'thinking') txt = 'One sec...';
-  else if (state === 'retry') txt = 'Didn't catch that, say "yes," or just tap';
+  else if (state === 'retry') txt = 'Didn\'t catch that, say "yes," or just tap';
   el.innerHTML = dot + '<span aria-live="polite">' + txt + '</span>';
   el.hidden = false;
 }
