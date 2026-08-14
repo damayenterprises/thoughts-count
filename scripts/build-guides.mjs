@@ -871,17 +871,17 @@ function page(g) {
 <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <script type="application/ld+json">${JSON.stringify(articleLd)}</script>
 <script type="application/ld+json">${JSON.stringify(faqLd)}</script>
 <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
 <style>
   :root{--paper:#f7f3ec;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
   *{box-sizing:border-box}
-  body{margin:0;font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.75;background:var(--paper)}
+  body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.75;background:var(--paper)}
   #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(120% 80% at 15% 0%, rgba(17,138,185,.05), transparent 60%),var(--paper)}
   a{color:var(--blue)}
-  h1,h2,h3{font-family:'Montserrat',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em;line-height:1.2}
+  h1,h2,h3{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em;line-height:1.2}
   .wrap{max-width:760px;margin:0 auto;padding:0 22px}
   header.bar{padding:20px 0}
   .brand{font-size:15px;font-weight:700;color:var(--blue);text-decoration:none;display:inline-flex;gap:9px;align-items:center;text-transform:uppercase;letter-spacing:.18em}
@@ -1006,14 +1006,14 @@ function hub() {
 <script type="application/ld+json">${JSON.stringify(collectionLd)}</script>
 <link rel="preconnect" href="https://fonts.googleapis.com" />
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
   :root{--cloud:#fdfbf7;--paper:#f7f3ec;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
   *{box-sizing:border-box}
-  body{margin:0;font-family:'Montserrat',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.7;background:var(--paper)}
+  body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.7;background:var(--paper)}
   #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(120% 80% at 15% 0%, rgba(17,138,185,.05), transparent 60%),var(--paper)}
   a{color:var(--blue)}
-  h1,h2{font-family:'Montserrat',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em}
+  h1,h2{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em}
   .wrap{max-width:900px;margin:0 auto;padding:0 22px}
   .bar{padding:20px 0}
   .brand{font-size:15px;font-weight:700;color:var(--blue);text-decoration:none;display:inline-flex;gap:9px;align-items:center;text-transform:uppercase;letter-spacing:.18em}

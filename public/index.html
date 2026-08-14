@@ -739,10 +739,10 @@
 <body class="living-bg">
 
 <script>
-  // ---- Living-gradient background toggle (TC-75 iter-2, GATED A/B) ----
-  // Default = the current solid-blue hero (untouched). Opt in with ?bg=living
-  // (persisted) or ?bg=solid to turn it back off. All gradient CSS is scoped
-  // under body.living-bg, so absent this flag nothing below changes.
+  // ---- Living-gradient background (TC-75) ----
+  // Living flowing-blue is the DEFAULT: <body class="living-bg"> in markup + the base
+  // wash painted on #bg via CSS, so blue is there on first paint (no flash). This script
+  // only injects the drifting blobs and removes living-bg for the ?bg=solid (persisted) opt-out.
   (function(){
     try {
       var qs = new URLSearchParams(location.search);
