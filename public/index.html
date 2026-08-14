@@ -163,15 +163,15 @@
     border-bottom: 1px solid transparent; position: sticky; top: 0; z-index: 20; }
   body.living-bg .brand-lockup-color { display: none; }
   body.living-bg .brand-lockup-reversed { display: block; filter: drop-shadow(0 1px 7px rgba(6,38,54,.45)); }
-  body.living-bg .bar.scrolled { background: rgba(13,95,135,.55); backdrop-filter: blur(16px) saturate(130%);
-    -webkit-backdrop-filter: blur(16px) saturate(130%); border-bottom: 1px solid rgba(255,255,255,.14); }
-  /* keep the white reversed lockup on scroll (do NOT swap to the blue one) */
+  /* header stays fully TRANSPARENT even on scroll — no bar, no two-tone band. White
+     lockup + nav carry their own shadow so they read over the flowing gradient. */
+  body.living-bg .bar.scrolled { background: transparent; backdrop-filter: none;
+    -webkit-backdrop-filter: none; border-bottom-color: transparent; }
   body.living-bg .bar.scrolled .brand-lockup-color { display: none; }
   body.living-bg .bar.scrolled .brand-lockup-reversed { display: block; }
-  /* nav + menu stay white on the blue-frosted bar */
-  body.living-bg .tc-navlink { color: #fff; }
+  body.living-bg .tc-navlink { color: #fff; text-shadow: 0 1px 8px rgba(6,38,54,.55); }
   body.living-bg .bar.scrolled .tc-navlink { color: #fff; }
-  body.living-bg .bar-menu-toggle { color: #fff; }
+  body.living-bg .bar-menu-toggle { color: #fff; text-shadow: 0 1px 8px rgba(6,38,54,.55); }
   body.living-bg .bar.scrolled .bar-menu-toggle { color: #fff; }
 
   /* ---- hero: drop the blue panel; keep white text over a soft scrim ---- */
@@ -192,11 +192,20 @@
         rgba(9,52,72,0) 80%); }
 
   /* ---- content-dense sections ride calm frosted "rooms", not bare weather ---- */
-  body.living-bg .section { background: rgba(253,251,247,.78); backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px); }
-  body.living-bg .section.tint { background: rgba(240,247,251,.80); }
-  body.living-bg .trust { background: rgba(253,251,247,.82); backdrop-filter: blur(8px);
-    -webkit-backdrop-filter: blur(8px); border-bottom-color: rgba(157,203,225,.4); }
+  /* FULL BLUE FLOW: sections + trust are transparent so the gradient runs behind
+     everything; only the cards (.step / .example-card / .moments .chip) sit on opaque
+     surfaces. Bare section/trust/footer text turns white with a soft shadow. */
+  body.living-bg .section { background: transparent; }
+  body.living-bg .section.tint { background: transparent; }
+  body.living-bg .trust { background: transparent; border-bottom-color: rgba(255,255,255,.15); }
+  body.living-bg .section h2 { color: #fff; text-shadow: 0 1px 3px rgba(6,38,54,.5), 0 2px 22px rgba(6,38,54,.55); }
+  body.living-bg .section .sub { color: rgba(255,255,255,.92); text-shadow: 0 1px 10px rgba(6,38,54,.45); }
+  body.living-bg .trust .t { color: #fff; text-shadow: 0 1px 8px rgba(6,38,54,.45); }
+  body.living-bg .trust .t svg { color: #fff; }
+  body.living-bg footer .promise-big { color: #fff; text-shadow: 0 1px 12px rgba(6,38,54,.5); }
+  body.living-bg footer, body.living-bg footer .small { color: rgba(255,255,255,.85); }
+  body.living-bg footer .colophon { color: rgba(255,255,255,.8); border-top-color: rgba(255,255,255,.22); }
+  body.living-bg footer .colophon a { color: rgba(255,255,255,.82); }
   /* quote band = reversed white italic over a soft scrim on the bare weather */
   body.living-bg .quote-band { background: transparent; position: relative; }
   body.living-bg .quote-band .wrap::before { content: ""; position: absolute; inset: -40% -30%; z-index: -1;
