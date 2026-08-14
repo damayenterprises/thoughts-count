@@ -114,7 +114,9 @@
      LIVING GRADIENT (TC-75 iter-2) — GATED under body.living-bg (?bg=living).
      Everything here is scoped; without the class the page is the solid hero.
      ============================================================================ */
-  body.living-bg #bg { background: none; }
+  /* base wash lives on #bg itself (CSS, not JS) so the blue paints on FIRST paint —
+     no gray/paper flash before the blobs are injected. Blobs layer on top for life. */
+  body.living-bg #bg { background: radial-gradient(145% 122% at 22% 0%, #e2f3fb 0%, #a3d3ec 22%, #3f9ecb 52%, #0e73a2 78%, #06466a 100%); }
   /* base wash behind the blobs — never flashes white */
   body.living-bg #bg .bg-wash { position: absolute; inset: 0;
     background: radial-gradient(145% 122% at 22% 0%, #e2f3fb 0%, #a3d3ec 22%, #3f9ecb 52%, #0e73a2 78%, #06466a 100%); }
@@ -734,7 +736,7 @@
   @media (prefers-reduced-motion: reduce) { .tc-imic-btn[data-state="active"]::after { animation: none !important; } }
 </style>
 </head>
-<body>
+<body class="living-bg">
 
 <script>
   // ---- Living-gradient background toggle (TC-75 iter-2, GATED A/B) ----
@@ -749,6 +751,7 @@
       else if (q === 'solid') localStorage.setItem('tc_bg', 'solid');
       // Living flowing-blue is the DEFAULT now; ?bg=solid (persisted) is the escape hatch.
       var on = q ? (q === 'living') : (localStorage.getItem('tc_bg') !== 'solid');
+      if (!on) { document.body.classList.remove('living-bg'); }
       if (on) {
         document.body.classList.add('living-bg');
         // populate #bg with base wash + 6 drifting blobs (only when living)
