@@ -117,12 +117,12 @@
   body.living-bg #bg { background: none; }
   /* base wash behind the blobs — never flashes white */
   body.living-bg #bg .bg-wash { position: absolute; inset: 0;
-    background: radial-gradient(130% 100% at 20% 10%, #ecdfd2 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%); }
+    background: radial-gradient(130% 105% at 22% 8%, #f6ddc4 0%, #e7d9cf 30%, #a9cddc 66%, #4f9fc4 100%); }
   body.living-bg #bg .blob { position: absolute; border-radius: 50%; will-change: transform;
     mix-blend-mode: normal; }
   /* c1 brand blue */
   body.living-bg #bg .c1 { width: 62vw; height: 62vw; top: -8vw; left: -6vw; filter: blur(90px);
-    background: radial-gradient(circle at 50% 50%, rgba(17,138,185,.42) 0%, rgba(17,138,185,0) 68%);
+    background: radial-gradient(circle at 50% 50%, rgba(17,138,185,.55) 0%, rgba(17,138,185,0) 70%);
     animation: drift1 34s ease-in-out infinite; }
   /* c2 deep navy */
   body.living-bg #bg .c2 { width: 55vw; height: 55vw; bottom: -10vw; right: -8vw; filter: blur(100px);
@@ -130,11 +130,11 @@
     animation: drift2 40s ease-in-out infinite; }
   /* c3 sky/teal */
   body.living-bg #bg .c3 { width: 50vw; height: 50vw; top: 22vh; left: 34vw; filter: blur(90px);
-    background: radial-gradient(circle at 50% 50%, rgba(120,190,214,.40) 0%, rgba(120,190,214,0) 68%);
+    background: radial-gradient(circle at 50% 50%, rgba(120,195,220,.50) 0%, rgba(120,195,220,0) 70%);
     animation: drift3 30s ease-in-out infinite; }
   /* c4 warm amber (complement) — kept OFF the dead-center hero zone (top-right) */
   body.living-bg #bg .c4 { width: 48vw; height: 48vw; top: -6vh; right: 4vw; filter: blur(100px);
-    background: radial-gradient(circle at 50% 50%, rgba(224,150,96,.34) 0%, rgba(224,150,96,0) 68%);
+    background: radial-gradient(circle at 50% 50%, rgba(233,150,86,.50) 0%, rgba(233,150,86,0) 72%);
     animation: drift4 36s ease-in-out infinite; }
   /* c5 cream glow (unifier) */
   body.living-bg #bg .c5 { width: 44vw; height: 44vw; bottom: 6vh; left: 10vw; filter: blur(80px);
@@ -142,7 +142,7 @@
     animation: drift5 28s ease-in-out infinite; }
   /* c6 coral bloom (RARE, off-center bottom-right) */
   body.living-bg #bg .c6 { width: 34vw; height: 34vw; bottom: -8vh; right: 12vw; filter: blur(110px);
-    background: radial-gradient(circle at 50% 50%, rgba(239,65,54,.20) 0%, rgba(239,65,54,0) 68%);
+    background: radial-gradient(circle at 50% 50%, rgba(239,72,58,.30) 0%, rgba(239,72,58,0) 70%);
     animation: drift6 38s ease-in-out infinite; }
   /* small-amplitude (3-6vw) slow drift — never a busy churn */
   @keyframes drift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(4vw,3vw); } }
@@ -173,7 +173,8 @@
 
   /* ---- hero: drop the blue panel; keep white text over a soft scrim ---- */
   body.living-bg .hero { background: transparent; }
-  body.living-bg .hero-inner { position: relative; }
+  body.living-bg .hero-inner { position: relative;
+    text-shadow: 0 1px 2px rgba(6,38,54,.42), 0 2px 26px rgba(6,38,54,.55); }
   /* A soft-edged shade that holds enough depth ACROSS the copy zone to keep white
      hero text ≥4.5:1 even at the lightest blob pose (verified over cream/amber
      worst case), then feathers at the perimeter so it reads as ambient shade, not a
@@ -181,11 +182,11 @@
   body.living-bg .hero-inner::before { content: ""; position: absolute; inset: -8% -6% -12%; z-index: -1;
     border-radius: 44px; pointer-events: none;
     background:
-      radial-gradient(82% 72% at 50% 46%,
-        rgba(9,52,72,.60) 0%,
-        rgba(9,52,72,.58) 44%,
-        rgba(9,52,72,.40) 68%,
-        rgba(9,52,72,.16) 84%,
+      radial-gradient(72% 64% at 50% 45%,
+        rgba(9,52,72,.40) 0%,
+        rgba(9,52,72,.34) 46%,
+        rgba(9,52,72,.20) 70%,
+        rgba(9,52,72,.07) 86%,
         rgba(9,52,72,0) 100%); }
 
   /* ---- content-dense sections ride calm frosted "rooms", not bare weather ---- */
