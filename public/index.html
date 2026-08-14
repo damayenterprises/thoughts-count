@@ -156,20 +156,23 @@
     body.living-bg #bg .blob { animation: none !important; }
   }
 
-  /* ---- header: transparent at rest, frosted on scroll (living only) ---- */
+  /* ---- header: transparent at rest, BLUE-frosted on scroll (living only) so it blends
+     with the flowing gradient instead of popping a cream/white bar. Lockup + nav stay
+     white throughout — no cream box, no logo colour-flip. ---- */
   body.living-bg .bar { transition: background .3s ease, backdrop-filter .3s ease, border-color .3s ease;
     border-bottom: 1px solid transparent; position: sticky; top: 0; z-index: 20; }
   body.living-bg .brand-lockup-color { display: none; }
   body.living-bg .brand-lockup-reversed { display: block; filter: drop-shadow(0 1px 7px rgba(6,38,54,.45)); }
-  body.living-bg .bar.scrolled { background: rgba(247,243,236,.72); backdrop-filter: blur(14px) saturate(120%);
-    -webkit-backdrop-filter: blur(14px) saturate(120%); border-bottom: 1px solid rgba(255,255,255,.35); }
-  body.living-bg .bar.scrolled .brand-lockup-color { display: block; }
-  body.living-bg .bar.scrolled .brand-lockup-reversed { display: none; }
-  /* nav links + auth read on frosted vs open weather */
+  body.living-bg .bar.scrolled { background: rgba(13,95,135,.55); backdrop-filter: blur(16px) saturate(130%);
+    -webkit-backdrop-filter: blur(16px) saturate(130%); border-bottom: 1px solid rgba(255,255,255,.14); }
+  /* keep the white reversed lockup on scroll (do NOT swap to the blue one) */
+  body.living-bg .bar.scrolled .brand-lockup-color { display: none; }
+  body.living-bg .bar.scrolled .brand-lockup-reversed { display: block; }
+  /* nav + menu stay white on the blue-frosted bar */
   body.living-bg .tc-navlink { color: #fff; }
-  body.living-bg .bar.scrolled .tc-navlink { color: var(--sage-deep); }
+  body.living-bg .bar.scrolled .tc-navlink { color: #fff; }
   body.living-bg .bar-menu-toggle { color: #fff; }
-  body.living-bg .bar.scrolled .bar-menu-toggle { color: var(--sage-deep); }
+  body.living-bg .bar.scrolled .bar-menu-toggle { color: #fff; }
 
   /* ---- hero: drop the blue panel; keep white text over a soft scrim ---- */
   body.living-bg .hero { background: transparent; }
