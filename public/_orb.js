@@ -160,10 +160,12 @@ export function mountOrb(stageEl, opts) {
     //   near-identical page background instead of dissolving into it. Still subtle/on-brand.
     //   §7: the orb now sits ON the blue hero panel — deepen the rim a touch (0.34→0.38)
     //   so the sphere separates from the panel instead of dissolving into it.
+    //   iter-2: +4% (0.38→0.42) so the edge stays defined against the ambient living
+    //   blue weather (and remains crisp on the solid panel too).
     var vg = ctx.createRadialGradient(cx, cy * 0.9, R * 0.5, cx, cy, R);
     vg.addColorStop(0, "rgba(30,44,58,0)");
-    vg.addColorStop(0.82, "rgba(30,44,58,0.12)");
-    vg.addColorStop(1, "rgba(30,44,58,0.38)");
+    vg.addColorStop(0.82, "rgba(30,44,58,0.14)");
+    vg.addColorStop(1, "rgba(30,44,58,0.42)");
     ctx.fillStyle = vg;
     ctx.beginPath(); ctx.arc(cx, cy, R, 0, Math.PI * 2); ctx.fill();
 
