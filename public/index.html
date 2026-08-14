@@ -220,6 +220,9 @@
   body.living-bg footer { background: rgba(253,251,247,.82); backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px); }
   h1, h2, h3, .serif { font-family: var(--tc-font); font-weight: 700; letter-spacing: -0.01em; }
+  /* balance multi-line display text so the last line is never a lonely 1-2 words */
+  .hero h1, .hero p.lead, .section h2, .section .sub, .quote-band blockquote, .quote-band .who,
+  footer .promise-big, .example-situation, .example-foot, .moments .chip .m-label { text-wrap: balance; }
   a { color: var(--tc-blue); }
 
   .bar { display: flex; align-items: center; justify-content: space-between; padding: 18px 30px; max-width: 1080px; margin: 0 auto; }
@@ -918,7 +921,7 @@
         </button>
       </div>
     </div>
-    <div class="reassure">No account needed · About a minute</div>
+    <div class="reassure">No account needed · A thoughtful plan in ~60 seconds</div>
    </div>
   </section>
 
