@@ -429,6 +429,8 @@
   /* Degrade gracefully on short viewports — never force overflow on small screens. */
   @media (max-height: 620px) { .step-body { min-height: 0; } }
   .q-eyebrow { font-size: 13px; letter-spacing: .04em; color: var(--sage-deep); font-weight: 700; text-transform: uppercase; }
+  /* TC-129: Della's warm framing line on the first intake step (her voice = the reserved serif italic) */
+  .q-della { font-family: 'Fraunces', Georgia, serif; font-style: italic; font-size: 16px; color: var(--tc-ink-soft); line-height: 1.45; margin: 6px 0 14px; }
   .q-title { font-size: clamp(23px, 3.4vw, 28px); font-weight: 500; margin: 10px 0 4px; }
   .q-help { color: var(--ink-soft); font-size: 15px; margin: 0 0 22px; }
 
@@ -536,6 +538,8 @@
   .remind-btn svg { width: 15px; height: 15px; }
 
   .closing { text-align: center; font-style: italic; color: var(--ink-soft); font-family: 'Fraunces', serif; font-size: 18px; padding: 14px 22px 4px; line-height: 1.5; }
+  /* TC-129: a light hand-signed "— Della" under the closing note (inherits the Fraunces italic) */
+  .plan-sign { display: block; margin-top: 10px; font-size: 16px; color: var(--tc-blue-deep); }
 
   /* email-me-my-plan */
   .keep { background: var(--cloud); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; margin: 4px 0 2px; box-shadow: var(--shadow); }
@@ -1117,13 +1121,13 @@
 
 <script>
 const STEPS = [
-  { key: "moment", eyebrow: "First, the moment", title: "What happened?", help: "Pick what's closest, or tell us in your own words. The more you share, the more personal we can make this.", picks: ["Lost a loved one","New baby","A hard diagnosis","Beat cancer","Engagement","New job","Promotion","Job loss","Lost a pet","Retirement","Just a hard week"], placeholder: "e.g. My coworker's father passed away suddenly last weekend." },
+  { key: "moment", eyebrow: "First, the moment", title: "What happened?", help: "Pick what's closest, or tell me in your own words. The more you share, the more personal I can make this.", picks: ["Lost a loved one","New baby","A hard diagnosis","Beat cancer","Engagement","New job","Promotion","Job loss","Lost a pet","Retirement","Just a hard week"], placeholder: "e.g. My coworker's father passed away suddenly last weekend." },
   { key: "relationship", eyebrow: "Who they are to you", title: "What's your relationship?", help: "This gently shapes everything. What's right for a spouse is different for a coworker.", picks: ["Close friend","Friend","Partner / spouse","Parent","Sibling","Other family","Coworker","Someone I manage","My boss","Neighbor","Client"], placeholder: "e.g. A coworker I like but don't know outside of work.",
     extra: { key: "name", label: "Their name, optional. Makes everything more personal", placeholder: "e.g. Todd" } },
   { key: "about", eyebrow: "Tell us about them", title: "What are they like?", help: "Anything that helps us make this feel like them: their personality, what they're going through, your history together.", picks: [], placeholder: "e.g. She's private and doesn't like a fuss, but she's been carrying a lot. We usually just chat about our kids." },
   { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure, guide me"], placeholder: "Optional. Anything about your style or what you're comfortable with." },
   { key: "constraints", eyebrow: "Time & budget", title: "What can you give right now?", help: "Totally okay if it's not much. Sometimes the most meaningful gesture is free.", picks: ["Just a little time","An afternoon","No budget","Under $25","$25-75","$75-150","Money's not the issue"], placeholder: "Optional. For example, I'm slammed this week but want to do something meaningful.",
-    extra: { key: "location", label: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4" stroke="#118ab9"/></svg>What town or ZIP are they in?', hint: "Optional. If you add it, we'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
+    extra: { key: "location", label: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4" stroke="#118ab9"/></svg>What town or ZIP are they in?', hint: "Optional. If you add it, I'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
 ];
 
 const answers = {};   // raw free-text per step
@@ -1258,6 +1262,17 @@ function openFlow(preset){
   try { window.tcTrack && tcTrack('intake_start', preset ? { label: preset } : {}); } catch(e){}
   scrim.classList.add('open'); document.body.style.overflow='hidden'; renderStep();
 }
+// TC-129: Della is present on the card/typed-intake door too (not just the voice conversation).
+// First meeting on this device she introduces herself ONCE (shares the 'tc_met_her' flag with
+// cvOpener, so she never double-introduces across doors); after that a warm, un-named line so
+// she's still present, never repeating her name. Empty until HER_NAME loads (no hardcoded name).
+function dellaIntakeIntro(){
+  var her = window.__HER_NAME || '';
+  if (!her) return '';
+  var met = false; try { met = localStorage.getItem('tc_met_her') === '1'; } catch(e){}
+  if (!met){ try { localStorage.setItem('tc_met_her','1'); } catch(e){} return "Hi, I'm " + her + ". Let's find the right way to show up, together."; }
+  return "Let's find the right way to show up, together.";
+}
 // Launch the plan flow already knowing who this is for (from a saved person).
 function openFlowForPerson(person){
   idx = 0;
@@ -1333,7 +1348,7 @@ function renderStep(){
   if (flowPerson && s.key === 'moment'){
     sEyebrow = 'For ' + (flowPerson.name || 'someone you care about');
     sTitle = "What's happening with " + firstName(flowPerson.name) + "?";
-    sHelp = "Just tell us the situation. We already know who they are to you.";
+    sHelp = "Just tell me the situation. I already know who they are to you.";
   }
   const current = answers[s.key] || "";
   const chosen = picks[s.key] || [];
@@ -1344,6 +1359,7 @@ function renderStep(){
   stage.innerHTML = `
     <div class="panel-body step-body">
       <div class="q-eyebrow">${sEyebrow} · ${idx+1} of ${STEPS.length}</div>
+      ${idx === 0 ? (function(){ var d = dellaIntakeIntro(); return d ? `<p class="q-della">${d}</p>` : ''; })() : ''}
       <h2 class="q-title">${sTitle}</h2>
       <p class="q-help">${sHelp}</p>
       ${idx === 0 ? `<p class="q-reassure" style="margin:-4px 0 4px;font-size:12.5px;color:var(--tc-ink-mute);">Takes about a minute. Most people breeze through. Only this first question is needed.</p>` : ''}
@@ -4326,7 +4342,7 @@ function renderPlan(p){
     <div class="block">
       <h4>${icon('<rect x="4" y="9" width="16" height="12" rx="1"/><path d="M2 5h20v4H2zM12 21V5"/><path d="M12 5S9 1 6.5 2.5 8 6 12 5Zm0 0s3-4 5.5-2.5S16 6 12 5Z"/>')}If you'd like to send something</h4>
       ${gifts.map((g, i) => renderGiftCard(g, i)).join('')}
-      ${(answers.location||'').trim() ? '' : `<div class="mp-invite" style="margin:2px 4px 0;font-size:13px;color:var(--ink-soft,#5a554c);"><span style="color:var(--sage-deep);vertical-align:-1px;margin-right:4px;">${PIN_SVG}</span>Know their town or ZIP? <a href="#" id="addLocationLink" style="color:var(--sage-deep);font-weight:600;">Add it</a> and we'll point you to real shops near them.</div>`}
+      ${(answers.location||'').trim() ? '' : `<div class="mp-invite" style="margin:2px 4px 0;font-size:13px;color:var(--ink-soft,#5a554c);"><span style="color:var(--sage-deep);vertical-align:-1px;margin-right:4px;">${PIN_SVG}</span>Know their town or ZIP? <a href="#" id="addLocationLink" style="color:var(--sage-deep);font-weight:600;">Add it</a> and I'll point you to real shops near them.</div>`}
       <div class="more-places">
         <div class="mp-label">More lovely places to look:</div>
         <div class="mp-links">
@@ -4381,7 +4397,7 @@ function renderPlan(p){
       <div class="block"><h4>${icon('<circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/>')}How much to spend</h4><p>${escapeHtml(p.spend_guidance||'')}</p></div>
       ${giftsBlock}
       <div class="block"><h4>${icon('<path d="M3 12h4l2 6 4-14 2 6h6"/>')}Keep showing up</h4>${follow}</div>
-      <div class="closing">${escapeHtml(p.closing_encouragement||'')}</div>
+      <div class="closing">${escapeHtml(p.closing_encouragement||'')}${window.__HER_NAME ? `<span class="plan-sign">— ${escapeHtml(window.__HER_NAME)}</span>` : ''}</div>
     </div>
     <div style="padding:8px 32px 0;">
       <!-- TC-71: one unified "keep this plan" card. Both ways to save live here — email it
