@@ -948,12 +948,12 @@
     <div class="steps">
       <div class="step">
         <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#f0f7fb"/><circle cx="150" cy="60" r="120" fill="#e3f0f6"/><path d="M95 78q0-24 24-24h62q24 0 24 24v10q0 24-24 24h-42l-20 18v-18h0q-24 0-24-24Z" fill="#fdfbf7" stroke="#9dcbe1" stroke-width="2"/><path d="M112 74h76M112 88h54" stroke="#118ab9" stroke-width="3" stroke-linecap="round"/></svg></span>
-        <h3>Tell us, in your words</h3>
-        <p>What happened, and who they are to you. We listen first.</p>
+        <h3>Tell me, in your words</h3>
+        <p>What happened, and who they are to you. I listen first.</p>
       </div>
       <div class="step">
         <span class="scene"><svg viewBox="0 0 300 130" preserveAspectRatio="xMidYMid slice"><rect width="300" height="130" fill="#f6efe6"/><circle cx="150" cy="66" r="120" fill="#f0f7fb"/><path d="M150 104s-40-24-40-52a20 20 0 0 1 40-12 20 20 0 0 1 40 12c0 28-40 52-40 52Z" fill="#fadbd9" stroke="#ef4136" stroke-width="2.5"/></svg></span>
-        <h3>We think it through</h3>
+        <h3>I think it through</h3>
         <p>The way a thoughtful friend would: what helps, not just what's easy.</p>
       </div>
       <div class="step">
@@ -1060,7 +1060,7 @@
   @media (prefers-reduced-motion: reduce) { .tc-cv-orbstage .orbIW, .tc-cv-orbstage .halo { animation:none !important; } }
   /* Slice 2 refinement: her NAME, carried across the seam from the home "talk with Della".
      Quiet + serif (the brand voice), subordinate to the orb, sitting just above the state label. */
-  .tc-cv-name { font-family:var(--tc-font); font-size:16px; font-weight:600; color:var(--ink,#2c2a26); line-height:1.2; margin-top:2px; }
+  .tc-cv-name { font-family:var(--tc-serif); font-style:italic; font-size:17px; font-weight:500; color:var(--ink,#2c2a26); line-height:1.2; margin-top:2px; }
   .tc-cv-plabel { font-size:14px; font-weight:700; letter-spacing:.01em; line-height:1.2; }
 
   /* Soft full-width state tint on the bar background — the accessible hue cue kept from TC-88. */
@@ -2164,6 +2164,16 @@ const CV_OPENER = "Tell me who's on your mind, and what's happening for them. I'
 function cvOpener(){
   if (flowPerson && flowPerson.name){
     return firstName(flowPerson.name) + "'s on your mind. Tell me what's going on.";
+  }
+  // First-ever meeting on this device: she introduces herself ONCE (never again). She knows
+  // her name when asked; this is the single time she offers it unprompted — a person saying
+  // hello. Uses HER_NAME from public-config; if it hasn't loaded, degrade to the plain opener
+  // (no hardcoded name). Returning visitors get the unchanged opener — she doesn't reintroduce.
+  var met = false; try { met = localStorage.getItem('tc_met_her') === '1'; } catch(e){}
+  var her = window.__HER_NAME || '';
+  if (!met && her){
+    try { localStorage.setItem('tc_met_her','1'); } catch(e){}
+    return "Hi, I'm " + her + ". " + CV_OPENER;
   }
   return CV_OPENER;
 }
