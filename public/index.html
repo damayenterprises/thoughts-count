@@ -117,16 +117,16 @@
   body.living-bg #bg { background: none; }
   /* base wash behind the blobs — never flashes white */
   body.living-bg #bg .bg-wash { position: absolute; inset: 0;
-    background: radial-gradient(135% 108% at 26% 6%, #d6ecf5 0%, #9fcfe6 30%, #3f9ecb 66%, #0f82b3 100%); }
+    background: radial-gradient(145% 122% at 22% 0%, #e2f3fb 0%, #a3d3ec 22%, #3f9ecb 52%, #0e73a2 78%, #06466a 100%); }
   body.living-bg #bg .blob { position: absolute; border-radius: 50%; will-change: transform;
     mix-blend-mode: normal; }
   /* c1 brand blue */
   body.living-bg #bg .c1 { width: 62vw; height: 62vw; top: -8vw; left: -6vw; filter: blur(90px);
-    background: radial-gradient(circle at 50% 50%, rgba(17,138,185,.62) 0%, rgba(17,138,185,0) 72%);
+    background: radial-gradient(circle at 50% 50%, rgba(19,146,196,.66) 0%, rgba(19,146,196,0) 74%);
     animation: drift1 34s ease-in-out infinite; }
   /* c2 deep navy */
   body.living-bg #bg .c2 { width: 55vw; height: 55vw; bottom: -10vw; right: -8vw; filter: blur(100px);
-    background: radial-gradient(circle at 50% 50%, rgba(12,96,132,.44) 0%, rgba(12,96,132,0) 70%);
+    background: radial-gradient(circle at 50% 50%, rgba(9,84,120,.56) 0%, rgba(9,84,120,0) 72%);
     animation: drift2 40s ease-in-out infinite; }
   /* c3 sky/teal */
   body.living-bg #bg .c3 { width: 50vw; height: 50vw; top: 22vh; left: 34vw; filter: blur(90px);
@@ -160,7 +160,7 @@
   body.living-bg .bar { transition: background .3s ease, backdrop-filter .3s ease, border-color .3s ease;
     border-bottom: 1px solid transparent; position: sticky; top: 0; z-index: 20; }
   body.living-bg .brand-lockup-color { display: none; }
-  body.living-bg .brand-lockup-reversed { display: block; }
+  body.living-bg .brand-lockup-reversed { display: block; filter: drop-shadow(0 1px 7px rgba(6,38,54,.45)); }
   body.living-bg .bar.scrolled { background: rgba(247,243,236,.72); backdrop-filter: blur(14px) saturate(120%);
     -webkit-backdrop-filter: blur(14px) saturate(120%); border-bottom: 1px solid rgba(255,255,255,.35); }
   body.living-bg .bar.scrolled .brand-lockup-color { display: block; }
@@ -213,9 +213,9 @@
 
   .bar { display: flex; align-items: center; justify-content: space-between; padding: 18px 30px; max-width: 1080px; margin: 0 auto; }
   .brand { display: inline-flex; align-items: center; text-decoration: none; }
-  .brand svg { width: auto; height: 34px; flex: 0 0 auto; }
+  .brand svg { width: auto; flex: 0 0 auto; }
   /* real designer horizontal lockup carries the wordmark; keep the mark+wordmark aspect */
-  .brand-lockup { height: 30px; width: auto; display: block; }
+  .brand-lockup { height: 46px; width: auto; display: block; }
   .brand-lockup-reversed { display: none; }
   /* mark-alone + typeset wordmark (modal heads): the mark is the real bubble+heart, the
      word "Thoughts Count" is set in type beside it */
@@ -566,7 +566,7 @@
      bigger brand prominent without overflowing a narrow (~360px) screen. */
   @media (max-width: 600px) {
     .bar { padding: 16px 16px; }
-    .brand-lockup { height: 24px; }
+    .brand-lockup { height: 32px; }
     .bar-menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
     .bar-menu {
       position: absolute; top: calc(100% + 10px); right: 0; z-index: 60;
@@ -841,7 +841,7 @@
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="4" y1="7" x2="20" y2="7"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="17" x2="20" y2="17"/></svg>
     </button>
     <div class="bar-menu" id="barMenu">
-      <a href="/guides/" class="tc-navlink">Guides</a>
+      <a href="/guides/" class="tc-navlink">Helpful Guides</a>
       <span id="authSlot"></span>
     </div>
   </div>
