@@ -174,20 +174,19 @@
   /* ---- hero: drop the blue panel; keep white text over a soft scrim ---- */
   body.living-bg .hero { background: transparent; }
   body.living-bg .hero-inner { position: relative;
-    text-shadow: 0 1px 2px rgba(6,38,54,.42), 0 2px 26px rgba(6,38,54,.55); }
-  /* A soft-edged shade that holds enough depth ACROSS the copy zone to keep white
-     hero text ≥4.5:1 even at the lightest blob pose (verified over cream/amber
-     worst case), then feathers at the perimeter so it reads as ambient shade, not a
-     card. Deep-navy hue keeps it on-brand rather than a grey block. */
-  body.living-bg .hero-inner::before { content: ""; position: absolute; inset: -8% -6% -12%; z-index: -1;
-    border-radius: 44px; pointer-events: none;
+    text-shadow: 0 1px 3px rgba(6,38,54,.5), 0 2px 30px rgba(6,38,54,.6); }
+  /* Edgeless ambient darkening behind the hero copy — NO rounded box. It extends well
+     past the copy and fades fully to transparent before any edge, so the gradient reads
+     as one full-bleed flowing screen (not a floating card). Text-shadow + the deeper
+     gradient carry white-text legibility. */
+  body.living-bg .hero-inner::before { content: ""; position: absolute; inset: -55% -40%; z-index: -1;
+    border-radius: 0; pointer-events: none;
     background:
-      radial-gradient(72% 64% at 50% 45%,
-        rgba(9,52,72,.40) 0%,
-        rgba(9,52,72,.34) 46%,
-        rgba(9,52,72,.20) 70%,
-        rgba(9,52,72,.07) 86%,
-        rgba(9,52,72,0) 100%); }
+      radial-gradient(58% 52% at 50% 46%,
+        rgba(9,52,72,.34) 0%,
+        rgba(9,52,72,.22) 44%,
+        rgba(9,52,72,.10) 66%,
+        rgba(9,52,72,0) 80%); }
 
   /* ---- content-dense sections ride calm frosted "rooms", not bare weather ---- */
   body.living-bg .section { background: rgba(253,251,247,.78); backdrop-filter: blur(8px);
@@ -197,12 +196,12 @@
     -webkit-backdrop-filter: blur(8px); border-bottom-color: rgba(157,203,225,.4); }
   /* quote band = reversed white italic over a soft scrim on the bare weather */
   body.living-bg .quote-band { background: transparent; position: relative; }
-  body.living-bg .quote-band .wrap::before { content: ""; position: absolute; inset: 2% 4%; z-index: -1;
-    border-radius: 44px; pointer-events: none;
-    background: radial-gradient(84% 82% at 50% 50%,
-      rgba(9,52,72,.60) 0%, rgba(9,52,72,.56) 46%, rgba(9,52,72,.34) 70%, rgba(9,52,72,0) 100%); }
+  body.living-bg .quote-band .wrap::before { content: ""; position: absolute; inset: -40% -30%; z-index: -1;
+    border-radius: 0; pointer-events: none;
+    background: radial-gradient(60% 60% at 50% 50%,
+      rgba(9,52,72,.42) 0%, rgba(9,52,72,.28) 48%, rgba(9,52,72,.10) 70%, rgba(9,52,72,0) 82%); }
   body.living-bg .quote-band .wrap { position: relative; }
-  body.living-bg .quote-band blockquote { color: #fff; }
+  body.living-bg .quote-band blockquote { color: #fff; text-shadow: 0 1px 3px rgba(6,38,54,.5), 0 2px 24px rgba(6,38,54,.55); }
   body.living-bg .quote-band .who { color: rgba(255,255,255,.9); }
   body.living-bg .quote-band .concept-tag { color: rgba(255,255,255,.75); }
   /* footer promise sits on the open wash — keep it legible without a card */
