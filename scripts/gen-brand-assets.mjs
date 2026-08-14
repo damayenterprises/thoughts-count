@@ -11,7 +11,14 @@ import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
 const pub = join(dirname(fileURLToPath(import.meta.url)), '..', 'public');
+const finalDir = join(dirname(fileURLToPath(import.meta.url)), '..', 'brand-assets', 'final');
 const appIcon = readFileSync(join(pub, 'icon-app.svg'));
+
+// Real designer lockup (white wordmark + white bubble + red heart on blue).
+// Pull the inner markup so we can place it inside the OG canvas as a nested <svg>.
+const lockupReversed = readFileSync(join(finalDir, 'lockup-reversed.svg'), 'utf8');
+// Strip the lockup's own opaque blue <rect> so our OG gradient panel shows through.
+const lockupInner = lockupReversed.replace(/<rect\b[^>]*class="cls-1"[^>]*\/>/, '');
 
 // ---- app icons (opaque; the SVG already has a solid blue rounded-square bg) ----
 async function png(size, out) {
@@ -22,7 +29,10 @@ async function png(size, out) {
   console.log('wrote', out, size + 'x' + size);
 }
 
-// ---- OG image 1200x630: blue panel + reversed lockup (white bubble/red heart + white wordmark) + tagline ----
+// ---- OG image 1200x630: blue panel + REAL reversed lockup (designer vector) + tagline ----
+// The lockup is placed as a nested <svg> (its viewBox is 0 0 1000 204.09). Centered,
+// 760px wide, sitting above the tagline.
+const LOCKUP_W = 760, LOCKUP_H = LOCKUP_W * (204.09 / 1000);
 const OG = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" viewBox="0 0 1200 630">
   <defs>
     <linearGradient id="p" x1="0" y1="0" x2="1" y2="1">
@@ -32,18 +42,13 @@ const OG = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" vi
     </linearGradient>
   </defs>
   <rect width="1200" height="630" fill="url(#p)"/>
-  <!-- reversed mark: white bubble + red heart, centered above the wordmark -->
-  <g transform="translate(548,132) scale(1.04)">
-    <path d="M50 12c21 0 36 14.5 36 33 0 18.5-15 33-36 33-4.6 0-9-0.7-13-2l-16 8 4.4-15.4C15.7 96.2 14 84.5 14 45 14 26.5 29 12 50 12Z" fill="#ffffff"/>
-    <path fill="#ef4136" d="M50 63c-1 0-1.9-.4-2.6-1.1l-11-11a8.8 8.8 0 0 1 0-12.5 8.8 8.8 0 0 1 12.5 0l1.1 1.1 1.1-1.1a8.8 8.8 0 0 1 12.5 0 8.8 8.8 0 0 1 0 12.5l-11 11c-.7.7-1.6 1.1-2.6 1.1Z"/>
-  </g>
-  <text x="600" y="360" text-anchor="middle"
-    font-family="Montserrat, 'Segoe UI', Arial, sans-serif" font-weight="700"
-    font-size="72" letter-spacing="18" fill="#ffffff">THOUGHTS COUNT</text>
-  <text x="600" y="452" text-anchor="middle"
+  <svg x="${(1200 - LOCKUP_W) / 2}" y="${(630 - LOCKUP_H) / 2 - 30}" width="${LOCKUP_W}" height="${LOCKUP_H}" viewBox="0 0 1000 204.09">
+    ${lockupInner.replace(/<\?xml[^>]*\?>/, '').replace(/<svg\b[^>]*>/, '').replace(/<\/svg>\s*$/, '')}
+  </svg>
+  <text x="600" y="470" text-anchor="middle"
     font-family="Montserrat, 'Segoe UI', Arial, sans-serif" font-weight="500"
     font-size="26" letter-spacing="6" fill="rgba(255,255,255,0.92)">Thoughtful guidance for life's meaningful moments.</text>
-  <text x="600" y="540" text-anchor="middle"
+  <text x="600" y="548" text-anchor="middle"
     font-family="Montserrat, 'Segoe UI', Arial, sans-serif" font-weight="500"
     font-size="22" letter-spacing="8" fill="rgba(255,255,255,0.82)">IT'S THE THOUGHT THAT COUNTS</text>
 </svg>`;

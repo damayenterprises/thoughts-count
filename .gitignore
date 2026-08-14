@@ -3,3 +3,7 @@ node_modules/
 .netlify/
 .DS_Store
 deno.lock
+.claude/
+# heavy design source binaries (keep the exported SVGs, not the working files)
+brand-assets/final/*.ai
+brand-assets/final/*.eps
