@@ -353,10 +353,10 @@
   .step p { margin: 0 24px; color: var(--ink-soft); font-size: 14.5px; }
 
   /* ---------- occasion CATEGORY CARDS (rebrand §4 — retires the chip pills) ---------- */
-  .moments { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 16px; margin-top: 8px; }
+  .moments { display: grid; grid-template-columns: repeat(3, 1fr); grid-auto-rows: 1fr; gap: 16px; margin: 8px auto 0; max-width: 760px; }
   .moments .chip { display: flex; flex-direction: column; gap: 12px; align-items: flex-start; text-align: left;
     background: var(--tc-surface); border: 1px solid var(--tc-line); border-radius: var(--r-lg);
-    padding: 22px 18px; min-height: 120px; box-shadow: var(--tc-shadow-sm); font-family: inherit; cursor: pointer;
+    padding: 22px 20px; min-height: 128px; box-shadow: var(--tc-shadow-sm); font-family: inherit; cursor: pointer;
     transition: border-color .15s ease, transform .12s ease, box-shadow .15s ease; }
   .moments .chip .m-ic { width: 32px; height: 32px; flex: 0 0 auto; color: var(--tc-blue); }
   .moments .chip .m-ic svg { width: 32px; height: 32px; display: block; }
@@ -556,6 +556,7 @@
   footer .colophon .sep { opacity: .5; margin: 0 8px; }
   footer .colophon .copyright { display: block; margin-top: 6px; }
 
+  @media (max-width: 520px) { .moments { grid-template-columns: 1fr; } }
   @media (max-width: 720px) {
     .steps { grid-template-columns: 1fr; }
     .trust-inner { gap: 18px; }
