@@ -607,7 +607,7 @@
      The orb (canvas nebula, engine in /_orb.js) is the centerpiece + the mic. The
      .stage is the tap target; CSS transforms carry the body breath/pulse per data-state,
      the canvas carries the color life. Palette/motion mirror public/orb.html (approved). */
-  .hero-orb-wrap { display: flex; flex-direction: column; align-items: center; gap: 12px; margin: 4px auto 2px; }
+  .hero-orb-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 4px auto 2px; }
   .hero-orb-wrap .stage { position: relative; width: 240px; height: 240px; display: flex; align-items: center; justify-content: center;
                           cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; outline: none; }
   .hero-orb-wrap .stage:focus-visible { box-shadow: 0 0 0 3px rgba(255,255,255,.9), 0 0 0 6px rgba(255,255,255,.4); }
@@ -619,7 +619,7 @@
   .hero-orb-wrap .orbIW .halo { position: absolute; inset: -24px; border-radius: 50%; z-index: -1; will-change: transform, opacity;
                                 background: radial-gradient(circle, rgba(239,65,54,.28) 0%, rgba(255,255,255,.14) 46%, rgba(255,255,255,0) 72%);
                                 filter: blur(8px); }
-  .hero-orb-prompt { font-size: 17px; color: #fff; font-weight: 700; }
+  .hero-orb-prompt { font-size: 17px; color: #fff; font-weight: 700; margin-top: -16px; }
   .hero-typelink { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.92);
                    cursor: pointer; padding: 4px 8px; text-decoration: underline; text-underline-offset: 3px; opacity: .95; transition: opacity .15s ease; }
   .hero-typelink:hover { opacity: 1; }
@@ -896,7 +896,6 @@
     <h1>Show up for the moments that <em>matter most.</em></h1>
     <p class="lead">Thoughtful guidance for life's meaningful moments.</p>
     <div class="hero-start">
-      <div class="hero-start-label">Who are you showing up for?</div>
       <!-- TC-90/orb-home: Della's presence orb IS the front door. The orb is the mic —
            tap / Enter / Space starts the hands-free spoken conversation (or, mic-less,
            opens the typed one). The old two-button hero-actions (#homeMicBtn "Say it out
@@ -925,17 +924,8 @@
    </div>
   </section>
 
-  <div class="trust">
-    <div class="trust-inner">
-      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#118ab9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-7-4.5-7-10a4 4 0 0 1 7-2.5A4 4 0 0 1 19 11c0 5.5-7 10-7 10Z"/></svg>A calm place to think</div>
-      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#118ab9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7 3v5c0 4.5-3 7.5-7 9-4-1.5-7-4.5-7-9V6l7-3Z"/><path stroke="#ef4136" d="M9 12l2 2 4-4"/></svg>Your details stay yours</div>
-      <div class="t"><svg viewBox="0 0 24 24" fill="none" stroke="#118ab9" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v16m0 0c-1.5-2-4-3-6.5-3V7C8 7 10.5 8 12 10c1.5-2 4-3 6.5-3v10c-2.5 0-5 1-6.5 3Z"/></svg>Personal to your person</div>
-    </div>
-  </div>
-
   <section class="section wrap">
     <h2>What's the moment?</h2>
-    <p class="sub">Pick what's closest, or say it your way.</p>
     <div class="moments">
       <button type="button" class="chip" onclick="openFlow('New baby')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="11" r="6"/><path d="M13 10h.01M19 10h.01M13.5 13.5a3.5 3 0 0 0 5 0"/><path d="M7 28v-2a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v2"/></svg></span><span class="m-label">New baby</span></button>
       <button type="button" class="chip" onclick="openFlow('New job or promotion')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="22" height="14" rx="2"/><path d="M12 11V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M5 17h22"/></svg></span><span class="m-label">New job or promotion</span></button>
