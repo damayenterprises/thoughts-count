@@ -333,7 +333,7 @@
     background: linear-gradient(165deg, #1595c6 0%, var(--tc-blue) 55%, #0f7ea9 100%); }
   .hero.wrap { max-width: none; padding-left: 0; padding-right: 0; }
   .hero-inner { max-width: 1080px; margin: 0 auto; padding: 44px 30px 52px; }
-  .hero h1 { font-size: clamp(38px, 6vw, 60px); line-height: 1.14; font-weight: 700; letter-spacing: -0.01em; margin: 0 auto 22px; max-width: 24ch; color: var(--tc-surface-hi); }
+  .hero h1 { font-size: clamp(38px, 6vw, 60px); line-height: 1.14; font-weight: 700; letter-spacing: -0.015em; margin: 0 auto 22px; max-width: 24ch; color: var(--tc-surface-hi); }
   .hero h1 em { font-family: var(--tc-serif); font-style: italic; font-weight: 500; color: #eaf6fb; }
   .hero p.lead { font-size: clamp(16px, 2vw, 18px); color: rgba(255,255,255,.92); max-width: 46ch; margin: 0 auto 16px; line-height: 1.6; }
   .cta { display: inline-flex; align-items: center; gap: 10px; background: var(--tc-red); color: #fff; border: none; padding: 15px 34px; border-radius: var(--r-pill); font-size: 16px; font-weight: 700; letter-spacing: .02em; cursor: pointer; box-shadow: var(--tc-shadow-md); transition: transform .14s ease, background .2s ease; font-family: inherit; }
@@ -460,7 +460,7 @@
 
   /* ---------- plan ---------- */
   .plan-head { padding: 10px 32px 0; }
-  .plan-headline { font-size: clamp(21px, 3vw, 26px); font-weight: 500; line-height: 1.35; margin: 8px 0 22px; }
+  .plan-headline { font-size: clamp(21px, 3vw, 26px); font-weight: 600; line-height: 1.35; margin: 8px 0 22px; }
   .plan-body { padding: 0 32px 30px; }
   .block { background: var(--cloud); border: 1px solid var(--line); border-radius: 20px; padding: 22px 24px; margin-bottom: 15px; box-shadow: var(--shadow); }
   /* TC-66: slim sage-tinted "I'll remember that" band pinned at the top of the plan (conversation
@@ -1085,10 +1085,7 @@
 <div class="scrim" id="scrim">
   <div class="panel">
     <div class="panel-head">
-      <div class="brand brand-mark-wordmark">
-        <svg viewBox="0 0 250 250" aria-hidden="true"><path fill="#118ab9" d="M30.84,247.61c-1.22,0-2.42-.54-3.34-1.57-1.36-1.51-1.87-3.82-1.31-5.92l9.28-34.68C14.07,182.85,2.33,153.46,2.33,122.3,2.33,55.3,57.27.8,124.8.8s122.47,54.5,122.47,121.5-54.94,121.5-122.47,121.5c-19.29,0-38.44-4.55-55.53-13.17l-36.69,16.6c-.57.26-1.16.38-1.74.38ZM69.39,218.66c.68,0,1.35.17,1.99.5,16.31,8.59,34.78,13.13,53.42,13.13,62.16,0,112.73-49.34,112.73-110S186.96,12.3,124.8,12.3,12.07,61.65,12.07,122.3c0,28.9,11.42,56.2,32.16,76.89,1.5,1.5,2.09,3.92,1.5,6.13l-7.2,26.9,29.12-13.18c.56-.25,1.15-.38,1.74-.38Z"/><path fill="#ef4136" d="M148.18,75.95c-7.61,0-15.23,2.92-21.04,8.75l-2.35,2.36-2.35-2.36c-5.81-5.83-13.42-8.75-21.03-8.75-7.62,0-15.23,2.92-21.04,8.76l-.42.43c-11.62,11.67-11.62,30.59,0,42.27l2.35,2.36,5.15,5.18,37.34,37.52,42.5-42.7,2.35-2.36c11.61-11.67,11.61-30.6,0-42.27l-.43-.43c-5.81-5.83-13.42-8.75-21.04-8.75h0Z"/></svg>
-        Thoughts Count
-      </div>
+      <div class="brand"><img src="/lockup-color.svg" alt="Thoughts Count" style="height:30px;width:auto;display:block;" /></div>
       <button class="close" onclick="closeFlow()" aria-label="Close"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
     </div>
     <div class="progress"><div class="fill" id="progressFill"></div></div>

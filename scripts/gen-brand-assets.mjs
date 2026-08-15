@@ -46,10 +46,10 @@ const OG = `<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="630" vi
     ${lockupInner.replace(/<\?xml[^>]*\?>/, '').replace(/<svg\b[^>]*>/, '').replace(/<\/svg>\s*$/, '')}
   </svg>
   <text x="600" y="470" text-anchor="middle"
-    font-family="Montserrat, 'Segoe UI', Arial, sans-serif" font-weight="500"
+    font-family="Hanken Grotesk, 'Segoe UI', Arial, sans-serif" font-weight="500"
     font-size="26" letter-spacing="6" fill="rgba(255,255,255,0.92)">Thoughtful guidance for life's meaningful moments.</text>
   <text x="600" y="548" text-anchor="middle"
-    font-family="Montserrat, 'Segoe UI', Arial, sans-serif" font-weight="500"
+    font-family="Hanken Grotesk, 'Segoe UI', Arial, sans-serif" font-weight="500"
     font-size="22" letter-spacing="8" fill="rgba(255,255,255,0.82)">IT'S THE THOUGHT THAT COUNTS</text>
 </svg>`;
 
