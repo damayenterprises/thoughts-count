@@ -585,7 +585,18 @@
   }
   /* Header: collapse the right nav into a hamburger menu on phones, and keep the
      bigger brand prominent without overflowing a narrow (~360px) screen. */
+  /* TC-76 mobile: enlarge key tap targets on TOUCH devices only (keeps desktop compact) */
+  @media (pointer: coarse) {
+    .close { min-width: 44px; min-height: 44px; }
+    .tc-copy { min-height: 40px; padding: 8px 10px; }
+    .gift .g-link { min-height: 44px; }
+    .cta.ghost { min-height: 44px; }
+  }
   @media (max-width: 600px) {
+    /* TC-76: the follow-up "when" sentence is long — stack it above the body so it
+       never overflows the panel (was a flex row clipped by the panel's overflow:hidden) */
+    .followup { flex-direction: column; gap: 5px; }
+    .followup .when { min-width: 0; }
     .bar { padding: 16px 16px; }
     .brand-lockup { height: 32px; }
     .bar-menu-toggle { display: inline-flex; align-items: center; justify-content: center; }
@@ -2290,7 +2301,7 @@ function renderConverse(){
       </div>
       <div class="tc-chat-foot" id="cvFoot"></div>
       ${(tcSignedIn() && !flowPerson) ? `<div class="tc-cv-known" id="cvKnownRow"><button type="button" class="link-btn" id="cvAboutKnown">Or jump straight to someone you know</button></div>` : ''}
-      <div class="tc-chat-hint" id="cvHint">${__cv.voice ? "She'll talk with you and listen back. Say \"that's enough, make my plan\" any time, or type instead." : "She'll ask what she needs, then build your plan. You can say \"that's enough, make my plan\" any time."}</div>
+      <div class="tc-chat-hint" id="cvHint">${__cv.voice ? "I'll talk with you and listen back. Say \"that's enough, make my plan\" any time, or type instead." : "I'll ask what I need, then build your plan. You can say \"that's enough, make my plan\" any time."}</div>
     </div>`;
   const opener = cvOpener();
   cvAppend('her', opener);
@@ -2414,7 +2425,7 @@ function cvShowEscape(){
   try { btn.scrollIntoView({ behavior: 'smooth', block: 'nearest' }); } catch (e) { /* older browsers */ }
   // Once the escape link is visible, drop the redundant "you can say…" half of the hint —
   // the link now speaks for itself; keep only the expectation-setting line. (UX finding 2.)
-  const h = document.getElementById('cvHint'); if (h) h.textContent = "She'll ask what she needs, then build your plan.";
+  const h = document.getElementById('cvHint'); if (h) h.textContent = "I'll ask what I need, then build your plan.";
 }
 function cvSetBusy(on){
   __cv.busy = on;
