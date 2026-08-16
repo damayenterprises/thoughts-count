@@ -800,6 +800,51 @@ const GUIDE_BY_SLUG = Object.fromEntries(GUIDES.map((g) => [g.slug, g]));
 // ---------- templates ----------
 // Privacy-first tracker, same shape as the homepage. Shares the tc_sid session so a
 // guide → app journey is one continuous funnel, and records the traffic source.
+// TC-133 marketing analytics: Meta Pixel + Google Analytics (GA4) + Pinterest tag.
+// Public client IDs (safe in the browser, not secrets). Injected immediately after
+// <head> on every generated guide page + the hub — these are the Pinterest pins'
+// landing pages, so they must be tracked like the homepage.
+const MARKETING_TAGS = `<!-- Meta Pixel -->
+<script>
+!function(f,b,e,v,n,t,s)
+{if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+n.queue=[];t=b.createElement(e);t.async=!0;
+t.src=v;s=b.getElementsByTagName(e)[0];
+s.parentNode.insertBefore(t,s)}(window, document,'script',
+'https://connect.facebook.net/en_US/fbevents.js');
+fbq('init', '1056603483422469');
+fbq('track', 'PageView');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://www.facebook.com/tr?id=1056603483422469&ev=PageView&noscript=1"
+alt="" /></noscript>
+<!-- End Meta Pixel -->
+<!-- Google Analytics (GA4) -->
+<script async src="https://www.googletagmanager.com/gtag/js?id=G-8WM0S308TV"></script>
+<script>
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+gtag('config', 'G-8WM0S308TV');
+</script>
+<!-- End Google Analytics -->
+<!-- Pinterest Tag -->
+<script>
+!function(e){if(!window.pintrk){window.pintrk=function(){window.pintrk.queue.push(
+Array.prototype.slice.call(arguments))};var n=window.pintrk;n.queue=[],n.version="3.0";
+var t=document.createElement("script");t.async=!0,t.src=e;var r=
+document.getElementsByTagName("script")[0];r.parentNode.insertBefore(t,r)}}
+("https://s.pinimg.com/ct/core.js");
+pintrk('load', '2612849670075');
+pintrk('page');
+</script>
+<noscript><img height="1" width="1" style="display:none"
+src="https://ct.pinterest.com/v3/?event=init&tid=2612849670075&noscript=1"
+alt="" /></noscript>
+<!-- End Pinterest Tag -->`;
+
 const TRACKER = `<script>(function(){try{var s=localStorage.getItem('tc_sid');if(!s){s=(self.crypto&&crypto.randomUUID)?crypto.randomUUID():('s'+Date.now()+Math.random().toString(36).slice(2));localStorage.setItem('tc_sid',s);}var t=false;try{t=localStorage.getItem('tc_test')==='1';}catch(e){}var ref='';try{ref=(document.referrer||'').split('/')[2]||'';}catch(e){}var q={};try{var u=new URLSearchParams(location.search);q={utm_source:u.get('utm_source'),utm_medium:u.get('utm_medium'),utm_campaign:u.get('utm_campaign')};}catch(e){}var p=JSON.stringify(Object.assign({event:'page_view',sid:s,test:t,page:location.pathname,ref:ref},q));if(navigator.sendBeacon)navigator.sendBeacon('/api/track',new Blob([p],{type:'application/json'}));else fetch('/api/track',{method:'POST',keepalive:true,headers:{'content-type':'application/json'},body:p});}catch(e){}})();</script>`;
 
 function esc(s) { return String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
@@ -853,6 +898,7 @@ function page(g) {
   return `<!doctype html>
 <html lang="en">
 <head>
+${MARKETING_TAGS}
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>${esc(g.title)} — Thoughts Count</title>
@@ -986,6 +1032,7 @@ function hub() {
   return `<!doctype html>
 <html lang="en">
 <head>
+${MARKETING_TAGS}
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>Guides — What to Say &amp; Do When It Matters | Thoughts Count</title>
