@@ -198,14 +198,30 @@ async function maybeSeedKeyDate(supa, userId, fact, input) {
   const chars = Array.from(label);
   if (chars.length > 70) label = chars.slice(0, 67).join("").trimEnd() + "…";
   const kind = input.keyDateKind || (recurs ? "custom" : "moment");
-  const lead_days = input.leadDays != null ? input.leadDays : 7;
+  // lead_days is the single implicit nudge offset for a key_date that has NO situation_reminders.
+  // An EXPLICIT null (the capture no-default-nudge path) means "remember this date but do NOT
+  // auto-nudge" — the cron skips a null-lead legacy fire. Only an ABSENT leadDays defaults to 7
+  // (legacy behavior for a plain dated fact). `in` distinguishes explicit-null from absent.
+  const lead_days = "leadDays" in input ? input.leadDays : 7;
 
+  const base = { user_id: userId, person_id: fact.person_id, label, kind, event_date: fact.event_date, recurs, source_fact_id: fact.id };
   const { data: kd, error } = await supa
-    .from("key_dates")
-    .insert({ user_id: userId, person_id: fact.person_id, label, kind, event_date: fact.event_date, recurs, lead_days, source_fact_id: fact.id })
-    .select("id").single();
-  if (error) throw error;
-  return kd.id;
+    .from("key_dates").insert({ ...base, lead_days }).select("id").single();
+  if (!error) return kd.id;
+
+  // Graceful degrade for the non-nudging (lead_days = null) capture seed BEFORE migration 011 makes
+  // key_dates.lead_days nullable: the NOT NULL column rejects null → re-seed at the legacy default so
+  // the DATE is still remembered/rendered. Pre-migration this means the old 7-day nudge (the nit is
+  // not yet fixed, but the capture is never lost); post-migration the null insert succeeds and the
+  // date is genuinely non-nudging. Any OTHER insert error still surfaces.
+  const notNull = lead_days === null && /null value|not-null|not null|violates not-null/i.test(error.message || "");
+  if (notNull) {
+    const { data: kd2, error: e2 } = await supa
+      .from("key_dates").insert({ ...base, lead_days: 7 }).select("id").single();
+    if (e2) throw e2;
+    return kd2.id;
+  }
+  throw error;
 }
 
 // seedSituation — the "Tell Della, she remembers" seed helper (spec §4.3). A situation is a rich

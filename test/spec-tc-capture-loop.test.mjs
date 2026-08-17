@@ -19,6 +19,7 @@
 import assert from "node:assert";
 import converse, { dispatchNoteAndRemind } from "../netlify/functions/converse.mjs";
 import { noteToParsed, normalizeReminders, writeFactsToPerson, seedReminders } from "../netlify/functions/_capture.mjs";
+import { seedSituation } from "../netlify/functions/_memory.mjs";
 
 // No key / no supabase → primeAuth is anon, and the handler's own Anthropic call would 200
 // not_configured. We instead mock global.fetch so the ONE Anthropic call returns a forced tool_use.
@@ -129,11 +130,24 @@ await t("empty / missing reminders → [] (the norm)", () => {
   assert.deepEqual(normalizeReminders([]), []);
   assert.deepEqual(normalizeReminders("nope"), []);
 });
-await t("well-formed lead_days kept + clamped to a non-negative integer", () => {
+await t("well-formed lead_days kept + rounded + clamped to a sane band (negatives survive)", () => {
   assert.deepEqual(normalizeReminders([{ lead_days: 0 }]), [{ lead_days: 0 }]);       // "on the day"
   assert.deepEqual(normalizeReminders([{ lead_days: 7.6 }]), [{ lead_days: 8 }]);     // rounded
-  assert.deepEqual(normalizeReminders([{ lead_days: -3 }]), [{ lead_days: 0 }]);      // never negative
-  assert.deepEqual(normalizeReminders([{ lead_days: 99999 }]), [{ lead_days: 3650 }]); // capped
+  assert.deepEqual(normalizeReminders([{ lead_days: -1 }]), [{ lead_days: -1 }]);     // "the day after" — NEGATIVE preserved
+  assert.deepEqual(normalizeReminders([{ lead_days: -3 }]), [{ lead_days: -3 }]);     // "3 days after"
+  assert.deepEqual(normalizeReminders([{ lead_days: -999 }]), [{ lead_days: -90 }]);  // clamped to the after-floor
+  assert.deepEqual(normalizeReminders([{ lead_days: 99999 }]), [{ lead_days: 3650 }]); // capped before
+});
+await t("negative 'day after' round-trips through noteToParsed onto the fact", () => {
+  // BLOCKER 2 end-to-end (pure layer): a -1 "day after" survives noteToParsed → seedSituation input.
+  const p = noteToParsed({
+    person_hint: "Marcus", note: "next chemo", event_date: "2027-09-07",
+    reminders: [{ lead_days: 3, phrase: "a few days before" }, { lead_days: -1, phrase: "the day after" }],
+  });
+  assert.deepEqual(p.facts[0].reminders, [
+    { lead_days: 3, phrase: "a few days before" },
+    { lead_days: -1, phrase: "the day after" },
+  ]);
 });
 await t("malformed entries dropped, phrase preserved when present", () => {
   assert.deepEqual(normalizeReminders([{ phrase: "no lead" }, { lead_days: "x" }, 5, null]), []);
@@ -164,6 +178,89 @@ await t("undated note → DURABLE, no date, reminders dropped (no date to lead f
 await t("empty note → no facts", () => {
   assert.deepEqual(noteToParsed({ note: "   " }).facts, []);
   assert.deepEqual(noteToParsed({}).facts, []);
+});
+
+console.log("\n# seedSituation — a NEGATIVE 'after' reminder seeds a situation_reminders row unchanged (BLOCKER 2)\n");
+
+// A minimal in-memory fake supabase matching ONLY the call shapes seedSituation → maybeSeedKeyDate use:
+//   from(table).select(cols).eq(col,val)[.maybeSingle()] and .insert(row).select(cols).single().
+// Records every situation_reminders row inserted so we can assert lead_days flows through verbatim.
+function makeSeedSupa() {
+  const inserted = { key_dates: [], situation_reminders: [] };
+  function builder(table) {
+    const filters = [];
+    let pendingInsert = null;
+    const api = {
+      select() { return api; },
+      eq(col, val) { filters.push([col, val]); return api; },
+      is() { return api; },   // insertFact's openRows select uses .is('valid_to',null).is('deleted_at',null)
+      update() { return api; }, // supersession update chain (no prior rows here, so it's never awaited to effect)
+      in() { return api; },
+      _rows() {
+        // maybeSeedKeyDate looks up an existing key_date by source_fact_id (none pre-seeded);
+        // seedSituation looks up existing situation_reminders by (user_id, key_date_id) (none);
+        // insertFact's openRows select finds no prior facts (empty). All → [].
+        return [];
+      },
+      async maybeSingle() { return { data: pendingInsert ? pendingInsert : (api._rows()[0] || null), error: null }; },
+      async single() { return { data: pendingInsert, error: null }; },
+      then(res) { return Promise.resolve({ data: api._rows(), error: null }).then(res); },
+      insert(row) {
+        const id = `${table}-${(inserted[table] || (inserted[table] = [])).length + 1}`;
+        pendingInsert = { id, ...row };
+        inserted[table].push({ id, ...row });
+        return api; // .insert(...).select(...).single()
+      },
+    };
+    return api;
+  }
+  return { supa: { from: (t) => builder(t) }, inserted };
+}
+
+await t("seedSituation seeds a -1 'day after' reminder with lead_days=-1 (unchanged)", async () => {
+  const { supa, inserted } = makeSeedSupa();
+  const fact = { id: "fact-1", person_id: "p-1", event_date: "2027-09-07", fact_class: "MILESTONE", object: "next chemo" };
+  const reminders = normalizeReminders([{ lead_days: 3, phrase: "a few days before" }, { lead_days: -1, phrase: "the day after" }]);
+  const out = await seedSituation(supa, "user-1", fact, { reminders });
+  assert.ok(out.keyDateId);                                 // the situation key_date was seeded
+  assert.equal(inserted.key_dates[0].kind, "situation");    // reminders present → kind='situation'
+  const leads = inserted.situation_reminders.map((r) => r.lead_days).sort((a, b) => a - b);
+  assert.deepEqual(leads, [-1, 3]);                         // the NEGATIVE offset survived to the row
+  const after = inserted.situation_reminders.find((r) => r.lead_days === -1);
+  assert.equal(after.label, "the day after");               // the user's own phrasing rides as the label
+  assert.equal(after.active, true);
+});
+
+console.log("\n# No-default-nudge — a dated capture with NO reminders seeds a NON-nudging key_date (nit)\n");
+
+await t("dated note, no reminders → key_date seeded with lead_days=null (remembered, never nudges)", async () => {
+  const { supa, inserted } = makeSeedSupa();
+  const parsed = noteToParsed({ person_hint: "Sarah", note: "surgery on the 12th", event_date: "2027-03-12" });
+  assert.deepEqual(parsed.facts[0].reminders, []);  // the user set none
+  await writeFactsToPerson(supa, "user-1", "p-1", parsed.facts, "conversation", "surgery on the 12th");
+  assert.equal(inserted.key_dates.length, 1);
+  assert.equal(inserted.key_dates[0].lead_days, null); // NON-nudging (della-situational-no-formula)
+  assert.equal(inserted.situation_reminders.length, 0); // no reminders minted
+});
+
+await t("dated note WITH a reminder → situation key_date + the reminder (not non-nudging)", async () => {
+  const { supa, inserted } = makeSeedSupa();
+  const parsed = noteToParsed({ person_hint: "Sarah", note: "baby due", event_date: "2027-04-20", reminders: [{ lead_days: 7, phrase: "a week before" }] });
+  await writeFactsToPerson(supa, "user-1", "p-1", parsed.facts, "conversation", "baby due");
+  assert.equal(inserted.key_dates[0].kind, "situation");
+  assert.notEqual(inserted.key_dates[0].lead_days, null); // has a real lead (ignored by the cron, but not the non-nudging sentinel)
+  assert.deepEqual(inserted.situation_reminders.map((r) => r.lead_days), [7]);
+});
+
+await t("RECURRING birthday, no reminders → keeps its default nudge (legacy behavior UNCHANGED)", async () => {
+  const { supa, inserted } = makeSeedSupa();
+  // A year-less birthday: noteToParsed doesn't build recurring, so hand a RECURRING fact directly.
+  const bday = { person_hint: "Mom", subject: "self", relation: "birthday", object: "birthday",
+    fact_class: "RECURRING", event_date: "0004-06-15", reminders: [] };
+  await writeFactsToPerson(supa, "user-1", "p-1", [bday], "conversation", "Mom's birthday June 15");
+  assert.equal(inserted.key_dates.length, 1);
+  assert.equal(inserted.key_dates[0].lead_days, 7);  // recurring dates STILL nudge at the default
+  assert.equal(inserted.key_dates[0].recurs, true);
 });
 
 console.log("\n# Engine write — writeFactsToPerson seeds ONLY user-set reminders via seedSituation\n");

@@ -15,6 +15,9 @@
 
 import { herIdentity, HER_CHARACTER, HER_NAME } from "./_persona.mjs";
 import { MODEL, humanizeText } from "./generate-background.mjs";
+// Re-exported so the gated live tool-selection test (test/live-note-and-remind.test.mjs) builds the
+// EXACT same request the endpoint sends (same model), never a drifted copy.
+export { MODEL };
 import { requireUser, serviceClient, supabaseConfigured } from "./_supabase.mjs";
 import { rosterForPrompt, resolveNameShaped, resolve, writeFactsToPerson, seedReminders, noteToParsed, recognizableDetail } from "./_capture.mjs";
 
@@ -104,7 +107,13 @@ const NOTE_AND_REMIND_TOOL = {
   // baby in April — what should I get her?") capture the fact with THIS tool AND keep toward a plan.
   name: "note_and_remind",
   description:
-    "Remember something the user just told you about a person, and (only if THEY asked) set a reminder for it. Use this for a CAPTURE — a fact to hold onto — not for planning a gesture. Before you use it on a bare first name, you must already have confirmed WHO (the same roster/confirm rules as always apply — this tool does NOT skip resolving who they mean). NEVER invent a reminder cadence: fill `reminders` ONLY with a lead time the user explicitly asked for; leave it empty otherwise. Also say your warm spoken line in `say`.",
+    "Remember something the user just told you about a person, and — WHENEVER they stated a reminder time — schedule that reminder. Use this for a CAPTURE (a fact to hold onto), not for planning a gesture. Before you use it on a bare first name, you must already have confirmed WHO (the same roster/confirm rules apply — this tool does NOT skip resolving who they mean).\n\n" +
+    "THE REMINDERS ARRAY IS LOAD-BEARING — read this carefully, it is the most common mistake:\n" +
+    "• If the user gave ANY lead time, you MUST put every one of those times into `reminders`. This is not optional: a spoken promise to nudge them that is missing from `reminders` will silently NOT be scheduled, and you will have lied. Convert each stated timing to a signed lead_days relative to event_date — BEFORE the event is positive, ON the day is 0, AFTER the event is NEGATIVE:\n" +
+    "    \"a week before\" -> 7,  \"a few days before\" -> 3,  \"the day before\" -> 1,  \"on the day\"/\"the day of\" -> 0,  \"the day after\" -> -1,  \"a few days after\" -> -3.\n" +
+    "  Worked example — user says \"Sarah's baby is due April 20th 2027, remind me a week before and again the day of\": call with event_date \"2027-04-20\" and reminders [{lead_days:7,phrase:\"a week before\"},{lead_days:0,phrase:\"the day of\"}]. \"Check on me a few days before Marcus's chemo and the day after\" -> reminders [{lead_days:3,phrase:\"a few days before\"},{lead_days:-1,phrase:\"the day after\"}]. \"Set two reminders: 7 days before and 1 day before\" -> reminders [{lead_days:7},{lead_days:1}]. TWO stated times means TWO entries.\n" +
+    "• If the user gave NO timing at all, leave `reminders` empty — NEVER invent a cadence or reach for a default. Most captures have no reminder, and that is correct. If they said \"remind me\" with no when, do NOT guess: use the reply tool to ask one short situational question about when, then set exactly what they answer.\n\n" +
+    "Only your `say` should promise nudges that are actually in `reminders`: if `reminders` is empty, do NOT tell them you'll remind them — just warmly confirm you'll remember. Never say a specific reminder you didn't put in the array.",
   input_schema: {
     type: "object",
     properties: {
@@ -113,17 +122,17 @@ const NOTE_AND_REMIND_TOOL = {
       event_date: { type: "string", description: "The real-world date as YYYY-MM-DD, ONLY if a full date INCLUDING the year is clearly stated or unambiguous. Otherwise omit — never invent a day or a year." },
       reminders: {
         type: "array",
-        description: "USER-SET reminders only. Fill this ONLY when the user asked to be reminded (\"remind me a week before\", \"nudge me the day before\"). NEVER a default cadence. If they said \"remind me\" with no timing, do NOT fill this — ask ONE short situational question first and use reply. Empty/omitted is the norm.",
+        description: "Every reminder the user asked for, each an offset relative to event_date. Fill this WHENEVER the user stated a lead time — one entry per stated time; leaving a stated time out means it is never scheduled, so a nudge you promise aloud MUST appear here. Empty ONLY when the user gave no timing at all (never a default cadence). A lead time is meaningless without an event_date, so include event_date when you set reminders.",
         items: {
           type: "object",
           properties: {
-            lead_days: { type: "integer", description: "Days before event_date to remind, as the user asked (\"a week before\"=7, \"the day before\"=1, \"on the day\"=0). Never a number they didn't state." },
-            phrase: { type: "string", description: "The user's own words for the reminder, if given. Optional." },
+            lead_days: { type: "integer", description: "SIGNED days relative to event_date, as the user asked: positive = BEFORE (\"a week before\"=7, \"a few days before\"=3, \"the day before\"=1), 0 = ON the day (\"on the day\", \"the day of\"), NEGATIVE = AFTER (\"the day after\"=-1, \"a few days after\"=-3, \"a week after\"=-7). Never a number they didn't state." },
+            phrase: { type: "string", description: "The user's own words for the reminder, if given (\"a week before\", \"the day after\"). Optional but helpful." },
           },
           required: ["lead_days"],
         },
       },
-      say: { type: "string", description: "Your warm, human spoken line confirming you'll remember it (and, if you set one, that you'll remind them). 1-2 short sentences, varied, never robotic, never 'saved to database'. On a mixed capture+plan turn, keep flowing toward the plan." },
+      say: { type: "string", description: "Your warm, human spoken line confirming you'll remember it. Only mention a nudge if you actually filled `reminders` — and only the nudges you scheduled there; if `reminders` is empty, just confirm you'll remember, do NOT promise a reminder. 1-2 short sentences, varied, never robotic, never 'saved to database'. On a mixed capture+plan turn, keep flowing toward the plan." },
     },
     required: ["note", "say"],
   },
@@ -134,7 +143,7 @@ const NOTE_AND_REMIND_TOOL = {
 //     resolver): she must land the confirm/disambiguation line, no loop.
 //   • Anonymous → reply + ready + note_and_remind (so she can capture-route + we nudge sign-in).
 //   • Signed in → all of the above + the resolve_person precise checker.
-function toolsFor({ signedIn = false, onlyReplyReady = false } = {}) {
+export function toolsFor({ signedIn = false, onlyReplyReady = false } = {}) {
   if (onlyReplyReady) return TOOLS; // reply + ready only
   if (!signedIn) return [...TOOLS, NOTE_AND_REMIND_TOOL];
   return [...TOOLS, NOTE_AND_REMIND_TOOL, RESOLVE_PERSON_TOOL];
@@ -315,7 +324,9 @@ Two things a person comes to you for — TELL you (capture) or ASK you (plan). R
 - OTHER times they want help showing up — "what should I do for her?", "help me find a gift", "I don't know what to say". That is a PLAN. Converse and, when you have enough, hand off with ready, exactly as you always have.
 - A MIXED turn does BOTH at once: "she's having a baby in April — what should I get her?" Capture is never lost. Call note_and_remind to hold the fact AND keep the conversation flowing toward the plan (your say keeps you moving; the plan handoff still happens with ready when you're ready). Never drop the thing they told you just because they also asked for help.
 - WHO still comes first, always. note_and_remind does NOT bypass figuring out who they mean. On a bare first name, CONFIRM WHO first (the same roster/confirm rules above) and WAIT — do not capture to a guessed person. Only once you know who it is do you note_and_remind them.
-- Reminders are USER-SET ONLY — never propose a cadence they didn't ask for. If they tell you the timing ("remind me a week before her birthday", "nudge me the day before"), set that reminder (fill reminders with the lead time they gave). If they say "remind me" with NO timing, do NOT invent one and do NOT reach for a reflexive default like "in two weeks" — ask ONE short, situational question about when they'd like the nudge (use reply), then set what they say. Most captures need no reminder at all; that is fine and normal. Adding a reminder they didn't ask for is a real mistake.
+- Reminders are USER-SET ONLY, and when they set one you MUST record it. Two rules, both load-bearing:
+  1. If they tell you ANY timing ("remind me a week before her birthday", "nudge me the day before", "check on me a few days before and the day after", "set two reminders, seven days before and one day before"), you MUST fill the note_and_remind reminders array with EVERY lead time they gave — one entry each, as a signed lead_days (before = positive, the day = 0, after = negative: "a week before"=7, "the day before"=1, "the day of"=0, "the day after"=-1, "a few days after"=-3). Leaving a stated time OUT of the array means it is never scheduled — so if your spoken line promises a nudge, that nudge MUST be in the reminders array. Never promise a reminder you didn't put there. Two timings means two entries.
+  2. If they say "remind me" with NO timing, or give no timing at all, do NOT invent one and do NOT reach for a reflexive default like "in two weeks" — leave the reminders array empty. When they clearly want a nudge but named no when, ask ONE short, situational question about when (use reply), then set exactly what they say. Most captures need no reminder at all; that is fine and normal, and your spoken line should then just confirm you'll remember, not promise a nudge. Adding a reminder they didn't ask for — or promising a nudge you never recorded — is a real mistake.
 
 Deciding when you have enough (you are an advisor judging, NOT a form validating):
 - The essentials are usually: what happened, who this person is to them, and enough about the person and relationship to make guidance personal.

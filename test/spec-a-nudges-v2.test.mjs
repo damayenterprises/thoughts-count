@@ -189,6 +189,32 @@ await t("a situation with reminders IGNORES the key_date's own lead_days", async
   assert.equal(out.sent, 0);
 });
 
+console.log("\n# No-default-nudge — a captured one-off with lead_days=NULL is remembered but NEVER nudges");
+await t("null lead_days + no reminders → zero fires on any day (della-situational-no-formula)", async () => {
+  // A one-off dated capture the user set NO reminder on is seeded lead_days:null (non-nudging).
+  const supa = makeSupa({ keyDates: [kd({ lead_days: null, kind: "moment" })] });
+  const { send, outbox } = makeSend();
+  // Try the day it WOULD have fired under the old 7-day default, the event day, and the day after.
+  for (const day of ["2026-08-31", "2026-09-07", "2026-09-08"]) {
+    const out = await runNudges(supa, { today: D(day), send });
+    assert.equal(out.sent, 0, `should never nudge (day ${day})`);
+  }
+  assert.equal(outbox.length, 0);
+  assert.equal(supa.__log.length, 0);              // nothing logged → nothing fired
+});
+await t("null lead_days but WITH explicit reminders → the reminders still fire", async () => {
+  // A non-nudging key_date that later gains a real user-set reminder must fire that reminder
+  // (the null legacy lead is only the fallback when there are NO situation_reminders).
+  const supa = makeSupa({
+    keyDates: [kd({ lead_days: null, kind: "situation" })],
+    reminders: [{ id: "rX", key_date_id: "kd-1", lead_days: 0, label: "day of", active: true }],
+  });
+  const { send } = makeSend();
+  const out = await runNudges(supa, { today: D("2026-09-07"), send });
+  assert.equal(out.sent, 1);
+  assert.equal(supa.__log[0].reminder_id, "rX");
+});
+
 console.log("\n# Guardrails — deleted person, and graceful degrade when the table is absent");
 await t("a tombstoned person never nudges", async () => {
   const supa = makeSupa({ keyDates: [kd({ people: { name: "Sarah", deleted_at: "2026-01-01T00:00:00Z" } })] });

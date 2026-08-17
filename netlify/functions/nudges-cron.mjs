@@ -72,9 +72,21 @@ export async function runNudges(supabase, {
 
     // Build the list of "reminder fires" to evaluate. Legacy: one implicit fire at the
     // key_date's own lead_days with reminder_id = NULL. v2: one fire per active reminder.
-    const fires = reminders.length
-      ? reminders.map((r) => ({ leadDays: Number(r.lead_days), reminderId: r.id, label: r.label }))
-      : [{ leadDays: Number.isFinite(kd.lead_days) ? kd.lead_days : DEFAULT_LEAD_DAYS, reminderId: null, label: null }];
+    //
+    // NON-NUDGING key_date (della-situational-no-formula): a captured one-off the user set NO
+    // reminder on is seeded with lead_days = NULL (see _capture.writeFactsToPerson) — it is
+    // REMEMBERED but must never auto-nudge. So a null lead_days with no explicit reminders yields
+    // ZERO fires (not a defaulted 7-day nudge). A key_date with explicit situation_reminders still
+    // fires each of them regardless of its own (ignored) lead_days.
+    let fires;
+    if (reminders.length) {
+      fires = reminders.map((r) => ({ leadDays: Number(r.lead_days), reminderId: r.id, label: r.label }));
+    } else if (kd.lead_days == null) {
+      fires = [];                                  // non-nudging: remembered, but no implicit nudge
+    } else {
+      fires = [{ leadDays: Number.isFinite(kd.lead_days) ? kd.lead_days : DEFAULT_LEAD_DAYS, reminderId: null, label: null }];
+    }
+    if (!fires.length) continue;                   // nothing to evaluate for this date
 
     // The most-negative offset among this date's fires tells us how many days PAST a one-off
     // event we must keep evaluating it (so an "after" reminder can still fire once the event

@@ -233,9 +233,13 @@ function normalizeParsed(input, lockedPersonId) {
 // TC capture-loop: coerce a model/tool reminders array into clean, trusted internal reminders. A
 // reminder is USER-SET ONLY (spec §3 — della-situational-no-formula: never a reflexive default),
 // so we keep only well-formed entries the caller vouched came from the user, drop the rest, and
-// never fabricate one. lead_days is clamped to a sane, non-negative integer (0 = "on the day").
-// Returns [] for anything missing/malformed (the default, and the norm). Pure + deterministic.
-const MAX_LEAD_DAYS = 3650; // ~10y guard on a stray huge value
+// never fabricate one. lead_days is a SIGNED integer: 0 = "on the day", positive = N days BEFORE,
+// NEGATIVE = N days AFTER the event ("the day after" = -1, per spec §5, _reminders.js, and the
+// nudges-cron after-window). It is clamped only to a sane band so a stray value can't run away, and
+// negatives are PRESERVED (flooring at 0 destroyed "check on me the day after"). Returns [] for
+// anything missing/malformed (the default, and the norm). Pure + deterministic.
+const MAX_LEAD_DAYS = 3650;  // ~10y guard on a stray huge "before" value
+const MIN_LEAD_DAYS = -90;   // sane floor on an "after" value (~3 months past the event)
 export function normalizeReminders(raw) {
   if (!Array.isArray(raw)) return [];
   const out = [];
@@ -243,7 +247,8 @@ export function normalizeReminders(raw) {
     if (!r || typeof r !== "object") continue;
     const n = Number(r.lead_days);
     if (!Number.isFinite(n)) continue;
-    const lead_days = Math.max(0, Math.min(MAX_LEAD_DAYS, Math.round(n)));
+    // Clamp into [MIN_LEAD_DAYS, MAX_LEAD_DAYS]; negatives survive (an "after" reminder).
+    const lead_days = Math.max(MIN_LEAD_DAYS, Math.min(MAX_LEAD_DAYS, Math.round(n)));
     const phrase = String(r.phrase || "").trim();
     out.push(phrase ? { lead_days, phrase } : { lead_days });
   }
@@ -302,6 +307,15 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
                            // caller can seed user-set reminders onto them via seedReminders().
   for (const f of facts) {
     const seeds = f.fact_class === "RECURRING" || f.fact_class === "MILESTONE";
+    const hasReminders = Array.isArray(f.reminders) && f.reminders.length > 0;
+    // della-situational-no-formula (the no-default-nudge fix): a CAPTURED one-off dated moment the
+    // user set NO reminder on must be REMEMBERED but must NOT auto-nudge — most captures need no
+    // reminder, and a reflexive default (the old lead_days:7) is exactly the formulaic cadence the
+    // guardrail forbids. So for a non-recurring MILESTONE with a date and no user-set reminders, seed
+    // the key_date NON-NUDGING (leadDays:null → the cron skips its implicit fire). RECURRING dates
+    // (birthdays, anniversaries) are UNCHANGED — their yearly nudge is the whole point, legacy
+    // behavior preserved. A situation WITH reminders never reaches this branch (hasReminders true).
+    const nonNudgingOneOff = seeds && f.event_date && f.fact_class !== "RECURRING" && !hasReminders;
     const { fact, supersededIds: retired } = await insertFact(supa, userId, {
       personId,
       subject: f.subject,
@@ -318,7 +332,11 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
       // (kind='situation' + N situation_reminders) via insertFact→seedSituation. Empty/absent ⇒
       // today's plain key_date seed exactly (no auto-cadence). WP-B populates f.reminders on the
       // extract/note path; WP-A owns the seeding this line feeds.
-      ...(Array.isArray(f.reminders) && f.reminders.length ? { reminders: f.reminders } : {}),
+      ...(hasReminders ? { reminders: f.reminders } : {}),
+      // A dated one-off with no reminders → non-nudging key_date (remembered, editable, never a
+      // default nudge). leadDays null flows to key_dates.lead_days = null, which the cron treats as
+      // "do not implicitly fire" (see nudges-cron loadReminders/legacy branch).
+      ...(nonNudgingOneOff ? { leadDays: null } : {}),
       ...(seeds && f.event_date
         ? f.relation === "birthday"
           ? { keyDateLabel: "Birthday", keyDateKind: "birthday" }
