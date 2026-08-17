@@ -44,8 +44,11 @@ async function post(sb, path, body) {
 export function captureExtract(sb, { rawText, lockedPersonId = null, source = "typed", preview = false }) {
   return post(sb, "/api/capture/extract", { rawText, lockedPersonId, source, preview });
 }
-export function captureResolve(sb, { captureId, action, personId = null, newPersonName = null, contactKind = null }) {
-  return post(sb, "/api/capture/resolve", { captureId, action, personId, newPersonName, contactKind });
+export function captureResolve(sb, { captureId, action, personId = null, newPersonName = null, contactKind = null, reminders = null }) {
+  // TC capture-loop (seam 3): `reminders` (when provided) is the user's EDITED nudge set from the
+  // confirm card — the SERVER is authoritative and seeds exactly this list (removals included). Only
+  // sent on a confirm/reassign of a situation; null/absent leaves the capture's own reminders as-is.
+  return post(sb, "/api/capture/resolve", { captureId, action, personId, newPersonName, contactKind, ...(Array.isArray(reminders) ? { reminders } : {}) });
 }
 // TC-89 — resolve a bare NAME against the user's people, writing nothing. Returns
 // { kind:'match'|'ambiguous'|'none', person?, candidates?, evidence }. Used to re-check a
@@ -702,6 +705,10 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
           personId: personId || state.personId || null,
           newPersonName: personId || state.personId ? null : nm,
           contactKind,
+          // Seam 3: on a situation, send the current chip state so the server (authoritative) seeds
+          // exactly the edited set. An empty array is a deliberate "no nudges". Non-situations send
+          // nothing, so the capture keeps whatever reminders it already carried.
+          reminders: isSituation ? reminders.map((r) => ({ lead_days: Number(r.lead_days) })) : null,
         });
         card.remove();
         showToast(res.message || (res.personName ? `Saved to ${firstName(res.personName)}` : "Saved"), {});

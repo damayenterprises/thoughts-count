@@ -262,7 +262,11 @@ export async function seedSituation(supa, userId, fact, { reminders, label, recu
       if (seenIncoming.has(lead)) continue;
       seenIncoming.add(lead);
       if (byLead.has(lead)) { reminderIds.push(byLead.get(lead)); continue; }  // already present → reuse
-      const insLabel = r?.label != null ? String(r.label).trim() || null : null;
+      // TC capture-loop (seam 5): preserve the USER'S OWN phrasing on the persisted reminder. The
+      // capture path carries the timing as `phrase` ("a week before her birthday"); use it as the
+      // reminder label so the nudge copy can echo how THEY said it. An explicit `label` still wins.
+      const rawLabel = r?.label != null ? r.label : r?.phrase;
+      const insLabel = rawLabel != null ? String(rawLabel).trim() || null : null;
       const { data: ins, error: insErr } = await supa
         .from("situation_reminders")
         .insert({ user_id: userId, key_date_id: keyDateId, lead_days: lead, label: insLabel, active: true })

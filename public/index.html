@@ -2840,6 +2840,11 @@ function cvRevealSentence(text){ cvAppendStream(text); }
 function cvBuildCtx(){
   if (!flowPerson) return undefined;
   const ctx = {
+    // TC capture-loop (seam 4): carry the focused person's id so note_and_remind attaches a
+    // focused-person note to the RIGHT person with no re-resolution (server re-checks ownership by
+    // user_id before writing). Only set when a saved person is in focus; the anon/home path returns
+    // undefined above, so it never leaks on a no-focus conversation.
+    personId: flowPerson.id || undefined,
     name: flowPerson.name || '',
     relationship: flowPerson.relationship || '',
     location: flowPerson.location || '',
