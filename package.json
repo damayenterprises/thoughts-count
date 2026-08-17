@@ -15,7 +15,8 @@
     "test:tc93": "node test/spec-tc93-roster-prompt.test.mjs",
     "test:tc98": "node test/spec-tc98-image-vcard.test.mjs",
     "test:tc106": "node test/spec-tc106-audio-guard.test.mjs",
-    "test:tc107": "node test/tc107-guided.test.mjs"
+    "test:tc107": "node test/tc107-guided.test.mjs",
+    "test:wpa": "node test/spec-a-nudges-v2.test.mjs"
   },
   "dependencies": {
     "@netlify/blobs": "^8.1.0",
