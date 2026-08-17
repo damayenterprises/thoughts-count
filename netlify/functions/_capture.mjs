@@ -24,6 +24,11 @@
 import { getEnv } from "./_email.mjs";
 import { sameSurname, firstNamesEquivalent } from "./_names.mjs";
 import { insertFact } from "./_memory.mjs";
+// TC capture-loop CONTRACT (WP-A owns seedSituation in _memory.mjs). We depend on it but must not
+// hard-fail to load if WP-A hasn't merged yet, so import the whole namespace and resolve the symbol
+// at call time. Contract: seedSituation(supa, userId, fact, { reminders:[{lead_days,phrase?,label?}] })
+//   → { keyDateId, reminderIds }. Idempotent per (fact, lead_days), like the rest of the seed layer.
+import * as _memory from "./_memory.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -96,6 +101,19 @@ const EXTRACT_SCHEMA = {
           confidence: {
             type: "number",
             description: "0..1 — how confident you are you read this fact correctly from the text. Lower it for vague or inferred readings.",
+          },
+          reminders: {
+            type: "array",
+            description:
+              "TC capture-loop: ONLY when the user ASKED to be reminded about THIS fact (e.g. \"remind me a week before her birthday\", \"nudge me the day before\"). Each entry is a lead time the USER SET — never invent a cadence the user did not ask for. Leave EMPTY (omit) when the user gave no reminder intent; an empty array is the default and must be the norm.",
+            items: {
+              type: "object",
+              properties: {
+                lead_days: { type: "integer", description: "How many days BEFORE the event_date to remind, as the user asked (\"a week before\" = 7, \"the day before\" = 1, \"on the day\" = 0). Never guess a number the user didn't state." },
+                phrase: { type: "string", description: "The user's own words for this reminder, if they gave them (\"a week before her birthday\"). Optional." },
+              },
+              required: ["lead_days"],
+            },
           },
         },
         required: ["person_hint", "subject", "relation", "object", "fact_class"],
@@ -200,6 +218,9 @@ function normalizeParsed(input, lockedPersonId) {
       event_date: eventDate,
       suggested_gesture: String(f.suggested_gesture || "").trim() || null,
       confidence: typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0.9,
+      // TC capture-loop: user-SET reminders on this fact (empty ⇒ today's behavior exactly). Only
+      // carried when there's a real date to lead from — a lead time is meaningless without one.
+      reminders: eventDate ? normalizeReminders(f.reminders) : [],
     });
   }
   return {
@@ -207,6 +228,57 @@ function normalizeParsed(input, lockedPersonId) {
     location_hint: String(input.location_hint || "").trim(),
     co_mentioned: !!input.co_mentioned,
   };
+}
+
+// TC capture-loop: coerce a model/tool reminders array into clean, trusted internal reminders. A
+// reminder is USER-SET ONLY (spec §3 — della-situational-no-formula: never a reflexive default),
+// so we keep only well-formed entries the caller vouched came from the user, drop the rest, and
+// never fabricate one. lead_days is clamped to a sane, non-negative integer (0 = "on the day").
+// Returns [] for anything missing/malformed (the default, and the norm). Pure + deterministic.
+const MAX_LEAD_DAYS = 3650; // ~10y guard on a stray huge value
+export function normalizeReminders(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const r of raw) {
+    if (!r || typeof r !== "object") continue;
+    const n = Number(r.lead_days);
+    if (!Number.isFinite(n)) continue;
+    const lead_days = Math.max(0, Math.min(MAX_LEAD_DAYS, Math.round(n)));
+    const phrase = String(r.phrase || "").trim();
+    out.push(phrase ? { lead_days, phrase } : { lead_days });
+  }
+  return out;
+}
+
+// TC capture-loop (§4): the note→parsed adapter. converse.mjs's `note_and_remind` tool hands us a
+// SINGLE freeform note about ONE person (person_hint + note text + optional event_date + optional
+// user-set reminders), already routed by Della — not a multi-fact extraction. Shape it into the
+// SAME `parsed` object resolve()/writeFactsToPerson() consume, so the conversation door writes
+// through the exact same engine as the typed door (never a parallel path). subject is always
+// "self" and relation "note" (per the spec's fixed shape for this tool); a full event_date makes it
+// a dated MILESTONE (seeds a key_date + any reminders), otherwise a plain durable note. Reminders
+// only ride when there's a date to lead from. Pure + deterministic — no model call here.
+export function noteToParsed(input = {}) {
+  const note = String(input.note || "").trim();
+  if (!note) return { facts: [], location_hint: "", co_mentioned: false };
+  const personHint = String(input.person_hint || "").trim();
+  const eventDate = /^\d{4}-\d{2}-\d{2}$/.test(String(input.event_date || "").trim()) ? String(input.event_date).trim() : null;
+  const reminders = eventDate ? normalizeReminders(input.reminders) : [];
+  const fact = {
+    person_hint: personHint,
+    subject: "self",
+    relation: "note",
+    object: note,
+    // A dated note is a real event to remember on a day (a MILESTONE seeds a key_date, which the
+    // reminders hang off of); an undated note is a plain durable observation.
+    fact_class: eventDate ? "MILESTONE" : "DURABLE",
+    is_health: false,
+    event_date: eventDate,
+    suggested_gesture: null,
+    confidence: 0.9,
+    reminders,
+  };
+  return { facts: [fact], location_hint: "", co_mentioned: false };
 }
 
 // The per-fact surface window a health episode wants (tighter than the 90-day default). The
@@ -226,6 +298,8 @@ export function surfaceDaysFor(fact) {
 export async function writeFactsToPerson(supa, userId, personId, facts, source, rawText) {
   const writtenIds = [];
   const supersededIds = [];
+  const writtenFacts = []; // TC capture-loop: the persisted fact rows (with id + event_date), so a
+                           // caller can seed user-set reminders onto them via seedReminders().
   for (const f of facts) {
     const seeds = f.fact_class === "RECURRING" || f.fact_class === "MILESTONE";
     const { fact, supersededIds: retired } = await insertFact(supa, userId, {
@@ -251,10 +325,37 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
           : { keyDateLabel: f.object }
         : {}),
     });
-    if (fact?.id) writtenIds.push(fact.id);
+    if (fact?.id) { writtenIds.push(fact.id); writtenFacts.push({ ...fact, reminders: f.reminders || [] }); }
     if (retired?.length) supersededIds.push(...retired);
   }
-  return { writtenIds, supersededIds };
+  return { writtenIds, supersededIds, writtenFacts };
+}
+
+// TC capture-loop (§3.1/§4): seed the USER-SET reminders that ride on written facts. For each
+// persisted fact that carries a real event_date AND a non-empty user-set `reminders` list, call the
+// WP-A seedSituation() contract to attach those lead-time reminders to the fact's key_date. This is
+// the ONE place both doors turn "remind me a week before" into schedule rows, so the conversation
+// door and the typed door seed identically. NEVER invents a cadence (normalizeReminders already
+// dropped anything the user didn't set; an empty list here is a no-op). Best-effort per fact: a
+// seed failure is logged and skipped, never blocks the save. Returns aggregate
+// { keyDateIds:[], reminderIds:[] } for the caller to report/undo. If WP-A's seedSituation isn't
+// present yet (pre-merge), we no-op loudly (console.warn) rather than throw.
+export async function seedReminders(supa, userId, writtenFacts) {
+  const keyDateIds = [];
+  const reminderIds = [];
+  const seed = _memory && typeof _memory.seedSituation === "function" ? _memory.seedSituation : null;
+  for (const f of writtenFacts || []) {
+    const reminders = Array.isArray(f?.reminders) ? normalizeReminders(f.reminders) : [];
+    if (!reminders.length) continue;
+    if (!f?.event_date) continue; // a lead time is meaningless with no date to lead from
+    if (!seed) { console.warn("seedReminders: seedSituation (WP-A) not available yet — skipping", reminders.length); continue; }
+    try {
+      const { keyDateId, reminderIds: rids } = await seed(supa, userId, f, { reminders });
+      if (keyDateId) keyDateIds.push(keyDateId);
+      if (Array.isArray(rids)) reminderIds.push(...rids);
+    } catch (e) { console.error("seedReminders (best-effort, skipped)", e); }
+  }
+  return { keyDateIds, reminderIds };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────────────────

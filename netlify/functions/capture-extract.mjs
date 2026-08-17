@@ -10,7 +10,7 @@
 // skip resolution entirely and every fact is Level A on that person.
 
 import { requireUser, serviceClient, json } from "./_supabase.mjs";
-import { extract, resolve, writeFactsToPerson, recognizableDetail } from "./_capture.mjs";
+import { extract, resolve, writeFactsToPerson, recognizableDetail, seedReminders } from "./_capture.mjs";
 
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 
@@ -64,7 +64,9 @@ export default async (req) => {
     // ── Context-lock: identity is certain, so every fact is Level A on that one person. ──
     if (lockedPersonId && !preview) {
       const person = lockedPerson;
-      const { writtenIds: factIds, supersededIds } = await writeFactsToPerson(supa, userId, lockedPersonId, parsed.facts, source, rawText);
+      const { writtenIds: factIds, supersededIds, writtenFacts } = await writeFactsToPerson(supa, userId, lockedPersonId, parsed.facts, source, rawText);
+      // TC capture-loop: attach any user-SET reminders on these facts (empty ⇒ today's behavior).
+      await seedReminders(supa, userId, writtenFacts);
       const cap = await insertCapture(supa, userId, {
         raw_text: rawText, source, status: "confirmed", context_locked: true,
         proposed_person_id: lockedPersonId, match_confidence: 1, match_evidence: `saved to ${person.name}`,
@@ -125,7 +127,9 @@ export default async (req) => {
       // people, but we re-check here (defense in depth) and fall through to To-Review if it's gone.
       const person = r.level === "A" && r.proposedPersonId ? await getPerson(supa, userId, r.proposedPersonId) : null;
       if (r.level === "A" && person) {
-        const { writtenIds: factIds, supersededIds } = await writeFactsToPerson(supa, userId, person.id, g.facts, source, rawText);
+        const { writtenIds: factIds, supersededIds, writtenFacts } = await writeFactsToPerson(supa, userId, person.id, g.facts, source, rawText);
+        // TC capture-loop: attach any user-SET reminders on these facts (empty ⇒ today's behavior).
+        await seedReminders(supa, userId, writtenFacts);
         const cap = await insertCapture(supa, userId, {
           raw_text: rawText, source, status: "confirmed", context_locked: false,
           proposed_person_id: person.id, match_confidence: r.confidence, match_evidence: r.evidence,
