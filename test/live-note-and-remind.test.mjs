@@ -106,6 +106,27 @@ await t("'set two reminders: 7 days before and 1 day before' → {7, 1}", async 
   assert.ok(leads.has(7) && leads.has(1), `expected {7,1}, got ${[...leads].join(",") || "(none)"}`);
 });
 
+// FIX 1 — the heart of the voice value prop: RELATIVE dates. Before the fix the model had no
+// TODAY anchor, so "in 3 weeks" returned event_date:null, the note fell to a plain DURABLE, and
+// every reminder the user asked for was silently dropped. With today's date injected into the
+// system prompt she must now resolve the relative date to a concrete YYYY-MM-DD AND carry the
+// reminders (including the negative "after" lead). This is the exact spec §4.1 primary example.
+const ISO = /^\d{4}-\d{2}-\d{2}$/;
+await t("RELATIVE date 'in 3 weeks' → concrete event_date + reminders incl. a negative lead", async () => {
+  const { name, input } = await askDella(
+    "Her next chemo is in 3 weeks. Check on me a few days before and again the day after."
+  );
+  assert.equal(name, "note_and_remind", `expected note_and_remind, got ${name}`);
+  assert.ok(
+    ISO.test(String(input.event_date || "")),
+    `expected a concrete YYYY-MM-DD event_date resolved from "in 3 weeks", got ${JSON.stringify(input.event_date)}`
+  );
+  const leads = [...leadSet(input)];
+  assert.ok(leads.length >= 2, `expected >=2 reminders, got ${leads.join(",") || "(none)"}`);
+  assert.ok(leads.some((n) => n > 0), `expected a 'before' (positive) lead, got ${leads.join(",")}`);
+  assert.ok(leads.some((n) => n < 0), `expected an 'after' (negative) lead, got ${leads.join(",")}`);
+});
+
 await t("no timing given → note_and_remind with EMPTY reminders (no invented cadence)", async () => {
   const { name, input } = await askDella("Just remember that she's having a baby in April.");
   // She may route to note_and_remind (capture) — whichever, reminders must NOT be fabricated.

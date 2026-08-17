@@ -88,7 +88,7 @@ const EXTRACT_SCHEMA = {
           },
           event_date: {
             type: "string",
-            description: "The real-world date in YYYY-MM-DD if a FULL date INCLUDING the year is clearly stated or unambiguous (a closing date, a birthday WITH a year, \"moved in June 2026\" → null unless a day is given). Otherwise omit. Never invent a day OR a year. For a birthday given WITHOUT a year (\"her birthday is June 15\") use month_day instead, NOT this field.",
+            description: "The real-world date in YYYY-MM-DD. Set it whenever the note pins down a specific day — either an explicit date (\"closing April 20 2027\", a birthday WITH a year) OR a relative one you resolve against TODAY'S DATE (given in your instructions): \"in 3 weeks\", \"next Tuesday\", \"next month\", \"chemo is in 3 weeks\" all become a concrete YYYY-MM-DD. A month/year with no day (\"moved in June 2026\") stays null. Omit only when no specific day is referenced. Never invent a day or year the note did not point to. For a birthday given WITHOUT a year (\"her birthday is June 15\") use month_day instead, NOT this field.",
           },
           month_day: {
             type: "string",
@@ -138,11 +138,25 @@ Rules:
 - A fact about someone's RELATIVE ("her mom", "his wife", "their son Eli") is a fact about the SAME named person, with the relative in the subject field. It must NEVER become its own person. Only a directly-named person is a person_hint.
 - For a replaceable, one-value-at-a-time attribute use a canonical single-valued relation (health_status, job, location, marital_status, birthday) so a later update can supersede it. For anything a person can have several of (hobby, allergy, interest, preference, food, pet) use a plain category relation — these accumulate and must never replace each other. Use "note" for a general observation.
 - Classify each fact's temporal behavior with fact_class. Mark health/medical episodes is_health:true.
-- Only set event_date when a FULL date INCLUDING a year is present. Never fabricate a day or a year.
+- Set event_date (YYYY-MM-DD) whenever the note pins down a specific day. That includes a RELATIVE day resolved against TODAY'S DATE (given below): "in 3 weeks", "next Tuesday", "next month", "chemo is in 3 weeks", "surgery next Friday" all resolve to a concrete date. An explicit full date works too. A month/year with no day ("moved in June 2026") stays null. Never fabricate a day or year the note did not reference.
 - A birthday or anniversary given as a month + day with NO year ("her birthday is June 15") is a RECURRING yearly date: set month_day to "MM-DD" (e.g. "06-15"), fact_class RECURRING, relation "birthday" for a birthday. Do NOT put it in event_date and do NOT invent a year.
 - If nothing durable is being said, return an empty facts array.
 
 Always respond by calling the extract_memory tool.`;
+
+// TC capture-loop (FIX 1) — the typed door must resolve relative dates too, so both doors behave
+// identically. extract() runs at request time (a typed conversation, NOT the cron), so real
+// wall-clock "now" is correct here. America/Chicago to match the voice door + the rest of the copy.
+// Appended to EXTRACT_SYSTEM at call time so the anchor is fresh per request.
+function extractTodayLine(now = new Date()) {
+  const human = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", weekday: "long", year: "numeric", month: "long", day: "numeric",
+  }).format(now);
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+  return `\n\nTODAY'S DATE is ${human} (${iso}, America/Chicago). Resolve any relative time the note gives ("in 3 weeks", "next Tuesday", "next month") against it into a concrete event_date. Resolve ONLY what the note actually references — never invent a date.`;
+}
 
 // Run the model. Returns { facts:[...], location_hint, co_mentioned } — a normalized parsed
 // object — or throws. `lockedPersonId` (context-lock) tells the model the person is already
@@ -166,7 +180,7 @@ export async function extract(rawText, { lockedPersonId = null } = {}) {
       model: MODEL,
       max_tokens: 900,
       temperature: 0,
-      system: EXTRACT_SYSTEM,
+      system: EXTRACT_SYSTEM + extractTodayLine(),
       tools: [{ name: "extract_memory", description: "Return the structured things to remember from the note.", input_schema: EXTRACT_SCHEMA }],
       tool_choice: { type: "tool", name: "extract_memory" },
       messages: [{ role: "user", content: userMessage }],

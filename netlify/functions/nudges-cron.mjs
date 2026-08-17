@@ -68,7 +68,12 @@ export async function runNudges(supabase, {
     if (kd.people?.deleted_at) continue;
 
     // The reminders for this date. Empty (or a missing table pre-migration) ⇒ legacy path.
-    const reminders = await loadReminders(supabase, kd.id);
+    // Pass the key_date's OWNER so loadReminders drops any cross-user / orphan reminder: the
+    // situation_reminders RLS with-check only pins the ROW's user_id, not that key_date_id belongs
+    // to the same user, so an authenticated user could FK-reference another user's key_date and get
+    // an extra nudge fired to the victim (nudge-pollution, no data leak). Firing only reminders whose
+    // user_id == the key_date's owner neutralizes that vector server-side (FIX 2).
+    const reminders = await loadReminders(supabase, kd.id, kd.user_id);
 
     // Build the list of "reminder fires" to evaluate. Legacy: one implicit fire at the
     // key_date's own lead_days with reminder_id = NULL. v2: one fire per active reminder.
@@ -155,15 +160,25 @@ export default async () => {
 
 // Load the active reminders for a key_date. Degrades gracefully: if situation_reminders doesn't
 // exist yet (pre-migration) or the query errors, return [] ⇒ the caller uses the legacy path.
-async function loadReminders(supabase, keyDateId) {
+//
+// FIX 2 — ownership guard. The situation_reminders RLS with-check verifies only the ROW's user_id,
+// not that key_date_id belongs to the same user, so an authenticated user can insert a reminder
+// (their own user_id) FK-referencing ANOTHER user's key_date — the cron would then fire an extra
+// nudge to the victim (nudge-pollution). We pull each reminder's user_id and fire ONLY those whose
+// owner matches the key_date's owner, skipping any cross-user / orphan row. This neutralizes the
+// vector server-side without changing the RLS policy the client editor relies on. When ownerId is
+// omitted (defensively), no filtering is applied so callers that don't pass it are unaffected.
+async function loadReminders(supabase, keyDateId, ownerId = null) {
   try {
     const { data, error } = await supabase
       .from("situation_reminders")
-      .select("id, lead_days, label")
+      .select("id, lead_days, label, user_id")
       .eq("key_date_id", keyDateId)
       .eq("active", true);
     if (error) return [];
-    return Array.isArray(data) ? data : [];
+    let rows = Array.isArray(data) ? data : [];
+    if (ownerId != null) rows = rows.filter((r) => r.user_id === ownerId);
+    return rows;
   } catch {
     return [];
   }

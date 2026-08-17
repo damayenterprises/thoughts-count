@@ -121,9 +121,9 @@ await t("legacy fires ONCE — a second run the same day is deduped", async () =
 
 console.log("\n# Risk 4 — a situation with reminders at +7 / 0 / -1 fires on the right CT days");
 const sitReminders = [
-  { id: "r-before", key_date_id: "kd-1", lead_days: 7, label: "a week before", active: true },
-  { id: "r-day",    key_date_id: "kd-1", lead_days: 0, label: "day of",        active: true },
-  { id: "r-after",  key_date_id: "kd-1", lead_days: -1, label: "day after",    active: true },
+  { id: "r-before", key_date_id: "kd-1", user_id: OWNER, lead_days: 7, label: "a week before", active: true },
+  { id: "r-day",    key_date_id: "kd-1", user_id: OWNER, lead_days: 0, label: "day of",        active: true },
+  { id: "r-after",  key_date_id: "kd-1", user_id: OWNER, lead_days: -1, label: "day after",    active: true },
 ];
 await t("+7 reminder fires 7 days before, logged under its reminder_id", async () => {
   const supa = makeSupa({ keyDates: [kd({ kind: "situation" })], reminders: sitReminders });
@@ -150,7 +150,7 @@ await t("-1 'after' reminder fires the DAY AFTER a now-past one-off", async () =
 await t("recurring situation reminders fire correctly across a YEAR boundary", async () => {
   // Dec 25 recurring, +7 reminder → fires Dec 18 whatever the year.
   const rec = kd({ id: "kd-x", event_date: "2020-12-25", recurs: true, kind: "situation", label: "the holidays" });
-  const rems = [{ id: "r7", key_date_id: "kd-x", lead_days: 7, label: null, active: true }];
+  const rems = [{ id: "r7", key_date_id: "kd-x", user_id: OWNER, lead_days: 7, label: null, active: true }];
   const supa = makeSupa({ keyDates: [rec], reminders: rems });
   const { send } = makeSend();
   const out = await runNudges(supa, { today: D("2026-12-18"), send });
@@ -166,8 +166,8 @@ await t("two reminders due the SAME day both fire and log separately", async () 
   const supa = makeSupa({
     keyDates: [kd({ kind: "situation" })],
     reminders: [
-      { id: "rA", key_date_id: "kd-1", lead_days: 7, label: null, active: true },
-      { id: "rB", key_date_id: "kd-1", lead_days: 0, label: null, active: true },
+      { id: "rA", key_date_id: "kd-1", user_id: OWNER, lead_days: 7, label: null, active: true },
+      { id: "rB", key_date_id: "kd-1", user_id: OWNER, lead_days: 0, label: null, active: true },
     ],
   });
   const { send } = makeSend();
@@ -182,7 +182,7 @@ await t("a situation with reminders IGNORES the key_date's own lead_days", async
   // kd.lead_days is 7, but the only reminder is at 0 → nothing fires 7 days out.
   const supa = makeSupa({
     keyDates: [kd({ kind: "situation" })],
-    reminders: [{ id: "rOnly", key_date_id: "kd-1", lead_days: 0, label: null, active: true }],
+    reminders: [{ id: "rOnly", key_date_id: "kd-1", user_id: OWNER, lead_days: 0, label: null, active: true }],
   });
   const { send } = makeSend();
   const out = await runNudges(supa, { today: D("2026-08-31"), send });   // 7 before → the legacy lead is ignored
@@ -207,7 +207,7 @@ await t("null lead_days but WITH explicit reminders → the reminders still fire
   // (the null legacy lead is only the fallback when there are NO situation_reminders).
   const supa = makeSupa({
     keyDates: [kd({ lead_days: null, kind: "situation" })],
-    reminders: [{ id: "rX", key_date_id: "kd-1", lead_days: 0, label: "day of", active: true }],
+    reminders: [{ id: "rX", key_date_id: "kd-1", user_id: OWNER, lead_days: 0, label: "day of", active: true }],
   });
   const { send } = makeSend();
   const out = await runNudges(supa, { today: D("2026-09-07"), send });
@@ -221,6 +221,39 @@ await t("a tombstoned person never nudges", async () => {
   const { send } = makeSend();
   const out = await runNudges(supa, { today: D("2026-08-31"), send });
   assert.equal(out.sent, 0);
+});
+
+console.log("\n# FIX 2 — cross-user reminder (RLS with-check gap) is never fired");
+const ATTACKER = "99999999-9999-9999-9999-999999999999";
+await t("a situation_reminder whose user_id != the key_date owner is NOT fired", async () => {
+  // The attacker inserted a reminder with THEIR own user_id but FK-referencing the OWNER's key_date
+  // (the RLS with-check only pins the row's user_id, not the key_date's owner). The cron must skip it.
+  // Use a NON-NUDGING key_date (lead_days:null) so there is no legitimate legacy fire — the ONLY
+  // thing that could fire is the attacker's orphan, isolating the vector.
+  const supa = makeSupa({
+    keyDates: [kd({ kind: "situation", lead_days: null })],  // owned by OWNER, no implicit nudge
+    reminders: [{ id: "r-evil", key_date_id: "kd-1", user_id: ATTACKER, lead_days: 7, label: "gotcha", active: true }],
+  });
+  const { send, outbox } = makeSend();
+  const out = await runNudges(supa, { today: D("2026-08-31"), send });  // would-be +7 day
+  assert.equal(out.sent, 0, "cross-user reminder must not fire");
+  assert.equal(outbox.length, 0);
+  assert.equal(supa.__log.length, 0);
+});
+await t("a legit owner reminder still fires even when a cross-user orphan sits alongside it", async () => {
+  // The owner's own reminder must be unaffected by the presence of an attacker's orphan row.
+  const supa = makeSupa({
+    keyDates: [kd({ kind: "situation" })],
+    reminders: [
+      { id: "r-good", key_date_id: "kd-1", user_id: OWNER,    lead_days: 7, label: "a week before", active: true },
+      { id: "r-evil", key_date_id: "kd-1", user_id: ATTACKER, lead_days: 7, label: "gotcha",        active: true },
+    ],
+  });
+  const { send } = makeSend();
+  const out = await runNudges(supa, { today: D("2026-08-31"), send });
+  assert.equal(out.sent, 1, "the owner's reminder still fires");
+  assert.equal(supa.__log.length, 1);
+  assert.equal(supa.__log[0].reminder_id, "r-good");
 });
 
 await Promise.resolve();

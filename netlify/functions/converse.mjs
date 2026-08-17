@@ -119,7 +119,7 @@ const NOTE_AND_REMIND_TOOL = {
     properties: {
       person_hint: { type: "string", description: "The person this is about, exactly as the user named them (\"Sarah\", \"Marcus Bryant\"). Empty ONLY if the conversation is already locked to a person in focus. On a bare first name you must have confirmed WHO first — never guess here." },
       note: { type: "string", description: "What to remember, in a few plain words as the user said it (\"having a baby in April\", \"surgery on the 12th\", \"just got promoted\")." },
-      event_date: { type: "string", description: "The real-world date as YYYY-MM-DD, ONLY if a full date INCLUDING the year is clearly stated or unambiguous. Otherwise omit — never invent a day or a year." },
+      event_date: { type: "string", description: "The real-world date as YYYY-MM-DD. Set it whenever the user gives a date you can pin down — either an explicit date (\"April 20th 2027\") OR a relative one you resolve against today's date (given in your instructions): \"in 3 weeks\", \"next Tuesday\", \"next month\", \"in April\" all become a concrete YYYY-MM-DD. Reminders are meaningless without this, so a stated reminder time means you MUST resolve and set event_date. Omit ONLY when the user truly referenced no time at all — never invent a day or year the user did not point to." },
       reminders: {
         type: "array",
         description: "Every reminder the user asked for, each an offset relative to event_date. Fill this WHENEVER the user stated a lead time — one entry per stated time; leaving a stated time out means it is never scheduled, so a nudge you promise aloud MUST appear here. Empty ONLY when the user gave no timing at all (never a default cadence). A lead time is meaningless without an event_date, so include event_date when you set reminders.",
@@ -287,11 +287,32 @@ ${CB_EXAMPLE_NOTE}
 `;
 }
 
+// TC capture-loop (FIX 1) — TODAY, in Della's voice, so she can resolve the relative dates people
+// actually speak ("in 3 weeks", "next Tuesday", "next month", "in April") into a concrete
+// event_date. Without this she has no anchor, so per her own event_date instruction she omits the
+// date, the note is classed a plain durable, and the reminders the user asked for silently vanish
+// (no key_date → seedReminders no-ops). This is a RUNTIME prompt (voice/typed conversation), NOT a
+// test/cron path, so real wall-clock "now" is correct here — do NOT wire the cron's injectable clock
+// in. Computed fresh per request in America/Chicago (portfolio default) so "today" + the day-of-week
+// match the copy elsewhere. Kept a bare instruction (no examples of concrete future dates) so she
+// never anchors on a fabricated day — she resolves ONLY what the user actually referenced.
+function todayLine(now = new Date()) {
+  const human = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", weekday: "long", year: "numeric", month: "long", day: "numeric",
+  }).format(now); // e.g. "Sunday, August 17, 2026"
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now); // YYYY-MM-DD
+  return `Today's date is ${human} (${iso}, America/Chicago). When the user gives a relative time — "in 3 weeks", "next Tuesday", "next month", "in April", "a week from Friday" — resolve it against today's date into a concrete YYYY-MM-DD and use THAT as event_date. Leave event_date empty ONLY when the user gave no time reference at all. Never invent or shift a date the user did not actually reference.`;
+}
+
 export function systemPrompt(ctx) {
   const memory = memoryBlock(ctx);
   const roster = rosterBlock(ctx);
   const checkback = checkbackBlock(ctx);
   return `${herIdentity()}
+
+${todayLine()}
 
 Who you are (let this shape everything you say; never announce or explain it): ${HER_CHARACTER}${memory ? "\n" + memory : ""}${roster ? "\n" + roster : ""}
 
