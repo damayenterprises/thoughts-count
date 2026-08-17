@@ -240,6 +240,11 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
       eventDate: f.event_date || null,
       rawText,
       surfaceDays: surfaceDaysFor(f),
+      // "Tell Della, she remembers" (§4.3): a fact carrying user-set reminders seeds a situation
+      // (kind='situation' + N situation_reminders) via insertFact→seedSituation. Empty/absent ⇒
+      // today's plain key_date seed exactly (no auto-cadence). WP-B populates f.reminders on the
+      // extract/note path; WP-A owns the seeding this line feeds.
+      ...(Array.isArray(f.reminders) && f.reminders.length ? { reminders: f.reminders } : {}),
       ...(seeds && f.event_date
         ? f.relation === "birthday"
           ? { keyDateLabel: "Birthday", keyDateKind: "birthday" }
