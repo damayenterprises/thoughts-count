@@ -155,5 +155,59 @@ await t("UNDATED durable fact → no nudge promised (default applies only to dat
   }
 });
 
+// SELF-KNOWLEDGE / TEACHING — when a user asks "how does this work / what can you do", Della must
+// actually TEACH: explain (in her own voice) that she remembers the people + moments, and that she
+// can set/change reminders — one OR several. We assert on the CONCEPTS being present, not exact
+// wording, so it stays robust to her voice varying every time. We open cold (no prior person) and
+// ask the meta question, then read whatever she speaks — the reply tool's `say`, or a note's `say`.
+async function askDellaCold(userText, { retries = 2 } = {}) {
+  const payload = {
+    model: MODEL,
+    max_tokens: 600,
+    system: systemForCache({ roster: [] }),
+    tools: toolsFor({ signedIn: false }),
+    tool_choice: { type: "any" },
+    messages: [{ role: "user", content: userText }],
+  };
+  let lastErr = "";
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const tool = (data.content || []).find((b) => b.type === "tool_use");
+      if (!tool) throw new Error("no tool_use in the response");
+      return { name: tool.name, input: tool.input || {}, say: String((tool.input || {}).say || "") };
+    }
+    lastErr = `Anthropic ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
+    if (res.status < 500) break;
+    await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+  }
+  throw new Error(lastErr);
+}
+
+await t("'how does this work / what can you do' → she TEACHES: remembers people + can set/change reminders (multiple possible)", async () => {
+  const { name, say } = await askDellaCold(
+    "I'm new here — what can you do, and how does this all work?"
+  );
+  // She should explain, not silently route to a capture (nothing was told to remember yet).
+  assert.equal(name, "reply", `expected her to explain via reply, got ${name}`);
+  const s = say.toLowerCase();
+  assert.ok(say.trim().length > 0, "she said nothing");
+  console.log(`\n    --- her explanation ---\n    ${say.replace(/\n/g, "\n    ")}\n    -----------------------`);
+  // CONCEPT 1: she remembers the people / moments that matter.
+  assert.ok(/rememb|hold onto|hold on to|keep track|carry/.test(s), `should convey she REMEMBERS; got: ${say}`);
+  assert.ok(/people|person|someone|who matter|matter to you|friend|the people/.test(s), `should reference the people she remembers; got: ${say}`);
+  // CONCEPT 2: reminders can be set — and are adjustable / can be more than one.
+  assert.ok(/remind|nudge|heads[- ]?up|check on|check in|let you know/.test(s), `should convey she can REMIND/nudge; got: ${say}`);
+  assert.ok(
+    /change|adjust|remove|drop|more than one|another|several|multiple|one or |as many|whenever you|times you|when you want|day before|day of|day after|week before/.test(s),
+    `should convey reminders are flexible/changeable OR that more than one is possible; got: ${say}`
+  );
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
