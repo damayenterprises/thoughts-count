@@ -156,7 +156,7 @@ await t("malformed entries dropped, phrase preserved when present", () => {
 
 console.log("\n# noteToParsed — shapes a note into the SAME parsed object the engine consumes\n");
 
-await t("dated note → one MILESTONE fact with event_date + user reminders", () => {
+await t("dated note WITH user timing → one MILESTONE fact with event_date + the user's reminders", () => {
   const p = noteToParsed({ person_hint: "Sarah", note: "having a baby", event_date: "2027-04-01", reminders: [{ lead_days: 7 }] });
   assert.equal(p.facts.length, 1);
   const f = p.facts[0];
@@ -166,14 +166,23 @@ await t("dated note → one MILESTONE fact with event_date + user reminders", ()
   assert.equal(f.object, "having a baby");
   assert.equal(f.fact_class, "MILESTONE");
   assert.equal(f.event_date, "2027-04-01");
-  assert.deepEqual(f.reminders, [{ lead_days: 7 }]);
+  assert.deepEqual(f.reminders, [{ lead_days: 7 }]); // user timing used verbatim, no default added on top
 });
-await t("undated note → DURABLE, no date, reminders dropped (no date to lead from)", () => {
+await t("dated note with NO timing → MILESTONE + ONE default reminder at lead 3 (behavior flip)", () => {
+  // The flip: a dated no-timing note now takes a single stated, editable default nudge (3 days before)
+  // instead of silence. It rides as a real reminder on the fact so it seeds + shows as a chip.
+  const p = noteToParsed({ person_hint: "Sarah", note: "surgery on the 12th", event_date: "2027-03-12" });
+  const f = p.facts[0];
+  assert.equal(f.fact_class, "MILESTONE");
+  assert.equal(f.event_date, "2027-03-12");
+  assert.deepEqual(f.reminders, [{ lead_days: 3, label: null }]); // exactly ONE default at lead 3
+});
+await t("undated note → DURABLE, no date, NO reminder (default only applies to dated notes)", () => {
   const p = noteToParsed({ person_hint: "Sarah", note: "loves hiking", reminders: [{ lead_days: 7 }] });
   const f = p.facts[0];
   assert.equal(f.fact_class, "DURABLE");
   assert.equal(f.event_date, null);
-  assert.deepEqual(f.reminders, []); // a lead time is meaningless without a date
+  assert.deepEqual(f.reminders, []); // no date to lead from → no reminder, no default
 });
 await t("empty note → no facts", () => {
   assert.deepEqual(noteToParsed({ note: "   " }).facts, []);
@@ -231,19 +240,21 @@ await t("seedSituation seeds a -1 'day after' reminder with lead_days=-1 (unchan
   assert.equal(after.active, true);
 });
 
-console.log("\n# No-default-nudge — a dated capture with NO reminders seeds a NON-nudging key_date (nit)\n");
+console.log("\n# Default-nudge — a dated capture with NO user timing seeds ONE stated default reminder\n");
 
-await t("dated note, no reminders → key_date seeded with lead_days=null (remembered, never nudges)", async () => {
+await t("dated note, no user timing → situation key_date + ONE default reminder at lead 3 (behavior flip)", async () => {
   const { supa, inserted } = makeSeedSupa();
   const parsed = noteToParsed({ person_hint: "Sarah", note: "surgery on the 12th", event_date: "2027-03-12" });
-  assert.deepEqual(parsed.facts[0].reminders, []);  // the user set none
+  assert.deepEqual(parsed.facts[0].reminders, [{ lead_days: 3, label: null }]); // the single stated default
   await writeFactsToPerson(supa, "user-1", "p-1", parsed.facts, "conversation", "surgery on the 12th");
   assert.equal(inserted.key_dates.length, 1);
-  assert.equal(inserted.key_dates[0].lead_days, null); // NON-nudging (della-situational-no-formula)
-  assert.equal(inserted.situation_reminders.length, 0); // no reminders minted
+  assert.equal(inserted.key_dates[0].kind, "situation");        // reminders present → a situation
+  assert.notEqual(inserted.key_dates[0].lead_days, null);       // NOT the old non-nudging sentinel
+  assert.equal(inserted.situation_reminders.length, 1);         // exactly ONE default reminder minted
+  assert.equal(inserted.situation_reminders[0].lead_days, 3);   // a single heads-up 3 days before
 });
 
-await t("dated note WITH a reminder → situation key_date + the reminder (not non-nudging)", async () => {
+await t("dated note WITH a reminder → situation key_date + the user's reminder (no default on top)", async () => {
   const { supa, inserted } = makeSeedSupa();
   const parsed = noteToParsed({ person_hint: "Sarah", note: "baby due", event_date: "2027-04-20", reminders: [{ lead_days: 7, phrase: "a week before" }] });
   await writeFactsToPerson(supa, "user-1", "p-1", parsed.facts, "conversation", "baby due");

@@ -41,6 +41,35 @@ export const BDAY_SENTINEL_YEAR = "0004";
 // of 90. The extractor tags a health episode so insertFact gets the tighter window.
 const HEALTH_SURFACE_DAYS = 21;
 
+// TC capture-loop (behavior flip 2026-08): a dated note the user set NO reminder timing on now gets
+// ONE sensible DEFAULT heads-up — a single nudge a few days before — instead of the old silence.
+// The bet: a light, TRANSPARENT, EDITABLE default beats "remembered but silent" (the reflexive fixed
+// 7-day cadence was the wrong shape; this is a single situational lead, not a cadence). It seeds as a
+// real situation_reminders row so it shows on the confirm card as an editable chip, is retimable /
+// removable, and is fired by the cron's multi-reminder path exactly like a user-set one.
+//
+// This REPLACES the earlier "no-default-nudge" behavior (leadDays:null non-nudging seed). Migration
+// 011 (making key_dates.lead_days nullable to store that silence) is now ABANDONED — see its header.
+//
+// Rules (all load-bearing):
+//   • Applies ONLY to a REAL event_date with NO user-set reminders. A user who stated any timing gets
+//     exactly theirs (never the default on top). A NON-dated durable fact gets NO reminder at all.
+//   • RECURRING dates (birthdays/anniversaries) keep their own legacy yearly nudge (lead_days:7 on the
+//     key_date) — they don't take a situation_reminders default; their nudge is the whole point.
+//   • Della NAMES this default when she confirms (event_date minus the lead), so it's never a surprise.
+export const DEFAULT_REMINDER_LEAD_DAYS = 3;
+
+// The one default reminder for a dated, no-timing note: a single heads-up DEFAULT_REMINDER_LEAD_DAYS
+// before the event. `label: null` so the cron's copy falls back to the key_date label (there's no
+// user phrasing to echo). Returns [] for anything that must NOT take the default: no real date, a
+// RECURRING date (its own yearly nudge covers it), or reminders the user already set.
+function defaultRemindersFor({ eventDate, factClass, reminders }) {
+  if (!eventDate) return [];                                   // undated durable → no nudge
+  if (factClass === "RECURRING") return [];                   // birthdays/anniversaries keep legacy nudge
+  if (Array.isArray(reminders) && reminders.length) return []; // user set their own → never add on top
+  return [{ lead_days: DEFAULT_REMINDER_LEAD_DAYS, label: null }];
+}
+
 // ──────────────────────────────────────────────────────────────────────────────────────────
 //  EXTRACTION
 // ──────────────────────────────────────────────────────────────────────────────────────────
@@ -222,6 +251,16 @@ function normalizeParsed(input, lockedPersonId) {
     }
     // A month-day-only date is inherently yearly → force RECURRING so it seeds a recurring key_date.
     const factClassFinal = recurringMonthDay ? "RECURRING" : factClass;
+    // TC capture-loop: user-SET reminders on this fact (empty ⇒ no user timing). Only carried when
+    // there's a real date to lead from — a lead time is meaningless without one.
+    const userReminders = eventDate ? normalizeReminders(f.reminders) : [];
+    // Behavior flip: a dated note with NO user timing takes ONE stated, editable DEFAULT reminder
+    // (a few days before) instead of silence. User timing, an undated fact, or a RECURRING date all
+    // return the user's own list / [] (see defaultRemindersFor). The default is a real, removable
+    // situation_reminders row — Della names it when she confirms.
+    const reminders = userReminders.length
+      ? userReminders
+      : defaultRemindersFor({ eventDate, factClass: factClassFinal, reminders: userReminders });
     clean.push({
       person_hint: personHint,
       subject,
@@ -232,9 +271,7 @@ function normalizeParsed(input, lockedPersonId) {
       event_date: eventDate,
       suggested_gesture: String(f.suggested_gesture || "").trim() || null,
       confidence: typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0.9,
-      // TC capture-loop: user-SET reminders on this fact (empty ⇒ today's behavior exactly). Only
-      // carried when there's a real date to lead from — a lead time is meaningless without one.
-      reminders: eventDate ? normalizeReminders(f.reminders) : [],
+      reminders,
     });
   }
   return {
@@ -282,15 +319,21 @@ export function noteToParsed(input = {}) {
   if (!note) return { facts: [], location_hint: "", co_mentioned: false };
   const personHint = String(input.person_hint || "").trim();
   const eventDate = /^\d{4}-\d{2}-\d{2}$/.test(String(input.event_date || "").trim()) ? String(input.event_date).trim() : null;
-  const reminders = eventDate ? normalizeReminders(input.reminders) : [];
+  const userReminders = eventDate ? normalizeReminders(input.reminders) : [];
+  // A dated note is a real event to remember on a day (a MILESTONE seeds a key_date, which the
+  // reminders hang off of); an undated note is a plain durable observation.
+  const factClass = eventDate ? "MILESTONE" : "DURABLE";
+  // Behavior flip: a dated note with NO user timing takes ONE stated, editable DEFAULT reminder (a
+  // few days before) rather than silence; user-set timing is used verbatim; an undated note gets none.
+  const reminders = userReminders.length
+    ? userReminders
+    : defaultRemindersFor({ eventDate, factClass, reminders: userReminders });
   const fact = {
     person_hint: personHint,
     subject: "self",
     relation: "note",
     object: note,
-    // A dated note is a real event to remember on a day (a MILESTONE seeds a key_date, which the
-    // reminders hang off of); an undated note is a plain durable observation.
-    fact_class: eventDate ? "MILESTONE" : "DURABLE",
+    fact_class: factClass,
     is_health: false,
     event_date: eventDate,
     suggested_gesture: null,
@@ -321,15 +364,13 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
                            // caller can seed user-set reminders onto them via seedReminders().
   for (const f of facts) {
     const seeds = f.fact_class === "RECURRING" || f.fact_class === "MILESTONE";
+    // reminders now carry either the user's own timing OR the single stated DEFAULT for a dated
+    // no-timing note (defaultRemindersFor, applied in normalizeParsed/noteToParsed). Either way a
+    // dated MILESTONE seeds a situation (kind='situation' + its situation_reminders) via
+    // insertFact→seedSituation, so the default nudge is a real editable row fired by the cron's
+    // multi-reminder path. A RECURRING date carries no situation_reminders (its own yearly lead_days
+    // nudge covers it), and an undated durable fact has no reminders — both seed exactly as before.
     const hasReminders = Array.isArray(f.reminders) && f.reminders.length > 0;
-    // della-situational-no-formula (the no-default-nudge fix): a CAPTURED one-off dated moment the
-    // user set NO reminder on must be REMEMBERED but must NOT auto-nudge — most captures need no
-    // reminder, and a reflexive default (the old lead_days:7) is exactly the formulaic cadence the
-    // guardrail forbids. So for a non-recurring MILESTONE with a date and no user-set reminders, seed
-    // the key_date NON-NUDGING (leadDays:null → the cron skips its implicit fire). RECURRING dates
-    // (birthdays, anniversaries) are UNCHANGED — their yearly nudge is the whole point, legacy
-    // behavior preserved. A situation WITH reminders never reaches this branch (hasReminders true).
-    const nonNudgingOneOff = seeds && f.event_date && f.fact_class !== "RECURRING" && !hasReminders;
     const { fact, supersededIds: retired } = await insertFact(supa, userId, {
       personId,
       subject: f.subject,
@@ -342,15 +383,9 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
       eventDate: f.event_date || null,
       rawText,
       surfaceDays: surfaceDaysFor(f),
-      // "Tell Della, she remembers" (§4.3): a fact carrying user-set reminders seeds a situation
-      // (kind='situation' + N situation_reminders) via insertFact→seedSituation. Empty/absent ⇒
-      // today's plain key_date seed exactly (no auto-cadence). WP-B populates f.reminders on the
-      // extract/note path; WP-A owns the seeding this line feeds.
+      // "Tell Della, she remembers" (§4.3): a fact carrying reminders (user-set OR the stated
+      // default) seeds a situation (kind='situation' + N situation_reminders) via seedSituation.
       ...(hasReminders ? { reminders: f.reminders } : {}),
-      // A dated one-off with no reminders → non-nudging key_date (remembered, editable, never a
-      // default nudge). leadDays null flows to key_dates.lead_days = null, which the cron treats as
-      // "do not implicitly fire" (see nudges-cron loadReminders/legacy branch).
-      ...(nonNudgingOneOff ? { leadDays: null } : {}),
       ...(seeds && f.event_date
         ? f.relation === "birthday"
           ? { keyDateLabel: "Birthday", keyDateKind: "birthday" }

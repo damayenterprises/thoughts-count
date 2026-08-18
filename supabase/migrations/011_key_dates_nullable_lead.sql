@@ -1,27 +1,21 @@
--- TC — "Tell Della, she remembers": make key_dates.lead_days NULLABLE so a captured one-off the
--- user set NO reminder on can be REMEMBERED without auto-nudging (della-situational-no-formula).
+-- TC — "Tell Della, she remembers": key_dates.lead_days nullability.
 --
--- STATUS: PROPOSED — DO NOT APPLY without David's approval (Agent Infra Guardrail). Apply via the
---   Supabase Management API (PAT in .env SUPABASE_ACCESS_TOKEN) AFTER approval.
+-- ⚠️ ABANDONED — DO NOT APPLY. This migration is no longer needed and is kept only for history.
 --
--- WHY: key_dates.lead_days is `integer not null default 7` (schema.sql). That default means every
--- dated capture with no user-set reminder still fires a reflexive 7-day nudge — exactly the
--- formulaic cadence the guardrail forbids. Making the column nullable lets the capture path seed a
--- one-off with lead_days = NULL, which the nudge cron reads as "remember this date, do NOT
--- auto-nudge" (nudges-cron.mjs: a legacy key_date with lead_days IS NULL and no situation_reminders
--- produces zero fires).
+-- WHY ABANDONED (behavior flip, 2026-08): this migration existed to STORE a "remember this date but
+-- do NOT nudge" state — a captured one-off with lead_days = NULL (the no-default-nudge behavior).
+-- David has since decided a dated note with no user-set timing should get ONE light, TRANSPARENT,
+-- EDITABLE default reminder (a single heads-up 3 days before) instead of silence. That default is now
+-- seeded as a real situation_reminders row (see _capture.defaultRemindersFor + writeFactsToPerson),
+-- so there is no longer a code path that seeds lead_days = NULL for a fresh capture — nothing needs
+-- the column to be nullable.
 --
--- BACKWARD-COMPAT (load-bearing):
---   • Existing rows are unaffected — they keep their integer lead_days and fire exactly as today.
---   • RECURRING dates (birthdays, anniversaries) still seed a real lead_days (7) and nudge as before;
---     only NON-recurring captures with zero user-set reminders seed NULL.
---   • The DEFAULT stays 7, so any legacy insert path that omits lead_days is unchanged.
---   • Purely additive/relaxing: dropping NOT NULL never invalidates existing data.
+-- The nudge cron still HANDLES a null lead_days gracefully (a legacy/edge key_date with no
+-- situation_reminders and lead_days IS NULL yields zero implicit fires), so no data would break if a
+-- null ever appeared. But the app no longer WRITES one, so this schema relaxation is unnecessary.
+-- Leaving key_dates.lead_days as `integer not null default 7` (schema.sql) is correct and unchanged.
 --
--- Until this is applied, _memory.maybeSeedKeyDate() degrades gracefully: a NULL insert that the
--- still-NOT-NULL column rejects is retried at lead_days = 7 (the capture is never lost; the nit is
--- simply not yet fixed). After apply, the NULL insert succeeds and the date is genuinely non-nudging.
-
-alter table key_dates alter column lead_days drop not null;
--- Keep the default at 7 so omitted-lead_days inserts behave exactly as before.
-alter table key_dates alter column lead_days set default 7;
+-- Migration 010 (situation_reminders) is still the live, needed migration for this feature — the
+-- default reminder is one of those rows. Only THIS file (011) is abandoned.
+--
+-- (Original body removed; intentionally a no-op. Do not apply.)

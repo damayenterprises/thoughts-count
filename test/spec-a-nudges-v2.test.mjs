@@ -189,9 +189,13 @@ await t("a situation with reminders IGNORES the key_date's own lead_days", async
   assert.equal(out.sent, 0);
 });
 
-console.log("\n# No-default-nudge — a captured one-off with lead_days=NULL is remembered but NEVER nudges");
-await t("null lead_days + no reminders → zero fires on any day (della-situational-no-formula)", async () => {
-  // A one-off dated capture the user set NO reminder on is seeded lead_days:null (non-nudging).
+console.log("\n# Cron null-lead handling — a key_date with lead_days=NULL is remembered but NEVER nudges");
+// NOTE: since the 2026-08 behavior flip, the CAPTURE flow no longer WRITES lead_days=null (a dated
+// no-timing note now seeds ONE default situation_reminders row instead). But the cron must still
+// HANDLE a null lead gracefully (legacy rows, or the defensive path in _memory.maybeSeedKeyDate), so
+// these tests keep exercising that: a null-lead key_date with no situation_reminders yields zero fires.
+await t("null lead_days + no reminders → zero fires on any day (cron null-lead handling)", async () => {
+  // A key_date carrying lead_days:null with no situation_reminders (a legacy/edge row) never nudges.
   const supa = makeSupa({ keyDates: [kd({ lead_days: null, kind: "moment" })] });
   const { send, outbox } = makeSend();
   // Try the day it WOULD have fired under the old 7-day default, the event day, and the day after.

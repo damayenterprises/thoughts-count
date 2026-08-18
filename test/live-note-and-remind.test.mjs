@@ -127,11 +127,31 @@ await t("RELATIVE date 'in 3 weeks' → concrete event_date + reminders incl. a 
   assert.ok(leads.some((n) => n < 0), `expected an 'after' (negative) lead, got ${leads.join(",")}`);
 });
 
-await t("no timing given → note_and_remind with EMPTY reminders (no invented cadence)", async () => {
-  const { name, input } = await askDella("Just remember that she's having a baby in April.");
-  // She may route to note_and_remind (capture) — whichever, reminders must NOT be fabricated.
+// BEHAVIOR FLIP (2026-08): a dated note with NO stated timing now takes ONE server-seeded default
+// nudge (a few days before). The MODEL must still return an EMPTY reminders array (it does not invent
+// a cadence — the default is a SERVER concern), AND it must resolve a concrete event_date, AND Della's
+// `say` must NAME a concrete date so the user knows the nudge is coming and can adjust it. This is the
+// exact spec case: "she just started..." (undated) gets no nudge; a DATED no-timing note does.
+const DATE_IN_SAY = /(january|february|march|april|may|june|july|august|september|october|november|december|\b\d{1,2}(st|nd|rd|th)\b|\b\d{4}-\d{2}-\d{2}\b)/i;
+await t("DATED, no timing → note_and_remind, EMPTY reminders, concrete event_date, say names a date", async () => {
+  const { name, input } = await askDella(
+    "Just so you don't let me forget — her surgery is on September 7th 2027. I didn't say when to remind me."
+  );
+  assert.equal(name, "note_and_remind", `expected note_and_remind, got ${name}`);
+  // The model does NOT fabricate a cadence — the single default is seeded by the server, not the model.
+  assert.equal(leadSet(input).size, 0, `model must leave reminders empty (server seeds the default); got ${[...leadSet(input)].join(",")}`);
+  // She must resolve a concrete date so a default nudge can lead from it.
+  assert.ok(ISO.test(String(input.event_date || "")), `expected a concrete YYYY-MM-DD event_date, got ${JSON.stringify(input.event_date)}`);
+  // And she must NAME a concrete date in her spoken line so the default nudge is transparent + editable.
+  assert.ok(DATE_IN_SAY.test(String(input.say || "")), `say should name a concrete date the nudge lands on; got: ${JSON.stringify(input.say)}`);
+});
+
+await t("UNDATED durable fact → no nudge promised (default applies only to dated moments)", async () => {
+  const { name, input } = await askDella("Just remember that she just started a new job.");
+  // Whatever she routes to, she must NOT fabricate a reminder cadence, and (if she captures) her say
+  // should not promise a nudge for a fact with no date to lead from.
   if (name === "note_and_remind") {
-    assert.equal(leadSet(input).size, 0, `no timing was given, so reminders must be empty; got ${[...leadSet(input)].join(",")}`);
+    assert.equal(leadSet(input).size, 0, `no date to lead from → no reminder; got ${[...leadSet(input)].join(",")}`);
   }
 });
 
