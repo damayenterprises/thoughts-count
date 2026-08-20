@@ -400,18 +400,19 @@ alt="" /></noscript>
   .tc-daily { background: linear-gradient(180deg, #0f7ea9 0%, #0e769e 100%); color: #fff; padding: 0; }
   .tc-daily.wrap { max-width: none; padding-left: 0; padding-right: 0; }
   .tc-daily[hidden] { display: none; }
-  .tc-daily-inner { max-width: 1080px; margin: 0 auto; padding: 20px 30px 24px; display: flex; align-items: flex-start; gap: 14px; }
+  .tc-daily-inner { position: relative; max-width: 1080px; margin: 0 auto; padding: 20px 30px 24px; display: flex; align-items: flex-start; gap: 14px; }
   .tc-daily-mark { flex: 0 0 auto; margin-top: 1px; filter: drop-shadow(0 1px 3px rgba(6,38,54,.35)); }
-  .tc-daily-body { flex: 1 1 auto; min-width: 0; }
+  .tc-daily-body { flex: 0 1 auto; min-width: 0; max-width: 680px; }  /* comfortable reading measure — the line never sprawls the full band */
   .tc-daily-label { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: rgba(255,255,255,.72); margin: 0 0 4px; }
   .tc-daily-label .her-name { font-family: var(--tc-serif); font-style: italic; font-weight: 500; text-transform: none; letter-spacing: 0; font-size: 1.3em; color: rgba(255,255,255,.95); }
   .tc-daily-line { font-family: var(--tc-serif); font-style: italic; font-weight: 500; font-size: clamp(16px, 2.2vw, 19px); line-height: 1.5; color: #f4fafd; margin: 0; }
-  .tc-daily-dismiss { flex: 0 0 auto; margin: -2px -6px 0 0; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; color: rgba(255,255,255,.6); border-radius: 8px; cursor: pointer; transition: color .15s ease, background .15s ease; }
+  .tc-daily-dismiss { position: absolute; top: 15px; right: 26px; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; color: rgba(255,255,255,.55); border-radius: 8px; cursor: pointer; transition: color .15s ease, background .15s ease; }
   .tc-daily-dismiss:hover { color: #fff; background: rgba(255,255,255,.1); }
   .tc-daily-dismiss:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255,255,255,.4); }
   @media (max-width: 560px) {
     .tc-daily-inner { padding: 16px 20px 18px; gap: 11px; }
     .tc-daily-line { font-size: 16px; }
+    .tc-daily-dismiss { top: 8px; right: 10px; width: 40px; height: 40px; }
   }
 
   /* ---------- trust strip (compact, visual) ---------- */
