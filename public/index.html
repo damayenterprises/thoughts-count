@@ -1043,18 +1043,19 @@ alt="" /></noscript>
       var d = new Date();
       return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
     }
-    var seenKey = 'tc_daily_' + localYmd();
+    var dismissKey = 'tc_daily_' + localYmd();
 
-    // Already seen/dismissed today on this device? Don't nag — render nothing.
-    var seen = false;
-    try { seen = localStorage.getItem(seenKey) === '1'; } catch(e){}
-    if (seen) return;
+    // Today's thought stays for the whole day (shows on every visit) UNTIL the user
+    // dismisses it; only then is it hidden for the rest of today. New day, new thought.
+    var dismissed = false;
+    try { dismissed = localStorage.getItem(dismissKey) === '1'; } catch(e){}
+    if (dismissed) return;
 
-    function markSeen(){ try { localStorage.setItem(seenKey, '1'); } catch(e){} }
+    function markDismissed(){ try { localStorage.setItem(dismissKey, '1'); } catch(e){} }
 
     dismissBtn.addEventListener('click', function(){
-      el.hidden = true;         // dismissed for this session (and marked seen so it won't return today)
-      markSeen();
+      el.hidden = true;         // dismissed for the rest of today (returns with tomorrow's thought)
+      markDismissed();
     });
 
     fetch('/api/daily-reflection', { cache: 'no-store' })
@@ -1078,8 +1079,7 @@ alt="" /></noscript>
         applyLabel();
         try { window.addEventListener('tc-her-name', applyLabel); } catch(e){}
         lineEl.textContent = '"' + d.line + '"';   // her thoughts shown in quotes (textContent = no HTML injection)
-        el.hidden = false;
-        markSeen();                                // count this as today's one showing
+        el.hidden = false;                         // shows on every visit today until dismissed
       })
       .catch(function(){ /* stay hidden on any error */ });
   })();
