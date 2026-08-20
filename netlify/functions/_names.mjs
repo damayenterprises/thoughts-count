@@ -135,3 +135,86 @@ export function firstNamesEquivalent(a, b) {
   if (ga !== undefined && ga === gb) return true;               // 2. nickname/diminutive
   return spellingClose(fa, fb);                                 // 3. spelling-close
 }
+
+// ---------- relationship-descriptor split (TC capture-loop, FIX 1) ----------
+//
+// The extractor sometimes carries a RELATIONSHIP DESCRIPTOR into the person NAME: the user says
+// "my neighbor Tom is having surgery" and person_hint comes back as "Tom, neighbor" (or "neighbor
+// Tom"), so a new person is created named "Tom, neighbor" with a null relationship. This helper
+// splits a CLEAR descriptor off the name so people.name is the proper name and people.relationship
+// picks up the descriptor.
+//
+// STRICTLY CONSERVATIVE (this area is sensitive — TC-89). We ONLY split two unambiguous shapes:
+//   1. Leading  "my/the <relationship> <Name…>"   → name "<Name…>", rel "<relationship>"
+//   2. Trailing "<Name…>, <relationship>"         → name "<Name…>", rel "<relationship>"
+// We do NOT touch a bare "Uncle Bob" (no "my"/"the", no comma) — that leading word could be part of
+// the name/how they're addressed, so it is left exactly as-is. When we're not confident, we return
+// the name unchanged and no relationship (current behavior preserved).
+
+// The relationship vocabulary we recognize as a descriptor. Multi-word forms ("co-worker",
+// "in-law", "mother in law") are matched as phrases. Kept in one place so callers don't duplicate.
+const RELATIONSHIP_WORDS = [
+  "neighbor", "friend", "best friend", "coworker", "co-worker", "colleague", "boss", "manager",
+  "sister", "brother", "sibling", "mom", "mother", "dad", "father", "aunt", "uncle", "cousin",
+  "niece", "nephew", "partner", "wife", "husband", "spouse", "girlfriend", "boyfriend",
+  "son", "daughter", "kid", "child",
+  "grandmother", "grandma", "grandfather", "grandpa", "granddaughter", "grandson",
+  "mother-in-law", "father-in-law", "sister-in-law", "brother-in-law", "son-in-law",
+  "daughter-in-law", "in-law", "roommate", "teammate", "mentor", "mentee", "assistant", "client",
+];
+// Longest-first so "best friend" / "co-worker" / "mother-in-law" win over a shorter prefix.
+const RELATIONSHIP_SET = new Set(RELATIONSHIP_WORDS.map((w) => w.toLowerCase()));
+const RELATIONSHIP_BY_LEN = [...RELATIONSHIP_WORDS].sort((a, b) => b.length - a.length);
+// A relationship word may be spoken with a possessive/plural tail we normalize off when comparing
+// ("my neighbor's Tom" is not a thing, but "coworkers" / trailing punctuation can appear).
+const normRel = (s) => String(s || "").trim().toLowerCase().replace(/[.,;:!?]+$/, "");
+
+function isRelationshipWord(s) { return RELATIONSHIP_SET.has(normRel(s)); }
+
+// Returns { name, relationship } — relationship "" when nothing was split. Pure + deterministic.
+// name always non-empty when the input was (we never strip a name down to nothing).
+export function splitNameRelationship(raw) {
+  const original = String(raw || "").trim();
+  if (!original) return { name: original, relationship: "" };
+
+  // 2. Trailing "<Name…>, <relationship>" — a comma-separated descriptor after the name.
+  //    Split on the LAST comma; the tail must be a single recognized relationship phrase.
+  const ci = original.lastIndexOf(",");
+  if (ci > 0) {
+    const head = original.slice(0, ci).trim();
+    const tail = normRel(original.slice(ci + 1));
+    if (head && isRelationshipWord(tail)) {
+      return { name: head, relationship: canonicalRel(tail) };
+    }
+  }
+
+  // 1. Leading "my/the <relationship> <Name…>" — an explicit possessive/article marks the descriptor,
+  //    so we can safely peel it. WITHOUT "my"/"the" we leave it alone (so "Uncle Bob" is untouched).
+  const lead = /^(?:my|our|the)\s+(.+)$/i.exec(original);
+  if (lead) {
+    const rest = lead[1].trim();
+    // Try the longest relationship phrase that prefixes `rest`, leaving a non-empty name after it.
+    for (const rel of RELATIONSHIP_BY_LEN) {
+      const re = new RegExp(`^${escapeRe(rel)}\\b[\\s'’]*`, "i");
+      const m = re.exec(rest);
+      if (m) {
+        const name = rest.slice(m[0].length).replace(/^[\s,'’]+/, "").trim();
+        if (name) return { name, relationship: canonicalRel(rel) };
+        // "my neighbor" with no name after → not a name we can split; leave original untouched.
+      }
+    }
+    // "my <something-not-a-relationship> <Name>" → don't guess; keep the original as the name.
+  }
+
+  return { name: original, relationship: "" };
+}
+
+// Light canonicalization so stored relationships read consistently (co-worker → coworker). We keep
+// the user's word otherwise (mom stays mom, not "mother") — Della's copy is warm, not clinical.
+function canonicalRel(rel) {
+  const r = normRel(rel);
+  const canon = { "co-worker": "coworker" };
+  return canon[r] || r;
+}
+
+function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }

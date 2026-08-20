@@ -24,6 +24,11 @@
 import { getEnv } from "./_email.mjs";
 import { sameSurname, firstNamesEquivalent } from "./_names.mjs";
 import { insertFact } from "./_memory.mjs";
+// TC capture-loop CONTRACT (WP-A owns seedSituation in _memory.mjs). We depend on it but must not
+// hard-fail to load if WP-A hasn't merged yet, so import the whole namespace and resolve the symbol
+// at call time. Contract: seedSituation(supa, userId, fact, { reminders:[{lead_days,phrase?,label?}] })
+//   → { keyDateId, reminderIds }. Idempotent per (fact, lead_days), like the rest of the seed layer.
+import * as _memory from "./_memory.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -35,6 +40,35 @@ export const BDAY_SENTINEL_YEAR = "0004";
 // Health episodes fade faster than life episodes (spec §3): ~21 days vs the _memory default
 // of 90. The extractor tags a health episode so insertFact gets the tighter window.
 const HEALTH_SURFACE_DAYS = 21;
+
+// TC capture-loop (behavior flip 2026-08): a dated note the user set NO reminder timing on now gets
+// ONE sensible DEFAULT heads-up — a single nudge a few days before — instead of the old silence.
+// The bet: a light, TRANSPARENT, EDITABLE default beats "remembered but silent" (the reflexive fixed
+// 7-day cadence was the wrong shape; this is a single situational lead, not a cadence). It seeds as a
+// real situation_reminders row so it shows on the confirm card as an editable chip, is retimable /
+// removable, and is fired by the cron's multi-reminder path exactly like a user-set one.
+//
+// This REPLACES the earlier "no-default-nudge" behavior (leadDays:null non-nudging seed). Migration
+// 011 (making key_dates.lead_days nullable to store that silence) is now ABANDONED — see its header.
+//
+// Rules (all load-bearing):
+//   • Applies ONLY to a REAL event_date with NO user-set reminders. A user who stated any timing gets
+//     exactly theirs (never the default on top). A NON-dated durable fact gets NO reminder at all.
+//   • RECURRING dates (birthdays/anniversaries) keep their own legacy yearly nudge (lead_days:7 on the
+//     key_date) — they don't take a situation_reminders default; their nudge is the whole point.
+//   • Della NAMES this default when she confirms (event_date minus the lead), so it's never a surprise.
+export const DEFAULT_REMINDER_LEAD_DAYS = 3;
+
+// The one default reminder for a dated, no-timing note: a single heads-up DEFAULT_REMINDER_LEAD_DAYS
+// before the event. `label: null` so the cron's copy falls back to the key_date label (there's no
+// user phrasing to echo). Returns [] for anything that must NOT take the default: no real date, a
+// RECURRING date (its own yearly nudge covers it), or reminders the user already set.
+function defaultRemindersFor({ eventDate, factClass, reminders }) {
+  if (!eventDate) return [];                                   // undated durable → no nudge
+  if (factClass === "RECURRING") return [];                   // birthdays/anniversaries keep legacy nudge
+  if (Array.isArray(reminders) && reminders.length) return []; // user set their own → never add on top
+  return [{ lead_days: DEFAULT_REMINDER_LEAD_DAYS, label: null }];
+}
 
 // ──────────────────────────────────────────────────────────────────────────────────────────
 //  EXTRACTION
@@ -83,7 +117,7 @@ const EXTRACT_SCHEMA = {
           },
           event_date: {
             type: "string",
-            description: "The real-world date in YYYY-MM-DD if a FULL date INCLUDING the year is clearly stated or unambiguous (a closing date, a birthday WITH a year, \"moved in June 2026\" → null unless a day is given). Otherwise omit. Never invent a day OR a year. For a birthday given WITHOUT a year (\"her birthday is June 15\") use month_day instead, NOT this field.",
+            description: "The real-world date in YYYY-MM-DD. Set it whenever the note pins down a specific day — either an explicit date (\"closing April 20 2027\", a birthday WITH a year) OR a relative one you resolve against TODAY'S DATE (given in your instructions): \"in 3 weeks\", \"next Tuesday\", \"next month\", \"chemo is in 3 weeks\" all become a concrete YYYY-MM-DD. A month/year with no day (\"moved in June 2026\") stays null. Omit only when no specific day is referenced. Never invent a day or year the note did not point to. For a birthday given WITHOUT a year (\"her birthday is June 15\") use month_day instead, NOT this field.",
           },
           month_day: {
             type: "string",
@@ -96,6 +130,19 @@ const EXTRACT_SCHEMA = {
           confidence: {
             type: "number",
             description: "0..1 — how confident you are you read this fact correctly from the text. Lower it for vague or inferred readings.",
+          },
+          reminders: {
+            type: "array",
+            description:
+              "TC capture-loop: ONLY when the user ASKED to be reminded about THIS fact (e.g. \"remind me a week before her birthday\", \"nudge me the day before\"). Each entry is a lead time the USER SET — never invent a cadence the user did not ask for. Leave EMPTY (omit) when the user gave no reminder intent; an empty array is the default and must be the norm.",
+            items: {
+              type: "object",
+              properties: {
+                lead_days: { type: "integer", description: "How many days BEFORE the event_date to remind, as the user asked (\"a week before\" = 7, \"the day before\" = 1, \"on the day\" = 0). Never guess a number the user didn't state." },
+                phrase: { type: "string", description: "The user's own words for this reminder, if they gave them (\"a week before her birthday\"). Optional." },
+              },
+              required: ["lead_days"],
+            },
           },
         },
         required: ["person_hint", "subject", "relation", "object", "fact_class"],
@@ -120,11 +167,25 @@ Rules:
 - A fact about someone's RELATIVE ("her mom", "his wife", "their son Eli") is a fact about the SAME named person, with the relative in the subject field. It must NEVER become its own person. Only a directly-named person is a person_hint.
 - For a replaceable, one-value-at-a-time attribute use a canonical single-valued relation (health_status, job, location, marital_status, birthday) so a later update can supersede it. For anything a person can have several of (hobby, allergy, interest, preference, food, pet) use a plain category relation — these accumulate and must never replace each other. Use "note" for a general observation.
 - Classify each fact's temporal behavior with fact_class. Mark health/medical episodes is_health:true.
-- Only set event_date when a FULL date INCLUDING a year is present. Never fabricate a day or a year.
+- Set event_date (YYYY-MM-DD) whenever the note pins down a specific day. That includes a RELATIVE day resolved against TODAY'S DATE (given below): "in 3 weeks", "next Tuesday", "next month", "chemo is in 3 weeks", "surgery next Friday" all resolve to a concrete date. An explicit full date works too. A month/year with no day ("moved in June 2026") stays null. Never fabricate a day or year the note did not reference.
 - A birthday or anniversary given as a month + day with NO year ("her birthday is June 15") is a RECURRING yearly date: set month_day to "MM-DD" (e.g. "06-15"), fact_class RECURRING, relation "birthday" for a birthday. Do NOT put it in event_date and do NOT invent a year.
 - If nothing durable is being said, return an empty facts array.
 
 Always respond by calling the extract_memory tool.`;
+
+// TC capture-loop (FIX 1) — the typed door must resolve relative dates too, so both doors behave
+// identically. extract() runs at request time (a typed conversation, NOT the cron), so real
+// wall-clock "now" is correct here. America/Chicago to match the voice door + the rest of the copy.
+// Appended to EXTRACT_SYSTEM at call time so the anchor is fresh per request.
+function extractTodayLine(now = new Date()) {
+  const human = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", weekday: "long", year: "numeric", month: "long", day: "numeric",
+  }).format(now);
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now);
+  return `\n\nTODAY'S DATE is ${human} (${iso}, America/Chicago). Resolve any relative time the note gives ("in 3 weeks", "next Tuesday", "next month") against it into a concrete event_date. Resolve ONLY what the note actually references — never invent a date.`;
+}
 
 // Run the model. Returns { facts:[...], location_hint, co_mentioned } — a normalized parsed
 // object — or throws. `lockedPersonId` (context-lock) tells the model the person is already
@@ -148,7 +209,7 @@ export async function extract(rawText, { lockedPersonId = null } = {}) {
       model: MODEL,
       max_tokens: 900,
       temperature: 0,
-      system: EXTRACT_SYSTEM,
+      system: EXTRACT_SYSTEM + extractTodayLine(),
       tools: [{ name: "extract_memory", description: "Return the structured things to remember from the note.", input_schema: EXTRACT_SCHEMA }],
       tool_choice: { type: "tool", name: "extract_memory" },
       messages: [{ role: "user", content: userMessage }],
@@ -190,6 +251,16 @@ function normalizeParsed(input, lockedPersonId) {
     }
     // A month-day-only date is inherently yearly → force RECURRING so it seeds a recurring key_date.
     const factClassFinal = recurringMonthDay ? "RECURRING" : factClass;
+    // TC capture-loop: user-SET reminders on this fact (empty ⇒ no user timing). Only carried when
+    // there's a real date to lead from — a lead time is meaningless without one.
+    const userReminders = eventDate ? normalizeReminders(f.reminders) : [];
+    // Behavior flip: a dated note with NO user timing takes ONE stated, editable DEFAULT reminder
+    // (a few days before) instead of silence. User timing, an undated fact, or a RECURRING date all
+    // return the user's own list / [] (see defaultRemindersFor). The default is a real, removable
+    // situation_reminders row — Della names it when she confirms.
+    const reminders = userReminders.length
+      ? userReminders
+      : defaultRemindersFor({ eventDate, factClass: factClassFinal, reminders: userReminders });
     clean.push({
       person_hint: personHint,
       subject,
@@ -200,6 +271,7 @@ function normalizeParsed(input, lockedPersonId) {
       event_date: eventDate,
       suggested_gesture: String(f.suggested_gesture || "").trim() || null,
       confidence: typeof f.confidence === "number" ? Math.max(0, Math.min(1, f.confidence)) : 0.9,
+      reminders,
     });
   }
   return {
@@ -207,6 +279,176 @@ function normalizeParsed(input, lockedPersonId) {
     location_hint: String(input.location_hint || "").trim(),
     co_mentioned: !!input.co_mentioned,
   };
+}
+
+// TC capture-loop: coerce a model/tool reminders array into clean, trusted internal reminders. A
+// reminder is USER-SET ONLY (spec §3 — della-situational-no-formula: never a reflexive default),
+// so we keep only well-formed entries the caller vouched came from the user, drop the rest, and
+// never fabricate one. lead_days is a SIGNED integer: 0 = "on the day", positive = N days BEFORE,
+// NEGATIVE = N days AFTER the event ("the day after" = -1, per spec §5, _reminders.js, and the
+// nudges-cron after-window). It is clamped only to a sane band so a stray value can't run away, and
+// negatives are PRESERVED (flooring at 0 destroyed "check on me the day after"). Returns [] for
+// anything missing/malformed (the default, and the norm). Pure + deterministic.
+const MAX_LEAD_DAYS = 3650;  // ~10y guard on a stray huge "before" value
+const MIN_LEAD_DAYS = -90;   // sane floor on an "after" value (~3 months past the event)
+export function normalizeReminders(raw) {
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  for (const r of raw) {
+    if (!r || typeof r !== "object") continue;
+    const n = Number(r.lead_days);
+    if (!Number.isFinite(n)) continue;
+    // Clamp into [MIN_LEAD_DAYS, MAX_LEAD_DAYS]; negatives survive (an "after" reminder).
+    const lead_days = Math.max(MIN_LEAD_DAYS, Math.min(MAX_LEAD_DAYS, Math.round(n)));
+    const phrase = String(r.phrase || "").trim();
+    out.push(phrase ? { lead_days, phrase } : { lead_days });
+  }
+  return out;
+}
+
+// TC capture-loop (BLOCKER — clarify-then-capture) — the deterministic reminder-phrase reader.
+//
+// When Della finally captures AFTER a "which person?" clarifying turn, the model regenerates the
+// note_and_remind call and (observed live) DROPS the reminders array — the "a week before" the user
+// stated a turn or two earlier silently vanishes, and defaultRemindersFor substitutes lead-3 while
+// her spoken `say` still promises "a week before" (promise/schedule mismatch). This is the SERVER
+// safety net: scan the recent USER turns for an explicitly-stated reminder timing and, if the model
+// returned NO reminders, use THAT instead of the lead-3 default. Never fires when the model DID set
+// reminders (the latest explicit statement wins — the user may have retimed mid-conversation).
+//
+// It reuses the EXACT phrase→lead_days vocabulary the tool/prompt teaches Della (a week before = 7,
+// the day before = 1, the day of = 0, the day after = -1, a few days after = -3, …) and hands its
+// hits straight to normalizeReminders (no parallel normalization). Pure + deterministic — no model
+// call. Returns a normalizeReminders-shaped list ([] when the user stated no timing). Conservative:
+// it only matches unambiguous reminder-timing phrasings, so it never invents a cadence.
+//
+// The signed vocabulary (mirrors offsetPhrase / the tool schema / _reminders.js REMINDER_PRESETS):
+//   BEFORE → positive · ON the day → 0 · AFTER → negative.
+
+// A small word→number reader for the counts people speak ("a"/"one" = 1, "a couple"/"two" = 2,
+// "a few"/"three" = 3, "several" = 3). Digits pass through. Anything else → null.
+function wordNum(w) {
+  const t = String(w || "").trim().toLowerCase();
+  if (/^\d+$/.test(t)) return parseInt(t, 10);
+  const map = { a: 1, an: 1, one: 1, "a couple": 2, couple: 2, two: 2, "a few": 3, few: 3, three: 3, several: 3, four: 4, five: 5, six: 6, seven: 7, ten: 10, fourteen: 14 };
+  return t in map ? map[t] : null;
+}
+
+// Turn a stated count + unit ("week"/"weeks"/"day"/"days") + direction (before/after/of) into a
+// SIGNED lead_days. Returns null if it isn't a real timing phrase.
+function leadFrom(count, unit, direction) {
+  const n = wordNum(count);
+  if (n == null) return null;
+  const days = /week/.test(unit) ? n * 7 : n; // weeks → days; "day(s)" is 1:1
+  if (direction === "after") return -days;
+  return days; // "before" (and a stray "of" won't reach here for a nonzero count)
+}
+
+// Scan a single utterance for EXPLICITLY-stated reminder timings and return them as normalizeReminders
+// entries (each carries the user's own `phrase`). Matches, in the user's own words:
+//   "on the day" / "the day of" / "day-of"                 → 0
+//   "the day before" / "day before"                        → 1
+//   "the day after" / "day after"                          → -1
+//   "<count> <day|days|week|weeks> before"                 → +N (weeks×7)
+//   "<count> <day|days|week|weeks> after"                  → -N
+// Conservative on purpose: only well-formed "…before/after/day of" phrasings hit. No date words, no
+// "remind me" alone (that's a request WITHOUT timing — the prompt asks ONE question, not a default).
+export function parseStatedReminders(text) {
+  const s = String(text || "").toLowerCase();
+  if (!s.trim()) return [];
+  const hits = [];
+  const push = (lead_days, phrase) => hits.push({ lead_days, phrase: String(phrase || "").trim() });
+
+  // "on the day" / "the day of" / "day of" / "day-of" → 0 (guard: not "day before/after").
+  for (const m of s.matchAll(/\b(?:on\s+the\s+day\b(?!\s+(?:before|after))|the\s+day\s+of\b|day\s*[-\s]of\b)/g)) {
+    push(0, m[0]);
+  }
+  // "the day before" / "a day before" / "day before" → 1.
+  for (const m of s.matchAll(/\b(?:the|a)?\s*day\s+before\b/g)) push(1, m[0].trim());
+  // "the day after" / "a day after" / "day after" → -1.
+  for (const m of s.matchAll(/\b(?:the|a)?\s*day\s+after\b/g)) push(-1, m[0].trim());
+  // "<count> <day|days|week|weeks> before|after" — count may be a word ("a", "a few", "two") or digits.
+  const countUnit = /\b(a few|a couple|couple|several|a|an|one|two|three|four|five|six|seven|ten|fourteen|\d+)\s+(days?|weeks?)\s+(before|after)\b/g;
+  for (const m of s.matchAll(countUnit)) {
+    const lead = leadFrom(m[1], m[2], m[3]);
+    if (lead != null) push(lead, m[0].trim());
+  }
+
+  // De-dupe by lead_days (a "day before" and "1 day before" in one breath shouldn't double), keeping
+  // the first phrasing, then normalize through the SHARED reminder normalizer (clamps + shapes).
+  const seen = new Set();
+  const deduped = [];
+  for (const h of hits) {
+    if (seen.has(h.lead_days)) continue;
+    seen.add(h.lead_days);
+    deduped.push(h);
+  }
+  return normalizeReminders(deduped);
+}
+
+// TC capture-loop (BLOCKER — clarify-then-capture) — scan the RECENT user turns of a conversation for
+// the LATEST explicitly-stated reminder timing. `messages` is the sanitized [{role,content}] history.
+// We read the user turns newest→oldest and return the timings from the MOST RECENT user turn that
+// stated any (the latest explicit statement wins — the user may retime mid-conversation). Returns a
+// normalizeReminders-shaped list, [] when no user turn stated a timing. Bounded scan (SCAN_TURNS) so
+// a long history stays cheap. Pure + deterministic.
+const REMINDER_SCAN_TURNS = 12;
+export function statedRemindersFromMessages(messages) {
+  if (!Array.isArray(messages)) return [];
+  const userTurns = messages.filter((m) => m && m.role === "user" && typeof m.content === "string");
+  const recent = userTurns.slice(-REMINDER_SCAN_TURNS);
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const found = parseStatedReminders(recent[i].content);
+    if (found.length) return found;
+  }
+  return [];
+}
+
+// TC capture-loop (§4): the note→parsed adapter. converse.mjs's `note_and_remind` tool hands us a
+// SINGLE freeform note about ONE person (person_hint + note text + optional event_date + optional
+// user-set reminders), already routed by Della — not a multi-fact extraction. Shape it into the
+// SAME `parsed` object resolve()/writeFactsToPerson() consume, so the conversation door writes
+// through the exact same engine as the typed door (never a parallel path). subject is always
+// "self" and relation "note" (per the spec's fixed shape for this tool); a full event_date makes it
+// a dated MILESTONE (seeds a key_date + any reminders), otherwise a plain durable note. Reminders
+// only ride when there's a date to lead from. Pure + deterministic — no model call here.
+export function noteToParsed(input = {}, { statedReminders = [] } = {}) {
+  const note = String(input.note || "").trim();
+  if (!note) return { facts: [], location_hint: "", co_mentioned: false };
+  const personHint = String(input.person_hint || "").trim();
+  const eventDate = /^\d{4}-\d{2}-\d{2}$/.test(String(input.event_date || "").trim()) ? String(input.event_date).trim() : null;
+  const userReminders = eventDate ? normalizeReminders(input.reminders) : [];
+  // A dated note is a real event to remember on a day (a MILESTONE seeds a key_date, which the
+  // reminders hang off of); an undated note is a plain durable observation.
+  const factClass = eventDate ? "MILESTONE" : "DURABLE";
+  // BLOCKER (clarify-then-capture): if the model dropped the reminders array across a "which person?"
+  // clarification, but the user stated a timing earlier in the conversation, use THAT stated timing
+  // (parsed by statedRemindersFromMessages → same normalizeReminders vocabulary) rather than letting
+  // defaultRemindersFor silently substitute the lead-3 default — which would mismatch her spoken say.
+  // Only consulted when the model returned NO reminders (the model's own timing always wins), and only
+  // when there's a real date to lead from.
+  const carriedStated = eventDate && Array.isArray(statedReminders) ? normalizeReminders(statedReminders) : [];
+  // Behavior flip: a dated note with NO user timing takes ONE stated, editable DEFAULT reminder (a
+  // few days before) rather than silence; user-set timing is used verbatim; an undated note gets none.
+  // Precedence: model reminders → carried stated timing (safety net) → the single default.
+  const reminders = userReminders.length
+    ? userReminders
+    : carriedStated.length
+      ? carriedStated
+      : defaultRemindersFor({ eventDate, factClass, reminders: userReminders });
+  const fact = {
+    person_hint: personHint,
+    subject: "self",
+    relation: "note",
+    object: note,
+    fact_class: factClass,
+    is_health: false,
+    event_date: eventDate,
+    suggested_gesture: null,
+    confidence: 0.9,
+    reminders,
+  };
+  return { facts: [fact], location_hint: "", co_mentioned: false };
 }
 
 // The per-fact surface window a health episode wants (tighter than the 90-day default). The
@@ -226,8 +468,17 @@ export function surfaceDaysFor(fact) {
 export async function writeFactsToPerson(supa, userId, personId, facts, source, rawText) {
   const writtenIds = [];
   const supersededIds = [];
+  const writtenFacts = []; // TC capture-loop: the persisted fact rows (with id + event_date), so a
+                           // caller can seed user-set reminders onto them via seedReminders().
   for (const f of facts) {
     const seeds = f.fact_class === "RECURRING" || f.fact_class === "MILESTONE";
+    // reminders now carry either the user's own timing OR the single stated DEFAULT for a dated
+    // no-timing note (defaultRemindersFor, applied in normalizeParsed/noteToParsed). Either way a
+    // dated MILESTONE seeds a situation (kind='situation' + its situation_reminders) via
+    // insertFact→seedSituation, so the default nudge is a real editable row fired by the cron's
+    // multi-reminder path. A RECURRING date carries no situation_reminders (its own yearly lead_days
+    // nudge covers it), and an undated durable fact has no reminders — both seed exactly as before.
+    const hasReminders = Array.isArray(f.reminders) && f.reminders.length > 0;
     const { fact, supersededIds: retired } = await insertFact(supa, userId, {
       personId,
       subject: f.subject,
@@ -240,16 +491,46 @@ export async function writeFactsToPerson(supa, userId, personId, facts, source, 
       eventDate: f.event_date || null,
       rawText,
       surfaceDays: surfaceDaysFor(f),
+      // "Tell Della, she remembers" (§4.3): a fact carrying reminders (user-set OR the stated
+      // default) seeds a situation (kind='situation' + N situation_reminders) via seedSituation.
+      ...(hasReminders ? { reminders: f.reminders } : {}),
       ...(seeds && f.event_date
         ? f.relation === "birthday"
           ? { keyDateLabel: "Birthday", keyDateKind: "birthday" }
           : { keyDateLabel: f.object }
         : {}),
     });
-    if (fact?.id) writtenIds.push(fact.id);
+    if (fact?.id) { writtenIds.push(fact.id); writtenFacts.push({ ...fact, reminders: f.reminders || [] }); }
     if (retired?.length) supersededIds.push(...retired);
   }
-  return { writtenIds, supersededIds };
+  return { writtenIds, supersededIds, writtenFacts };
+}
+
+// TC capture-loop (§3.1/§4): seed the USER-SET reminders that ride on written facts. For each
+// persisted fact that carries a real event_date AND a non-empty user-set `reminders` list, call the
+// WP-A seedSituation() contract to attach those lead-time reminders to the fact's key_date. This is
+// the ONE place both doors turn "remind me a week before" into schedule rows, so the conversation
+// door and the typed door seed identically. NEVER invents a cadence (normalizeReminders already
+// dropped anything the user didn't set; an empty list here is a no-op). Best-effort per fact: a
+// seed failure is logged and skipped, never blocks the save. Returns aggregate
+// { keyDateIds:[], reminderIds:[] } for the caller to report/undo. If WP-A's seedSituation isn't
+// present yet (pre-merge), we no-op loudly (console.warn) rather than throw.
+export async function seedReminders(supa, userId, writtenFacts) {
+  const keyDateIds = [];
+  const reminderIds = [];
+  const seed = _memory && typeof _memory.seedSituation === "function" ? _memory.seedSituation : null;
+  for (const f of writtenFacts || []) {
+    const reminders = Array.isArray(f?.reminders) ? normalizeReminders(f.reminders) : [];
+    if (!reminders.length) continue;
+    if (!f?.event_date) continue; // a lead time is meaningless with no date to lead from
+    if (!seed) { console.warn("seedReminders: seedSituation (WP-A) not available yet — skipping", reminders.length); continue; }
+    try {
+      const { keyDateId, reminderIds: rids } = await seed(supa, userId, f, { reminders });
+      if (keyDateId) keyDateIds.push(keyDateId);
+      if (Array.isArray(rids)) reminderIds.push(...rids);
+    } catch (e) { console.error("seedReminders (best-effort, skipped)", e); }
+  }
+  return { keyDateIds, reminderIds };
 }
 
 // ──────────────────────────────────────────────────────────────────────────────────────────

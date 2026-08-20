@@ -15,8 +15,11 @@
 
 import { herIdentity, HER_CHARACTER, HER_NAME } from "./_persona.mjs";
 import { MODEL, humanizeText } from "./generate-background.mjs";
+// Re-exported so the gated live tool-selection test (test/live-note-and-remind.test.mjs) builds the
+// EXACT same request the endpoint sends (same model), never a drifted copy.
+export { MODEL };
 import { requireUser, serviceClient, supabaseConfigured } from "./_supabase.mjs";
-import { rosterForPrompt, resolveNameShaped } from "./_capture.mjs";
+import { rosterForPrompt, resolveNameShaped, resolve, writeFactsToPerson, seedReminders, noteToParsed, recognizableDetail, statedRemindersFromMessages } from "./_capture.mjs";
 
 const MAX_TOKENS = 600;
 const MAX_TURNS = 40;        // hard cap on history length (safety, not a product limit)
@@ -91,11 +94,60 @@ const RESOLVE_PERSON_TOOL = {
   },
 };
 
-// The tools offered this turn. Anonymous → exactly reply + ready (byte-identical to today). Signed
-// in → add the resolve_person precise checker. `onlyReplyReady` forces the bounded post-tool call.
-function toolsFor({ signedIn = false, onlyReplyReady = false } = {}) {
-  if (onlyReplyReady || !signedIn) return TOOLS;
-  return [...TOOLS, RESOLVE_PERSON_TOOL];
+// TC capture-loop (§3.1) — the CAPTURE door tool. Offered on EVERY normal turn (anon + signed-in)
+// so Della can route a "remember this about X" utterance without a round-trip. It is NOT offered on
+// the bounded post-resolve_person hop (onlyReplyReady), where she may only reply/ready. For an
+// anonymous user we still offer it so she can speak warmly and we surface the value-first sign-in
+// prompt — but the server writes nothing (see dispatchNoteAndRemind).
+const NOTE_AND_REMIND_TOOL = {
+  // TC capture-loop (§3.1) — the CAPTURE door. Use when the user is TELLING you something to
+  // remember about a person ("Sarah's having a baby in April"), not asking you to plan a gesture.
+  // Writes the fact through the SAME engine the typed capture door uses, and — ONLY when the user
+  // asked — seeds those user-set reminders. Capture is never lost: on a MIXED turn ("she's having a
+  // baby in April — what should I get her?") capture the fact with THIS tool AND keep toward a plan.
+  name: "note_and_remind",
+  description:
+    "Remember something the user just told you about a person, and — WHENEVER they stated a reminder time — schedule that reminder. Use this for a CAPTURE (a fact to hold onto), not for planning a gesture. Before you use it on a bare first name, you must already have confirmed WHO (the same roster/confirm rules apply — this tool does NOT skip resolving who they mean).\n\n" +
+    "THE REMINDERS ARRAY IS LOAD-BEARING — read this carefully, it is the most common mistake:\n" +
+    "• If the user gave ANY lead time, you MUST put every one of those times into `reminders`. This is not optional: a spoken promise to nudge them that is missing from `reminders` will silently NOT be scheduled, and you will have lied. Convert each stated timing to a signed lead_days relative to event_date — BEFORE the event is positive, ON the day is 0, AFTER the event is NEGATIVE:\n" +
+    "    \"a week before\" -> 7,  \"a few days before\" -> 3,  \"the day before\" -> 1,  \"on the day\"/\"the day of\" -> 0,  \"the day after\" -> -1,  \"a few days after\" -> -3.\n" +
+    "  Worked example — user says \"Sarah's baby is due April 20th 2027, remind me a week before and again the day of\": call with event_date \"2027-04-20\" and reminders [{lead_days:7,phrase:\"a week before\"},{lead_days:0,phrase:\"the day of\"}]. \"Check on me a few days before Marcus's chemo and the day after\" -> reminders [{lead_days:3,phrase:\"a few days before\"},{lead_days:-1,phrase:\"the day after\"}]. \"Set two reminders: 7 days before and 1 day before\" -> reminders [{lead_days:7},{lead_days:1}]. TWO stated times means TWO entries.\n" +
+    "• If the user gave NO timing but the note has a real event_date, still leave `reminders` EMPTY — do NOT put a number in the array. The system automatically seeds ONE sensible default nudge a few days before the date. Your `say` SHOULD tell them about that default and name WHEN it lands (the event date minus a few days), and make clear they can change it — see the say guidance. Do NOT invent extra reminders in the array; the single default is added for you.\n" +
+    "• If the user clearly wants a nudge but named no when AND there is no date to lead from, do NOT guess: use the reply tool to ask one short situational question about when, then set exactly what they answer.\n\n" +
+    "Your `say` and the reminders must agree: put every reminder the USER stated in `reminders`. When `reminders` is empty AND the note has a date, your `say` names the ONE default nudge the system will seed (a few days before, on a concrete date). When there is no date at all, just warmly confirm you'll remember and promise no nudge.",
+  input_schema: {
+    type: "object",
+    properties: {
+      person_hint: { type: "string", description: "The person this is about, exactly as the user named them (\"Sarah\", \"Marcus Bryant\"). Empty ONLY if the conversation is already locked to a person in focus. On a bare first name you must have confirmed WHO first — never guess here." },
+      note: { type: "string", description: "What to remember, in a few plain words as the user said it (\"having a baby in April\", \"surgery on the 12th\", \"just got promoted\")." },
+      event_date: { type: "string", description: "The real-world date as YYYY-MM-DD. Set it whenever the user gives a date you can pin down — either an explicit date (\"April 20th 2027\") OR a relative one you resolve against today's date (given in your instructions): \"in 3 weeks\", \"next Tuesday\", \"next month\", \"in April\" all become a concrete YYYY-MM-DD. Reminders are meaningless without this, so a stated reminder time means you MUST resolve and set event_date. Omit ONLY when the user truly referenced no time at all — never invent a day or year the user did not point to." },
+      reminders: {
+        type: "array",
+        description: "Every reminder the user asked for, each an offset relative to event_date. Fill this WHENEVER the user stated a lead time — one entry per stated time; leaving a stated time out means it is never scheduled, so a nudge you promise aloud MUST appear here. Empty ONLY when the user gave no timing at all (never a default cadence). A lead time is meaningless without an event_date, so include event_date when you set reminders.",
+        items: {
+          type: "object",
+          properties: {
+            lead_days: { type: "integer", description: "SIGNED days relative to event_date, as the user asked: positive = BEFORE (\"a week before\"=7, \"a few days before\"=3, \"the day before\"=1), 0 = ON the day (\"on the day\", \"the day of\"), NEGATIVE = AFTER (\"the day after\"=-1, \"a few days after\"=-3, \"a week after\"=-7). Never a number they didn't state." },
+            phrase: { type: "string", description: "The user's own words for the reminder, if given (\"a week before\", \"the day after\"). Optional but helpful." },
+          },
+          required: ["lead_days"],
+        },
+      },
+      say: { type: "string", description: "Your warm, human spoken line confirming you'll remember it AND telling them about the nudge, so they can adjust it. ONLY use a confirming 'done / I'll remember / I'll nudge you' line when you have already settled WHO this is about (a known saved person, or one they've just named) — never for a person you haven't pinned down; if who-it-is isn't settled yet, don't call this tool at all, ask who first with reply. Three cases: (1) the user STATED reminder timing → mention exactly the nudges you put in `reminders`. (2) `reminders` is empty but there IS an event_date → the system seeds ONE default nudge a few days before; name WHEN it lands (compute the event date minus about three days) and make clear it's adjustable, e.g. \"I'll give you a nudge on September 4th, a few days before his chemo — tell me if you'd like it sooner, later, or not at all.\" (3) no date at all → just warmly confirm you'll remember, promise no nudge. Never promise a nudge you didn't schedule and the system won't seed. 1-2 short sentences, varied, never robotic, never 'saved to database'. On a mixed capture+plan turn, keep flowing toward the plan." },
+    },
+    required: ["note", "say"],
+  },
+};
+
+// The tools offered this turn.
+//   • The bounded post-resolve_person hop (`onlyReplyReady`) → EXACTLY reply + ready (no capture, no
+//     resolver): she must land the confirm/disambiguation line, no loop.
+//   • Anonymous → reply + ready + note_and_remind (so she can capture-route + we nudge sign-in).
+//   • Signed in → all of the above + the resolve_person precise checker.
+export function toolsFor({ signedIn = false, onlyReplyReady = false } = {}) {
+  if (onlyReplyReady) return TOOLS; // reply + ready only
+  if (!signedIn) return [...TOOLS, NOTE_AND_REMIND_TOOL];
+  return [...TOOLS, NOTE_AND_REMIND_TOOL, RESOLVE_PERSON_TOOL];
 }
 
 // TC-66/TC-82 Phase 3a: when the conversation is launched from a saved person, the client
@@ -236,11 +288,32 @@ ${CB_EXAMPLE_NOTE}
 `;
 }
 
+// TC capture-loop (FIX 1) — TODAY, in Della's voice, so she can resolve the relative dates people
+// actually speak ("in 3 weeks", "next Tuesday", "next month", "in April") into a concrete
+// event_date. Without this she has no anchor, so per her own event_date instruction she omits the
+// date, the note is classed a plain durable, and the reminders the user asked for silently vanish
+// (no key_date → seedReminders no-ops). This is a RUNTIME prompt (voice/typed conversation), NOT a
+// test/cron path, so real wall-clock "now" is correct here — do NOT wire the cron's injectable clock
+// in. Computed fresh per request in America/Chicago (portfolio default) so "today" + the day-of-week
+// match the copy elsewhere. Kept a bare instruction (no examples of concrete future dates) so she
+// never anchors on a fabricated day — she resolves ONLY what the user actually referenced.
+function todayLine(now = new Date()) {
+  const human = new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/Chicago", weekday: "long", year: "numeric", month: "long", day: "numeric",
+  }).format(now); // e.g. "Sunday, August 17, 2026"
+  const iso = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "America/Chicago", year: "numeric", month: "2-digit", day: "2-digit",
+  }).format(now); // YYYY-MM-DD
+  return `Today's date is ${human} (${iso}, America/Chicago). When the user gives a relative time — "in 3 weeks", "next Tuesday", "next month", "in April", "a week from Friday" — resolve it against today's date into a concrete YYYY-MM-DD and use THAT as event_date. Leave event_date empty ONLY when the user gave no time reference at all. Never invent or shift a date the user did not actually reference.`;
+}
+
 export function systemPrompt(ctx) {
   const memory = memoryBlock(ctx);
   const roster = rosterBlock(ctx);
   const checkback = checkbackBlock(ctx);
   return `${herIdentity()}
+
+${todayLine()}
 
 Who you are (let this shape everything you say; never announce or explain it): ${HER_CHARACTER}${memory ? "\n" + memory : ""}${roster ? "\n" + roster : ""}
 
@@ -268,6 +341,23 @@ Recognizing who they mean (you know their circle — the saved people listed abo
 - Adding a new person, updating someone you know, and talking-about all happen right here inside the conversation. Never tell them to use a picker, to add someone first, or to type a name.
 - Only for a genuinely tricky, authoritative check (a near-spelling, or two people with the same name), call the resolve_person tool instead of guessing. When it comes back with one confident match on a bare first name, still confirm WHO first before proceeding; when it returns several possible people, name a recognizable detail and let them pick. Do not reach for it on ordinary names the list already makes clear; it costs a beat, so use it only when it truly matters.` : ""}
 
+Two things a person comes to you for — TELL you (capture) or ASK you (plan). Read which one every turn:
+- SOMETIMES they are just telling you something to REMEMBER about a person — "Sarah's having a baby in April", "Dad's surgery is on the 12th", "Marcus just got promoted", "remind me it's Mom's birthday next month". They don't want a plan; they want you to HOLD it. That is a CAPTURE. Use the note_and_remind tool: put what to remember in note, the person in person_hint, a full date (with a year) in event_date only if they clearly gave one, and your warm spoken line in say. Then it's held — you don't spin up a plan.
+- OTHER times they want help showing up — "what should I do for her?", "help me find a gift", "I don't know what to say". That is a PLAN. Converse and, when you have enough, hand off with ready, exactly as you always have.
+- A MIXED turn does BOTH at once: "she's having a baby in April — what should I get her?" Capture is never lost. Call note_and_remind to hold the fact AND keep the conversation flowing toward the plan (your say keeps you moving; the plan handoff still happens with ready when you're ready). Never drop the thing they told you just because they also asked for help.
+- WHO still comes first, always. note_and_remind does NOT bypass figuring out who they mean. If the person is NOT already known to you — not one of the saved people above, and not the person this conversation is locked to — do NOT call note_and_remind yet and do NOT say "done" or promise a nudge. FIRST use the reply tool to ask who they are with ONE short, warm question ("what's your sister's name?", "which Sarah do you mean?") and WAIT for their answer. Only once who-it-is is settled (a confident saved match, or they've named the new person) do you call note_and_remind. On a bare first name, CONFIRM WHO first (the same roster/confirm rules above) and WAIT — do not capture to a guessed person.
+- NEVER say "done", "saved", "I'll remember", or "I'll nudge you" until BOTH are true: (a) you have settled WHO it is about, and (b) this person is actually signed in. If you are not sure they are signed in, do not promise a nudge — warmly note you'd love to hold it and let the sign-in happen. Claiming something is done before it is saved is the worst mistake here; when in doubt, ask or invite rather than declare.
+- Reminders: honor what the user asks, and for a dated note with no stated timing let the system add ONE light default you then name. Two rules, both load-bearing:
+  1. If they tell you ANY timing ("remind me a week before her birthday", "nudge me the day before", "check on me a few days before and the day after", "set two reminders, seven days before and one day before"), you MUST fill the note_and_remind reminders array with EVERY lead time they gave — one entry each, as a signed lead_days (before = positive, the day = 0, after = negative: "a week before"=7, "the day before"=1, "the day of"=0, "the day after"=-1, "a few days after"=-3). Leaving a stated time OUT of the array means it is never scheduled — so if your spoken line promises a nudge, that nudge MUST be in the reminders array. Never promise a reminder you didn't put there. Two timings means two entries.
+  2. If they give NO timing but the note pins down a real date, leave the reminders array EMPTY — do NOT put a number in it. The system automatically seeds ONE light default nudge a few days before that date. Your spoken line SHOULD name that default and when it lands (the date minus a few days) and make clear it's adjustable, so it's never a surprise — for example "I'll give you a nudge on September 4th, a few days before his chemo — tell me if you'd like it sooner, later, or not at all." Do NOT add extra reminders yourself; the single default is handled for you. If they clearly want a nudge but named no when AND there's no date to lead from, ask ONE short, situational question about when (use reply), then set exactly what they say. An UNDATED durable fact ("she just started a new job") gets no nudge at all — just confirm you'll remember it, and don't mention a reminder. Adding extra reminders they didn't ask for, or promising a nudge on a date that doesn't exist, is a real mistake.
+- CARRY FORWARD what they already told you, ESPECIALLY the reminder timing. If earlier in THIS conversation the user stated when to nudge them ("remind me a week before", "the day after") and you had to pause to ask WHICH person (or any other clarifying question) before capturing, you MUST still put every one of those earlier-stated timings into the reminders array when you finally call note_and_remind — do NOT drop "a week before" just because a turn or two passed while you sorted out who they meant. The clarifying turn changes WHO, never WHEN. A reminder time the user said out loud, even several turns back, still belongs in reminders. And the existing rule holds: your say may only promise a nudge that is actually in reminders — so if you carry the promise into your say, carry the timing into the array.
+- You CAN hold more than one reminder for the same moment, and people often don't realize that. So OCCASIONALLY — never every time, never as a tacked-on tagline — when it would genuinely help, you may lightly let them know a second nudge is possible: "I can add another closer to the day if you'd like," or "want a second heads-up the day after, too?" Read the moment: offer it when a single nudge seems thin for what they're carrying, and stay quiet about it when they've clearly said what they want or the moment is heavy and doesn't need options. This is a light, situational touch, not a nag — restraint is the whole point, and most confirmations should NOT mention it at all.
+
+If they ask what you can do or how this works (teach, don't lecture):
+- Sometimes a person will ask outright — "what can you do?", "how does this work?", "can you remind me?", "what should I tell you?" When they do, warmly and clearly tell them the real thing, in your own voice, matched to what they asked. This is one of the few moments you explain yourself — do it like a thoughtful friend, not a manual.
+- What's true, to draw from (say it as flowing, human sentences, NEVER a bulleted feature list): you remember the people who matter to them and the moments those people are going through. They can just tell you something — "Marcus's chemo is in three weeks," "Sarah's having a baby in April" — and you'll hold onto it. When there's a date, you can give them a heads-up before it so they have time to reach out — one nudge or several, at times they choose (a week before, the day of, even the day after) — and they can change or drop any reminder just by telling you. You won't push a plan on them; but if they DO want help with what to do or say, you can help with that too.
+- Keep it warm, concise, and human — a few real sentences, not a recital of everything at once. Answer the SPECIFIC thing they asked and let the rest surface naturally; if they only asked "can you remind me?", a short yes-and (that you'll remember it and can nudge them, one time or a few, whenever they'd like) beats the whole tour. Use the reply tool for this.
+
 Deciding when you have enough (you are an advisor judging, NOT a form validating):
 - The essentials are usually: what happened, who this person is to them, and enough about the person and relationship to make guidance personal.
 - Budget, timing, location, and their authentic voice are helpful but optional. Ask about them only if the answer would actually change your guidance.
@@ -283,7 +373,7 @@ Closing the conversation like a person (do NOT skip this — it is how you hand 
 
 - Otherwise, if you still need something to give real guidance, call reply. When you're truly ready to hand off, call ready (with your closing send-off), per the closing rules above.
 ${checkback ? "\n" + checkback : ""}
-Every turn, call EXACTLY ONE tool: reply (to say something, optionally asking), or ready (when you can give real guidance). Never both. Never plain text. You are ${HER_NAME}.`;
+Every turn, call EXACTLY ONE tool: reply (to say something, optionally asking), note_and_remind (to hold something they told you to remember), or ready (when you can give real guidance). Never more than one. Never plain text. You are ${HER_NAME}.`;
 }
 
 // TC-88 latency: wrap the system string into Anthropic's content-array form with a prompt-cache
@@ -574,6 +664,173 @@ async function runResolvePerson(userId, input) {
   }
 }
 
+// TC capture-loop (no-false-promise) — the AUTHORITATIVE spoken line for the two outcomes where
+// NOTHING was saved. dispatchNoteAndRemind never trusts the model's `say` in these cases (it keeps
+// declaring "Done, I'll nudge you on <date>", a promise that will never be kept). These compose her
+// line from what actually happened, in Della's warm voice, so she only ever claims done when it is.
+// Kept plain-spoken + varied-feeling but deterministic (server truth), and humanized like every
+// other spoken line. First-person, warm, no false promise.
+
+// A tiny, human phrase for the note ("moving October 1st", "having a baby") so the invite/question
+// references what they just shared. Falls back to a soft generic if the note is empty/odd.
+function noteFragment(note) {
+  const t = String(note || "").replace(/\s+/g, " ").trim();
+  if (!t) return "this";
+  // Keep it short so the spoken line stays a natural sentence, not a recital.
+  return t.length > 80 ? t.slice(0, 80).trimEnd() : t;
+}
+
+// SIGNED-OUT: she'd love to hold this and nudge them — but she can't keep it without an account, so
+// she warmly invites sign-in instead of promising a nudge that will never fire. Value-first.
+export function sayForAnon(note) {
+  const frag = noteFragment(note);
+  return humanizeText(
+    `I'd love to hold onto ${frag} and give you a nudge when it matters — but I can only remember it if you're signed in. Want to sign in so I can keep it for you?`,
+  );
+}
+
+// SIGNED-IN but WHO isn't settled yet (unknown person / ambiguous / new). She asks who rather than
+// claiming done, matched to the disambiguation shape. Nothing has been written.
+export function sayForConfirmWho({ kind, personName, personDetail, personHasDetail, candidates, personHint } = {}) {
+  const hint = String(personHint || "").trim();
+  const cands = Array.isArray(candidates) ? candidates.filter((c) => c && c.name) : [];
+  let line;
+  if (kind === "update" && personName) {
+    // One likely existing match — confirm it's them before saving.
+    const detail = personHasDetail && personDetail ? ` (${String(personDetail).trim()})` : "";
+    line = `Just so I hold this for the right person — is this your ${personName}${detail}, or someone new?`;
+  } else if (cands.length > 1) {
+    // Several same-name people — let them pick.
+    const names = cands.slice(0, 3).map((c) => String(c.name).trim());
+    const list = names.length === 2 ? `${names[0]} or ${names[1]}` : `${names.slice(0, -1).join(", ")}, or ${names[names.length - 1]}`;
+    line = `I want to make sure I keep this with the right person — is this ${list}, or someone I don't know yet?`;
+  } else if (hint) {
+    // A named person I don't have saved yet — ask who they are so I hold it correctly.
+    line = `I don't think I've met ${hint} yet — tell me a little about them so I hold this with the right person?`;
+  } else {
+    line = `I want to make sure I keep this with the right person — who is this about?`;
+  }
+  return humanizeText(line);
+}
+
+// TC capture-loop (§3.1) — dispatch the note_and_remind tool on the SERVER. She has already routed
+// the utterance and (per the prompt rules) confirmed WHO on a bare first name; here we WRITE through
+// the same engine the typed capture door uses, so the conversation door and the typed door behave
+// identically. Returns the CLIENT payload object (both the stream + non-stream paths wrap it):
+//   ANON              → { action:"noted_anon", say, signInPrompt:true }  (speak + value-first nudge; write NOTHING)
+//   Level A           → { action:"noted", say, personName, personId, reminders, factIds }
+//   Level B/ambig/new → { action:"confirm_who", say, captureId, kind, personName?, candidates?, ... }
+// The `say` is ALWAYS Della's spoken line (humanized), passed straight through. Never throws — any
+// failure degrades to a graceful spoken reply so the loop never breaks.
+export async function dispatchNoteAndRemind(userId, input, ctx, messages = []) {
+  const say = humanizeText(String(input?.say || "").trim()) || "I'll remember that.";
+  const note = String(input?.note || "").trim();
+
+  // Nothing worth remembering, or she called the tool with an empty note → just speak her line.
+  if (!note) return { action: "reply", say };
+
+  // BLOCKER (clarify-then-capture) safety net: when the model returns EMPTY reminders — the observed
+  // failure after a "which person?" turn — scan the recent USER turns for a timing the user stated
+  // earlier ("a week before") and carry it, so the scheduled reminder matches what she PROMISED aloud
+  // instead of the lead-3 default. Only ever consulted when the model set no reminders (its own timing
+  // wins); parsed by the shared normalizeReminders vocabulary. Cheap + deterministic.
+  const modelSetReminders = Array.isArray(input?.reminders) && input.reminders.length > 0;
+  const statedReminders = modelSetReminders ? [] : statedRemindersFromMessages(messages);
+
+  // ANON: value-first. The model's `say` cannot be trusted here — it routinely promises "Done, I'll
+  // nudge you on <date>", a nudge that will NEVER fire because there is no account to hold it. We are
+  // AUTHORITATIVE about what was saved (nothing), so we OVERRIDE the say to a warm, no-false-promise
+  // invite to sign in. (della-optin: the ask lands at the moment of value, never extractive; the
+  // no-false-promise principle: she only claims done when it is truly done.)
+  if (!userId) return { action: "noted_anon", say: sayForAnon(note), signInPrompt: true };
+
+  const supa = serviceClient();
+  const parsed = noteToParsed(input, { statedReminders });
+  if (!parsed.facts.length) return { action: "reply", say };
+
+  try {
+    // Context-lock: the conversation is focused on a saved person (client passes ctx.personId) and
+    // she didn't name someone else → identity is certain, write straight to them (mirrors the typed
+    // door's lockedPersonId branch). Only trust an explicit id from the verified session's ctx.
+    const lockedId = ctx && typeof ctx === "object" ? String(ctx.personId || "").trim() : "";
+    if (lockedId && !parsed.facts[0].person_hint) {
+      const person = await getConversePerson(supa, userId, lockedId);
+      if (person) {
+        const { writtenIds: factIds, supersededIds, writtenFacts } = await writeFactsToPerson(supa, userId, person.id, parsed.facts, "conversation", note);
+        const { reminderIds } = await seedReminders(supa, userId, writtenFacts);
+        await insertConversationCapture(supa, userId, {
+          raw_text: note, status: "confirmed", context_locked: true, proposed_person_id: person.id,
+          match_confidence: 1, match_evidence: `saved to ${person.name}`,
+          parsed: { facts: parsed.facts, person_hint: person.name, written_fact_ids: factIds, superseded_fact_ids: supersededIds }, resolved_at: new Date().toISOString(),
+        });
+        return { action: "noted", say, personName: person.name, personId: person.id, factIds, reminders: parsed.facts[0].reminders || [], eventDate: parsed.facts[0].event_date || null, reminderIds };
+      }
+      // locked person vanished → fall through to normal resolution on the note.
+    }
+
+    // Normal path: resolve WHO before writing anything (never guess). One named hint → one group.
+    const { groups } = await resolve(userId, parsed, supa);
+    const g = groups[0] || { personHint: parsed.facts[0].person_hint || "", facts: parsed.facts, resolution: { level: "B", proposedPersonId: null, confidence: 0, evidence: "" } };
+    const r = g.resolution;
+
+    // Level A — a confident single match → write now + seed user-set reminders.
+    const person = r.level === "A" && r.proposedPersonId ? await getConversePerson(supa, userId, r.proposedPersonId) : null;
+    if (person) {
+      const { writtenIds: factIds, supersededIds, writtenFacts } = await writeFactsToPerson(supa, userId, person.id, g.facts, "conversation", note);
+      const { reminderIds } = await seedReminders(supa, userId, writtenFacts);
+      await insertConversationCapture(supa, userId, {
+        raw_text: note, status: "confirmed", context_locked: false, proposed_person_id: person.id,
+        match_confidence: r.confidence, match_evidence: r.evidence,
+        parsed: { facts: g.facts, person_hint: g.personHint, written_fact_ids: factIds, superseded_fact_ids: supersededIds }, resolved_at: new Date().toISOString(),
+      });
+      return { action: "noted", say, personName: person.name, personId: person.id, factIds, reminders: g.facts[0]?.reminders || [], eventDate: g.facts[0]?.event_date || null, reminderIds };
+    }
+
+    // Level B / ambiguous / brand-new — write NOTHING. Hold a pending capture (carrying the facts +
+    // their user-set reminders) so the typed confirm card can save it later (capture-resolve, WP-A).
+    // The reminders ride inside parsed.facts[].reminders, so a confirm seeds them with no re-ask.
+    const singleTarget = r.proposedPersonId && (r.level === "A" || r.fallback);
+    const existing = singleTarget ? await getConversePerson(supa, userId, r.proposedPersonId) : null;
+    const cap = await insertConversationCapture(supa, userId, {
+      raw_text: note, status: "pending", context_locked: false,
+      proposed_person_id: existing ? existing.id : (r.proposedPersonId || null),
+      match_confidence: r.confidence, match_evidence: r.evidence,
+      parsed: { facts: g.facts, person_hint: g.personHint, location_hint: parsed.location_hint || "", candidates: r.candidates || [] },
+    });
+    const kind = existing ? "update" : ((r.candidates && r.candidates.length) ? "pick" : "add");
+    let personDetail = "", personHasDetail = false;
+    if (existing) { const d = await recognizableDetail(supa, userId, existing.id); personDetail = d.detail; personHasDetail = d.hasDetail; }
+    // Nothing has been written yet — she needs to know WHO this is about first. The model's `say`
+    // often (inconsistently) still declares "Done, I'll nudge you", a promise made before she even
+    // knows the person. We are AUTHORITATIVE that this is unsaved, so we OVERRIDE the say to a warm
+    // question that ASKS who, matched to the disambiguation shape (verify-on-doubt, no false "done").
+    return {
+      action: "confirm_who", say: sayForConfirmWho({ kind, personName: existing ? existing.name : null, personDetail, personHasDetail, candidates: r.candidates || [], personHint: g.personHint || "" }), captureId: cap.id, kind,
+      personId: existing ? existing.id : null,
+      personName: existing ? existing.name : null,
+      personDetail, personHasDetail,
+      personHint: g.personHint || null,
+      candidates: r.candidates || [], evidence: r.evidence,
+      reminders: g.facts[0]?.reminders || [],
+      eventDate: g.facts[0]?.event_date || null,
+    };
+  } catch (e) {
+    console.error("dispatchNoteAndRemind (soft-fail to spoken reply)", e);
+    return { action: "reply", say };
+  }
+}
+
+async function getConversePerson(supa, userId, personId) {
+  const { data } = await supa.from("people").select("id, name").eq("user_id", userId).eq("id", personId).is("deleted_at", null).maybeSingle();
+  return data || null;
+}
+
+async function insertConversationCapture(supa, userId, row) {
+  const { data, error } = await supa.from("captures").insert({ user_id: userId, source: "conversation", ...row }).select("id").single();
+  if (error) throw error;
+  return data;
+}
+
 // A Claude tool_result content block for a resolve_person tool_use.
 function toolResultBlock(toolUseId, result) {
   return { role: "user", content: [{ type: "tool_result", tool_use_id: toolUseId, content: JSON.stringify(result) }] };
@@ -662,8 +919,10 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
         let sayEmitted = "";     // the portion of `say` already sent as sentences (reply only)
         let emittedAnySay = false;
 
+        // reply AND note_and_remind both carry a `say` we speak live, sentence-by-sentence.
+        const speaksSay = () => toolName === "reply" || toolName === "note_and_remind";
         const flushSay = (final) => {
-          if (toolName !== "reply") return;
+          if (!speaksSay()) return;
           const full = extractSayPartial(partial);
           const remainder = full.slice(sayEmitted.length);
           const { sentences, tail } = takeSentences(remainder, { final });
@@ -683,10 +942,10 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
             const d = evt.delta;
             if (d?.type === "input_json_delta" && typeof d.partial_json === "string") {
               partial += d.partial_json;
-              if (toolName === "reply") flushSay(false);
+              if (speaksSay()) flushSay(false);
             }
           } else if (type === "content_block_stop") {
-            if (toolName === "reply") flushSay(true);
+            if (speaksSay()) flushSay(true);
           }
         };
 
@@ -722,6 +981,19 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
           if (!emittedAnySay) send({ t: "say", text: humanizeText("Tell me a little more?") });
           return { kind: "reply" };
         }
+        if (toolName === "note_and_remind") {
+          // Her spoken `say` already streamed as sentences. Return the accumulated tool input so the
+          // caller can WRITE the capture (dispatchNoteAndRemind) after speech, then emit the terminal
+          // event carrying the write result (noted / confirm_who / noted_anon).
+          flushSay(true);
+          let input = {};
+          try { input = JSON.parse(partial); } catch { /* partial JSON → note may be short; dispatch guards empty */ }
+          if (!emittedAnySay && String(input.say || "").trim()) {
+            const text = humanizeText(String(input.say).trim());
+            if (text) send({ t: "say", text });
+          }
+          return { kind: "note_and_remind", input };
+        }
         if (toolName === "ready") {
           let input = {};
           try { input = JSON.parse(partial); } catch { /* partial/invalid ready JSON → context backfill */ }
@@ -737,6 +1009,16 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
 
       // First turn.
       let verdict = await consumeStream({ ...payload, stream: true });
+
+      // Harden the no-tool case on the voice path too (mirror of the typed retry). A stream that
+      // produced no usable tool (kind:"error" with nothing spoken) is usually transient model
+      // non-compliance under a forced tool_choice — retry the SAME streamed call ONCE before we let
+      // the client degrade. We only retry when she never emitted a spoken sentence (a first-turn
+      // no-tool), so a mid-reply network error still falls through to the client's non-stream fallback.
+      if (verdict.kind === "error") {
+        console.error("converse stream: no usable tool (retrying once)");
+        verdict = await consumeStream({ ...payload, stream: true });
+      }
 
       // TC-93: bounded ONE-hop precise-checker on the voice path. If she asked for resolve_person,
       // run the deterministic resolver, feed the result back, and recurse ONCE with tools limited to
@@ -758,6 +1040,14 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
         send({ t: "reply_done" });
       } else if (verdict.kind === "ready") {
         send({ t: "ready", answers: verdict.answers });
+      } else if (verdict.kind === "note_and_remind") {
+        // TC capture-loop: her `say` already spoke. Now WRITE through the shared engine (or, anon,
+        // just nudge sign-in) and emit the terminal event carrying the result. `t:"noted"` = the
+        // NDJSON name; the payload's `action` (noted / confirm_who / noted_anon / reply) tells the
+        // client what happened, mirroring the non-stream JSON shape.
+        const result = await dispatchNoteAndRemind(userId, verdict.input, ctx, payload.messages);
+        send({ t: "noted", ...result });
+        send({ t: "reply_done" });
       } else {
         // error, or a stray resolve_person we can't act on (no user / follow-up failed) → let the
         // client degrade to its non-stream fallback.
@@ -831,6 +1121,19 @@ export default async (req) => {
 
   let tool = (data?.content || []).find((b) => b.type === "tool_use");
 
+  // Harden the no-tool_use case (the "I drifted" bug). tool_choice forces a tool, so this is rare
+  // transient model non-compliance — usually fixed by one retry of the SAME call. Log the stop_reason
+  // + a snippet for diagnosis, retry once, and only if STILL no tool degrade to a thread-KEEPING
+  // reply that re-engages (asks who / what to remember), never the self-deprecating drop.
+  if (!tool) {
+    console.error("converse: no tool_use (retrying once)", "stop_reason=", data?.stop_reason, JSON.stringify(data?.content || []).slice(0, 300));
+    try {
+      const retry = await anthropicCall(apiKey, { ctx, messages: payload.messages, tools: payload.tools, tool_choice: payload.tool_choice });
+      tool = (retry?.content || []).find((b) => b.type === "tool_use");
+      if (tool) data = retry;
+    } catch (e) { console.error("converse no-tool retry failed", e?.status || e); }
+  }
+
   // TC-93: the precise-checker round-trip (signed-in only). She reached for resolve_person on a
   // tricky name → run the deterministic resolver, feed the result back, and make ONE more call with
   // tools limited to reply/ready so she composes the confirm/disambiguation line. Bounded to ONE hop.
@@ -847,10 +1150,18 @@ export default async (req) => {
     }
   }
 
+  // TC capture-loop (§3.1): she routed to the CAPTURE door → write through the shared engine (or,
+  // anon, speak + nudge sign-in) and return the noted/confirm_who payload. WHO was already confirmed
+  // by the prompt rules; dispatch never guesses.
+  if (tool?.name === "note_and_remind") {
+    return j(await dispatchNoteAndRemind(userId, tool.input || {}, ctx, payload.messages));
+  }
+
   const out = replyOrReadyResponse(tool, ctx);
   if (out) return out;
 
-  // No tool call (shouldn't happen with tool_choice forced) — degrade gracefully.
-  console.error("converse: no tool_use in response", JSON.stringify(data?.content || []).slice(0, 500));
-  return j({ action: "reply", say: "Sorry, I drifted for a second. What's going on?" }, 200);
+  // Still no tool call after the retry — degrade to a reply that KEEPS the thread and re-engages,
+  // rather than the old self-deprecating "I drifted" that dropped whatever they just asked for.
+  console.error("converse: no tool_use after retry", "stop_reason=", data?.stop_reason, JSON.stringify(data?.content || []).slice(0, 500));
+  return j({ action: "reply", say: "I want to make sure I get this right — who is this about, and what would you like me to remember or help with?" }, 200);
 };

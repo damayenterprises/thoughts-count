@@ -1072,6 +1072,16 @@ alt="" /></noscript>
   .tc-bubble.her { align-self:flex-start; background: var(--tc-surface-hi); color: var(--tc-ink); border:1px solid var(--tc-line); border-bottom-left-radius: 6px; }
   /* user bubble = brand BLUE (keeps scarce red for the heart + CTA only) */
   .tc-bubble.me { align-self:flex-end; background: var(--tc-blue); color:#fff; border-bottom-right-radius: 6px; }
+  /* Capture-loop in-conversation affordances: the who-picker / sign-in invite / saved chip that
+     appear inside the chat under one of HER bubbles (confirm_who, noted_anon, noted). Warm, on-panel,
+     matched to the bubble idiom — not a clinical card. */
+  .tc-cvact { align-self:flex-start; max-width:84%; display:flex; flex-wrap:wrap; gap:8px; margin:-2px 0 4px; }
+  .tc-cvact .cvbtn { appearance:none; font:inherit; font-weight:600; font-size:14px; padding:8px 14px; border-radius:999px; cursor:pointer; border:1.5px solid var(--tc-line); background:var(--tc-surface-hi); color:var(--tc-ink); transition:background .12s,border-color .12s,color .12s; }
+  .tc-cvact .cvbtn:hover, .tc-cvact .cvbtn:focus-visible { border-color:var(--tc-blue); outline:none; }
+  .tc-cvact .cvbtn.primary { background:var(--tc-blue); border-color:var(--tc-blue); color:#fff; }
+  .tc-cvact .cvbtn.primary:hover, .tc-cvact .cvbtn.primary:focus-visible { filter:brightness(1.05); }
+  .tc-cvact .cvbtn[disabled] { opacity:.55; cursor:default; }
+  .tc-cvsaved { align-self:flex-start; font-size:13.5px; color:var(--tc-ink-mute); margin:-2px 0 4px 2px; }
   .tc-typing { align-self:flex-start; display:inline-flex; gap:5px; padding:15px 16px; background:var(--tc-surface-hi); border:1px solid var(--tc-line); border-radius:18px; border-bottom-left-radius:6px; }
   .tc-typing i { width:7px; height:7px; border-radius:50%; background:var(--tc-ink-mute); animation: tc-blink 1.2s infinite both; }
   .tc-typing i:nth-child(2){ animation-delay:.18s } .tc-typing i:nth-child(3){ animation-delay:.36s }
@@ -2707,6 +2717,13 @@ async function cvStreamReply(ctx, force){
           // script). cvEnqueueSay reveals each sentence in step with its audio (or immediately in the
           // degraded/no-TTS path). Text always ends up fully shown.
           cvEnqueueSay(sp, evt.text); // speak it in order + reveal its text in sync with the audio
+        } else if (evt.t === 'noted'){
+          // TC capture-loop (Fix 4): a note_and_remind outcome. Her `say` already streamed as
+          // sentences above (t:"say"); here we render the outcome affordance INSIDE the conversation
+          // (sign-in invite / who-picker / saved chip) so capture-in-voice actually completes. The
+          // 'reply' action carries only a spoken line (nothing to render).
+          gotAny = true;
+          if (evt.action && evt.action !== 'reply'){ try { cvHandleCapture(evt); } catch(e){ console.error(e); } }
         } else if (evt.t === 'reply_done'){
           sp.replyDone = true;
           cvPumpSpeak(sp); // if the queue already drained, this opens the mic
@@ -2776,6 +2793,13 @@ async function cvFallbackReply(force){
     cvSpeakThenListen(d.say, false);
     return;
   }
+  // TC capture-loop (Fix 4): a note_and_remind outcome on the voice fallback — same as the typed path.
+  if (d && (d.action === 'noted' || d.action === 'confirm_who' || d.action === 'noted_anon')){
+    if (d.say){ __cv.messages.push({ role: 'assistant', content: d.say }); cvAppend('her', d.say); }
+    cvHandleCapture(d);
+    if (d.say) cvSpeakThenListen(d.say, false);
+    return;
+  }
   const oops = "Sorry, I drifted for a second. What's going on?";
   cvAppend('her', oops);
   cvSpeakThenListen(oops, false);
@@ -2815,6 +2839,141 @@ function cvHandleReady(ans){
   emitCheckbackIfAny();
 }
 
+// TC capture-loop (Fix 4): render a note_and_remind OUTCOME inside the conversation. The server
+// already spoke Della's line (d.say) as a normal 'her' bubble via the caller; here we render the
+// ACTION the outcome needs, in the chat, so capture-in-conversation actually completes:
+//   • noted_anon  → a warm "Sign in so I can remember this" invite (nothing was saved yet).
+//   • confirm_who → a who-picker / confirm buttons (nothing saved until they pick), driving the
+//                   SAME capture-resolve pipeline the typed door uses (TCCompanion.captureConfirm).
+//   • noted       → a quiet "saved" chip (already written; just a glanceable confirmation).
+// Fail-open: if the companion bridge isn't available, we still show the invite/copy so the user is
+// never left staring at a dropped request. Returns true if it handled the action.
+// TC capture-loop (close-the-loop): compose Della's warm confirmation for a save that set one or more
+// reminders, naming the timing AND (when we can) the concrete nudge date — so the user can trust the
+// nudge was actually scheduled, not just that the person was saved. Returns the plain base label
+// unchanged when there is no reminder (never invents a nudge). Reuses the ONE offset→phrase vocabulary
+// from _reminders.js (exposed on window by companion.js) so this reads identically to the editor.
+function cvReminderPhrase(lead_days){
+  const f = window.TCReminderPhrase && window.TCReminderPhrase.offsetPhrase;
+  if (f){ try { return f(lead_days); } catch(e){} }
+  // Tiny fallback mirroring offsetPhrase, only if the module hasn't loaded yet.
+  const n = Number(lead_days);
+  if (!Number.isFinite(n) || n === 0) return 'day of';
+  if (n === 1) return '1 day before'; if (n === 7) return 'a week before'; if (n === 14) return 'two weeks before';
+  if (n > 0) return n + ' days before';
+  const a = Math.abs(n); if (a === 1) return '1 day after'; if (a === 7) return 'a week after'; return a + ' days after';
+}
+// The concrete calendar date of a nudge = event_date minus lead_days, in a warm "September 24th" form.
+function cvNudgeDate(eventDate, lead_days){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(eventDate || '').trim());
+  const n = Number(lead_days);
+  if (!m || !Number.isFinite(n)) return '';
+  const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  dt.setUTCDate(dt.getUTCDate() - n);
+  const MO = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const day = dt.getUTCDate();
+  const suf = (day % 10 === 1 && day !== 11) ? 'st' : (day % 10 === 2 && day !== 12) ? 'nd' : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+  return MO[dt.getUTCMonth()] + ' ' + day + suf;
+}
+// Build the full saved line. baseLabel is her existing "Saved <name>." / "Saved to <name>." phrasing;
+// we DROP its trailing period and continue in her voice. name (first name) is used for warmth ("her move"
+// stays generic — we don't guess the possessive noun, just name the timing + date honestly).
+function cvSavedWithReminders(baseLabel, reminders, eventDate){
+  const active = (Array.isArray(reminders) ? reminders : []).filter(r => r && r.lead_days != null)
+    .slice().sort((a, b) => Number(b.lead_days) - Number(a.lead_days));
+  if (!active.length) return baseLabel; // no reminder → keep it simple, invent nothing
+  // Drop the trailing period, and trim a "to your people"/"to <name>" tail so the reminder clause reads
+  // as her warm example ("Saved Priya — I'll nudge you…") rather than a longer "…to your people — I'll…".
+  const stem = String(baseLabel || 'Saved.').replace(/\.\s*$/, '').replace(/\s+to your people$/i, '');
+  if (active.length === 1){
+    const phrase = cvReminderPhrase(active[0].lead_days);
+    const date = cvNudgeDate(eventDate, active[0].lead_days);
+    return date ? (stem + ' — I’ll nudge you ' + date + ', ' + phrase + '.')
+                : (stem + ' — I’ll nudge you ' + phrase + '.');
+  }
+  // Multiple nudges: list the timings warmly; lead with the earliest concrete date if it reads cleanly.
+  const phrases = active.map(r => cvReminderPhrase(r.lead_days));
+  const joined = phrases.length === 2 ? (phrases[0] + ' and ' + phrases[1])
+    : (phrases.slice(0, -1).join(', ') + ', and ' + phrases[phrases.length - 1]);
+  return stem + ' — I’ll nudge you ' + joined + '.';
+}
+
+function cvHandleCapture(d){
+  try {
+    if (!d || !d.action) return false;
+    const log = document.getElementById('cvLog');
+    if (d.action === 'noted_anon'){
+      // Value-first sign-in invite — the ask lands at the moment of value, never a false promise.
+      const row = document.createElement('div'); row.className = 'tc-cvact';
+      const btn = document.createElement('button'); btn.type = 'button'; btn.className = 'cvbtn primary';
+      btn.textContent = 'Sign in so I can remember this';
+      btn.onclick = () => { try { if (window.TCCompanion && window.TCCompanion.openSignIn) window.TCCompanion.openSignIn(); } catch(e){} };
+      row.appendChild(btn);
+      if (log){ log.appendChild(row); log.scrollTop = log.scrollHeight; }
+      return true;
+    }
+    if (d.action === 'confirm_who'){
+      // Nothing is saved until they pick WHO. Build the picker from the server payload and route each
+      // choice through the shared capture-resolve pipeline (same as the typed To-Review door).
+      const row = document.createElement('div'); row.className = 'tc-cvact';
+      const cid = d.captureId;
+      const finish = (label) => { row.querySelectorAll('button').forEach(b => b.disabled = true); const s = document.createElement('div'); s.className = 'tc-cvsaved'; s.textContent = label || 'Saved.'; if (log){ log.appendChild(s); log.scrollTop = log.scrollHeight; } };
+      const doResolve = async (opts) => {
+        try {
+          const conf = window.TCCompanion && window.TCCompanion.captureConfirm;
+          if (!conf || !cid){ finish('I’ll hold onto that.'); return; }
+          await conf({ captureId: cid, personId: opts.personId || null, newPersonName: opts.newPersonName || null });
+          // Close the loop: if this capture set reminders, name the nudge timing + concrete date so the
+          // user can trust it — not just that the person was saved. The reminders/eventDate ride on the
+          // confirm_who payload (server echo); no reminder → the simple base label, unchanged.
+          finish(cvSavedWithReminders(opts.savedLabel || 'Saved.', d.reminders, d.eventDate));
+        } catch(e){ console.error('cv confirm_who resolve failed', e); finish('I’ll hold onto that.'); }
+      };
+      const cands = Array.isArray(d.candidates) ? d.candidates.filter(c => c && c.name) : [];
+      if (cands.length){
+        // Ambiguous same-name → let them pick which saved person.
+        for (const c of cands){
+          const b = document.createElement('button'); b.type = 'button'; b.className = 'cvbtn';
+          b.textContent = c.name + (c.location ? ' · ' + c.location : '');
+          b.onclick = () => doResolve({ personId: c.id, savedLabel: 'Saved to ' + c.name + '.' });
+          row.appendChild(b);
+        }
+      } else if (d.kind === 'update' && d.personId && d.personName){
+        // Likely an existing person → confirm it's them, or it's someone new.
+        const yes = document.createElement('button'); yes.type = 'button'; yes.className = 'cvbtn primary';
+        yes.textContent = 'Yes, ' + d.personName;
+        yes.onclick = () => doResolve({ personId: d.personId, savedLabel: 'Saved to ' + d.personName + '.' });
+        row.appendChild(yes);
+      }
+      // Always offer "someone new" (uses the hinted name if we have it) — the add path.
+      const newName = String(d.personHint || (cands.length ? '' : '') || '').trim();
+      const addBtn = document.createElement('button'); addBtn.type = 'button'; addBtn.className = 'cvbtn';
+      addBtn.textContent = newName ? ('Add ' + newName + ' as someone new') : 'Someone new';
+      addBtn.onclick = () => {
+        if (newName){ doResolve({ newPersonName: newName, savedLabel: 'Saved ' + newName + ' to your people.' }); }
+        else { // no name yet → nudge them to just tell Della the name in the next turn
+          row.querySelectorAll('button').forEach(b => b.disabled = true);
+          const s = document.createElement('div'); s.className = 'tc-cvsaved'; s.textContent = 'Tell me their name and I’ll add them.'; if (log){ log.appendChild(s); log.scrollTop = log.scrollHeight; }
+        }
+      };
+      row.appendChild(addBtn);
+      if (log){ log.appendChild(row); log.scrollTop = log.scrollHeight; }
+      return true;
+    }
+    if (d.action === 'noted'){
+      // Already written server-side → a glanceable confirmation. Close the loop: when this save set
+      // reminders, name the nudge timing + concrete date (event_date − lead) so the chip confirms the
+      // NUDGE too, not just the person. No reminder → the quiet "Saved to <name>." exactly as before.
+      const s = document.createElement('div'); s.className = 'tc-cvsaved';
+      const base = d.personName ? ('Saved to ' + d.personName + '.') : 'Saved.';
+      s.textContent = cvSavedWithReminders(base, d.reminders, d.eventDate);
+      if (log){ log.appendChild(s); log.scrollTop = log.scrollHeight; }
+      return true;
+    }
+  } catch(e){ console.error('cvHandleCapture failed', e); }
+  return false;
+}
+
 // Append a streamed sentence to her growing bubble: reuse the last 'her' streaming bubble if this
 // turn already started one, else create it — so a multi-sentence reply reads as one message.
 let __cvStreamBubble = null;
@@ -2840,6 +2999,11 @@ function cvRevealSentence(text){ cvAppendStream(text); }
 function cvBuildCtx(){
   if (!flowPerson) return undefined;
   const ctx = {
+    // TC capture-loop (seam 4): carry the focused person's id so note_and_remind attaches a
+    // focused-person note to the RIGHT person with no re-resolution (server re-checks ownership by
+    // user_id before writing). Only set when a saved person is in focus; the anon/home path returns
+    // undefined above, so it never leaks on a no-focus conversation.
+    personId: flowPerson.id || undefined,
     name: flowPerson.name || '',
     relationship: flowPerson.relationship || '',
     location: flowPerson.location || '',
@@ -3061,6 +3225,17 @@ async function cvTurn(force){
     // guard lives entirely in cvSpeakThenListen). Typed mode: just refocus the input, unchanged.
     if (__cv.voice && __cvVoiceActive){ cvSpeakThenListen(d.say, false); return; }
     const i = document.getElementById('cvInput'); if (i){ try { i.focus(); } catch(e){} }
+    return;
+  }
+  // TC capture-loop (Fix 4): a note_and_remind outcome. Speak/show HER line, then render the outcome
+  // affordance (sign-in invite / who-picker / saved chip) INSIDE the conversation so capture-in-chat
+  // actually completes rather than falling through to "I drifted".
+  if (d && (d.action === 'noted' || d.action === 'confirm_who' || d.action === 'noted_anon')){
+    if (d.say){ __cv.messages.push({ role: 'assistant', content: d.say }); cvAppend('her', d.say); }
+    cvHandleCapture(d);
+    cvSetBusy(false);
+    if (__cv.voice && __cvVoiceActive && d.say){ cvSpeakThenListen(d.say, false); return; }
+    const i2 = document.getElementById('cvInput'); if (i2){ try { i2.focus(); } catch(e){} }
     return;
   }
   // Unexpected shape — recover gently.

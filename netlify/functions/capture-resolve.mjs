@@ -10,8 +10,9 @@
 //   • Reassign attaches to whoever the user picked (bias-to-split: the engine never merges).
 
 import { requireUser, serviceClient, json } from "./_supabase.mjs";
-import { writeFactsToPerson } from "./_capture.mjs";
+import { writeFactsToPerson, normalizeReminders } from "./_capture.mjs";
 import { deleteFact, reopenFact } from "./_memory.mjs";
+import { splitNameRelationship } from "./_names.mjs";
 
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 
@@ -89,7 +90,22 @@ export default async (req) => {
         // unique (user_id, type, value). Best-effort — a failed identifier write never blocks the save.
         await writeIdentifiers(supa, userId, personId, cap.parsed?.identifiers);
 
-        const { writtenIds: factIds, supersededIds } = await writeFactsToPerson(supa, userId, personId, facts, cap.source || "typed", cap.raw_text || "");
+        // TC capture-loop (§4.2, seam 1): honor the user's EDITED reminder set from the confirm card.
+        // The confirm card lets the user add/remove nudge chips before saving; when the body carries a
+        // `reminders` array it is AUTHORITATIVE — override the reminders on every event-bearing fact so
+        // the auto-seed (writeFactsToPerson→insertFact→seedSituation) persists EXACTLY that set,
+        // removals included. Absent body.reminders ⇒ keep whatever the capture already carried (no
+        // change). An empty array is a deliberate "no nudges" and clears them (never an auto-cadence).
+        const factsToWrite = applyEditedReminders(facts, body?.reminders);
+
+        const { writtenIds: factIds, supersededIds, writtenFacts } = await writeFactsToPerson(supa, userId, personId, factsToWrite, cap.source || "typed", cap.raw_text || "");
+
+        // TC capture-loop (§4.3, seam 2): the situation's key_date was auto-seeded by insertFact for the
+        // event-bearing fact that carried reminders. Echo its id so the confirm card's client can attach
+        // any FURTHER chip edits to the right situation without a re-resolve. Best-effort read — a null
+        // (no dated/reminder fact, or pre-migration) is fine and never blocks the save.
+        const situationKeyDateId = await situationKeyDateFor(supa, userId, writtenFacts);
+
         await supa.from("captures").update({
           status: "confirmed",
           proposed_person_id: personId,
@@ -98,7 +114,7 @@ export default async (req) => {
         }).eq("user_id", userId).eq("id", captureId);
 
         const person = await getPerson(supa, userId, personId);
-        return json(200, { ok: true, status: "confirmed", personId, personName: person?.name || null, factIds, count: factIds.length, message: `Saved to ${firstName(person?.name)}` });
+        return json(200, { ok: true, status: "confirmed", personId, personName: person?.name || null, factIds, count: factIds.length, situationKeyDateId, message: `Saved to ${firstName(person?.name)}` });
       }
 
       default:
@@ -137,6 +153,37 @@ async function writeIdentifiers(supa, userId, personId, identifiers) {
   } catch (e) { console.error("writeIdentifiers", e); }
 }
 
+// TC capture-loop (seam 1): apply the confirm card's EDITED reminder set to the facts about to be
+// written. The user edits nudges on the event-bearing fact(s) (a situation carries a real date to
+// lead from); we override THEIR reminders so the auto-seed persists exactly the edited list —
+// including removals (an empty edited set clears the nudges). Undated facts never carry reminders, so
+// they're untouched. Returns a shallow copy; never mutates the caller's array. When body.reminders is
+// absent (undefined) we return the facts unchanged (the capture keeps whatever it already had).
+function applyEditedReminders(facts, edited) {
+  if (!Array.isArray(edited)) return facts;
+  const clean = normalizeReminders(edited); // trusts only well-formed user-set offsets (never fabricates)
+  return (facts || []).map((f) => (f && f.event_date ? { ...f, reminders: clean } : f));
+}
+
+// TC capture-loop (seam 2): find the situation's key_date id after a write. insertFact seeds a
+// key_date (idempotent on source_fact_id) for the event-bearing fact that carried reminders; we read
+// it back by source_fact_id so the client can attach further chip edits. Prefers a dated fact that
+// carried reminders; returns null when there's no such date (or the table isn't seeded). Best-effort.
+async function situationKeyDateFor(supa, userId, writtenFacts) {
+  const list = Array.isArray(writtenFacts) ? writtenFacts : [];
+  // The fact a situation hangs off of: it has both a real event_date and user-set reminders.
+  const target =
+    list.find((f) => f?.id && f?.event_date && Array.isArray(f.reminders) && f.reminders.length) ||
+    list.find((f) => f?.id && f?.event_date) ||
+    null;
+  if (!target) return null;
+  try {
+    const { data } = await supa
+      .from("key_dates").select("id").eq("user_id", userId).eq("source_fact_id", target.id).maybeSingle();
+    return data?.id || null;
+  } catch (e) { console.error("situationKeyDateFor", e); return null; }
+}
+
 async function getPerson(supa, userId, personId) {
   const { data } = await supa.from("people").select("id, name").eq("user_id", userId).eq("id", personId).is("deleted_at", null).maybeSingle();
   return data || null;
@@ -144,9 +191,18 @@ async function getPerson(supa, userId, personId) {
 
 // Create a person the user just confirmed adding from a capture. contact_kind mirrors where the
 // capture came from: 'contact' (book of business / roster) or 'personal' (the intimate circle).
+//
+// TC capture-loop (FIX 1): the extractor sometimes carries a relationship descriptor INTO the name
+// ("my neighbor Tom" → person_hint "Tom, neighbor" or "neighbor Tom"). splitNameRelationship peels a
+// CLEAR leading "my/the <rel> <Name>" or trailing "<Name>, <rel>" off so people.name is the proper
+// name and people.relationship gets the descriptor. Conservative: a bare ambiguous name (no "my",
+// no comma — e.g. "Uncle Bob") is left exactly as-is. We only set relationship when we split one.
 async function createPerson(supa, userId, name, contactKind) {
   const kind = contactKind === "contact" ? "contact" : "personal";
-  const { data, error } = await supa.from("people").insert({ user_id: userId, name, contact_kind: kind }).select("id").single();
+  const { name: cleanName, relationship } = splitNameRelationship(name);
+  const row = { user_id: userId, name: cleanName || name, contact_kind: kind };
+  if (relationship) row.relationship = relationship;
+  const { data, error } = await supa.from("people").insert(row).select("id").single();
   if (error) throw error;
   return data.id;
 }

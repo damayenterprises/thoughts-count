@@ -1,0 +1,21 @@
+-- TC — "Tell Della, she remembers": key_dates.lead_days nullability.
+--
+-- ⚠️ ABANDONED — DO NOT APPLY. This migration is no longer needed and is kept only for history.
+--
+-- WHY ABANDONED (behavior flip, 2026-08): this migration existed to STORE a "remember this date but
+-- do NOT nudge" state — a captured one-off with lead_days = NULL (the no-default-nudge behavior).
+-- David has since decided a dated note with no user-set timing should get ONE light, TRANSPARENT,
+-- EDITABLE default reminder (a single heads-up 3 days before) instead of silence. That default is now
+-- seeded as a real situation_reminders row (see _capture.defaultRemindersFor + writeFactsToPerson),
+-- so there is no longer a code path that seeds lead_days = NULL for a fresh capture — nothing needs
+-- the column to be nullable.
+--
+-- The nudge cron still HANDLES a null lead_days gracefully (a legacy/edge key_date with no
+-- situation_reminders and lead_days IS NULL yields zero implicit fires), so no data would break if a
+-- null ever appeared. But the app no longer WRITES one, so this schema relaxation is unnecessary.
+-- Leaving key_dates.lead_days as `integer not null default 7` (schema.sql) is correct and unchanged.
+--
+-- Migration 010 (situation_reminders) is still the live, needed migration for this feature — the
+-- default reminder is one of those rows. Only THIS file (011) is abandoned.
+--
+-- (Original body removed; intentionally a no-op. Do not apply.)

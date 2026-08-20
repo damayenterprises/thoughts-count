@@ -8,6 +8,11 @@ import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
 import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName, captureFromFile, renderImportConfirm, transcribeAudioFile } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
+import { mountReminders, remindersSummary, addReminder, ensureReminderStyles, offsetPhrase } from "/_reminders.js";
+// Expose the ONE offset→phrase vocabulary to the non-module conversation-capture handler in
+// index.html (cvHandleCapture), so its "I'll nudge you a week before" confirmation reuses the exact
+// same wording as the reminders editor rather than a parallel copy. Read-only helper, safe on window.
+try { window.TCReminderPhrase = { offsetPhrase, remindersSummary }; } catch (e) {}
 import { pickCheckback as pickCheckbackPure, classifyValenceLite, planValence, readOutcome } from "/_checkback.js";
 import { GUIDED_STEPS, makeGuidedState, stepAt, advance, back as guidedBack, isDone as guidedIsDone, canFinish as guidedCanFinish, answersToDraft } from "/_guided.js";
 
@@ -267,6 +272,9 @@ const KINDS = [
   { v: "birthday", label: "Birthday", recurs: true },
   { v: "work_anniversary", label: "Work anniversary", recurs: true },
   { v: "moment", label: "A one-time reminder to reach out", recurs: false },
+  // A "situation" is a hard/tender stretch to check in AROUND (a surgery, chemo, a move, a loss) —
+  // it can carry several nudges (before, day-of, after), unlike a plain single-nudge date.
+  { v: "situation", label: "A situation to check in around", recurs: false },
   { v: "custom", label: "Something else", recurs: false },
 ];
 
@@ -621,12 +629,26 @@ async function loadPeople() {
   // (roster.js) shows contact_kind='contact'; this intimate list must stay personal, or
   // an import would flood "People I care about" with every client. contact_kind is NOT
   // NULL DEFAULT 'personal', so a plain equality is correct (no legacy NULLs exist).
-  const { data, error } = await sb
+  // A situation (kind='situation') carries several nudges in the child situation_reminders table.
+  // We fetch them nested (no extra round-trip). DEGRADE GRACEFULLY: if that table isn't migrated
+  // yet PostgREST errors the whole embed, so on a schema/relationship error we retry the exact
+  // legacy select WITHOUT the nested reminders — situations then render as plain dates (spec §6).
+  const KD_WITH_REM = "key_dates(id,label,kind,event_date,date_precision,recurs,lead_days,situation_reminders(id,key_date_id,lead_days,label,active))";
+  const KD_PLAIN = "key_dates(id,label,kind,event_date,date_precision,recurs,lead_days)";
+  const SEL = (kd) => `id,name,relationship,notes,location,created_at,${kd},saved_plans(id,plan_title,occasion,created_at,plan)`;
+  const runSelect = (kd) => sb
     .from("people")
-    .select("id,name,relationship,notes,location,created_at,key_dates(id,label,kind,event_date,date_precision,recurs,lead_days),saved_plans(id,plan_title,occasion,created_at,plan)")
+    .select(SEL(kd))
     .eq("contact_kind", "personal")
     .is("deleted_at", null) // hard-deleted people (TC-49) never reappear in any read
     .order("created_at", { ascending: true });
+  let { data, error } = await runSelect(KD_WITH_REM);
+  if (error) {
+    const msg = String(error.message || "").toLowerCase();
+    if (/situation_reminders|relationship|schema cache|does not exist/.test(msg)) {
+      ({ data, error } = await runSelect(KD_PLAIN)); // pre-migration: no situation nudges yet
+    }
+  }
   if (error) { console.error(error); return []; }
   const people = data || [];
   // Attach each person's "things you've noticed" (TC-49) in one grouped query — the personal
@@ -672,8 +694,12 @@ async function addPerson(p) {
   return data;
 }
 async function addKeyDate(personId, d) {
-  const { error } = await sb.from("key_dates").insert({ user_id: user.id, person_id: personId, ...d });
+  // Return the inserted row so callers that then seed child rows (a situation's reminders) have its
+  // id. .select().single() is additive — existing callers ignore the return value, so behavior for
+  // them is unchanged.
+  const { data, error } = await sb.from("key_dates").insert({ user_id: user.id, person_id: personId, ...d }).select().single();
   if (error) throw error;
+  return data;
 }
 async function savePlan(personId, plan, occasion) {
   // TC-117: classify + store the plan's valence ONCE at save time, so the grief guard reads a
@@ -780,7 +806,9 @@ function wireCaptureStrip(people) {
   if (reviewOpen && reviewCount) openPanel(); // survive a reloadHome mid-review
 }
 
-function dateLine(d) {
+// The bare date row (label · when) for a key date. Situations reuse this exact row markup — the
+// only difference is a nudges summary + an inline editor mount that personCard adds beneath it.
+function dateRowHtml(d) {
   // TC-43: a partial ("2021" / "June 2020") shows only what was given — no invented day,
   // no relative-when hint (it never nudges), no "yearly".
   const partial = formatKeyDate(d.event_date, d.date_precision);
@@ -791,6 +819,23 @@ function dateLine(d) {
   const soon = occ ? daysUntil(occ) : null;
   const hint = (soon != null && soon <= 45) ? ` · ${relativeWhen(soon)}` : (d.recurs ? " · yearly" : "");
   return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${nice}${hint}</span></div>`;
+}
+
+// One key date, rendered for a person card. A NON-situation date renders exactly as it always has
+// (no regression). A situation (kind='situation') renders the same row PLUS a plain-language line of
+// its nudges ("nudges: 3 days before, day of") and an inline editor mount for add/retime/remove.
+function dateLine(d) {
+  if (d.kind !== "situation") return dateRowHtml(d);
+  const summary = remindersSummary(d.situation_reminders);
+  const nudges = summary
+    ? `<div class="tc-sit-nudges">Nudges: ${esc(summary)}</div>`
+    : `<div class="tc-sit-nudges tc-sit-nudges-empty">No nudges yet.</div>`;
+  return `
+    <div class="tc-sit" data-kdid="${d.id}">
+      ${dateRowHtml(d)}
+      ${nudges}
+      <div class="tc-rem-mount" data-kdid="${d.id}"></div>
+    </div>`;
 }
 
 function personCard(p) {
@@ -952,6 +997,17 @@ function renderHome(people, opts = {}) {
       const p = people.find((x) => x.id === el.dataset.pid);
       if (p) mountNoticed(el, sb, p, { facts: p.facts || [] });
     });
+    // Situation reminders (spec §6) — each situation row gets an inline add/retime/remove editor,
+    // seeded from the nested situation_reminders loaded with the person. On change we re-render the
+    // whole home so the row's "Nudges: …" summary stays in step (cheap; the personal circle is small).
+    listEl().querySelectorAll(".tc-rem-mount").forEach((el) => {
+      const p = people.find((x) => x.id === el.closest(".block")?.dataset.pid);
+      const kd = p && (p.key_dates || []).find((k) => k.id === el.dataset.kdid);
+      if (kd) mountReminders(el, sb, kd, {
+        reminders: kd.situation_reminders || [],
+        onChange: async () => renderHome(await loadPeople()),
+      });
+    });
     // Whole-person hard-delete (TC-49) — on removal, refresh the home so the card disappears.
     listEl().querySelectorAll(".tc-persondel-mount").forEach((el) => {
       const p = people.find((x) => x.id === el.dataset.pid);
@@ -1042,7 +1098,7 @@ function renderHome(people, opts = {}) {
   const importMsg = modalBody().querySelector("#np_import_msg");
   const setImportMsg = (t, bad) => { if (!importMsg) return; importMsg.className = "k-msg" + (bad ? " bad" : ""); importMsg.textContent = t || ""; };
 
-  const onConfirmed = async (res, { relationship, relChanged, isNew, birthday, event } = {}) => {
+  const onConfirmed = async (res, { relationship, relChanged, isNew, birthday, event, reminders } = {}) => {
     // Persist the edited "who they are to you" — the server createPerson/resolve sets name only and
     // ignores relationship, so the client honors it here. New person: write whatever they entered.
     // Existing person (update card): write ONLY when the user actually set/changed the field, so we
@@ -1070,15 +1126,40 @@ function renderHome(people, opts = {}) {
     // recurring for a year-less date, one-time for a full date. Needs a real date to be a key_date;
     // an occasion with no date (e.g. an obituary's dateless loss) stays as the audit note only.
     // Deduped on label+date so re-confirming can't pile up duplicates.
+    // A situation carries several nudges (spec §4.2): when the confirm card returned `reminders`, this
+    // event is a situation — write it as kind='situation' and seed the chosen nudges into
+    // situation_reminders. Otherwise it's a plain occasion, written exactly as before. DORMANT-SAFE:
+    // seeding is best-effort, so a missing situation_reminders table never blocks the key_date write.
+    const hasReminders = Array.isArray(reminders); // present (even if []) only for a situation confirm
     if (res && res.ok && res.personId && event && event.event_date) {
       try {
         const label = (event.label || "A date to remember").slice(0, 120);
         const { data: existing } = await sb.from("key_dates")
           .select("id").eq("person_id", res.personId).eq("label", label).eq("event_date", event.event_date);
-        if (!existing || !existing.length) {
-          await addKeyDate(res.personId, { label, kind: event.recurs ? "custom" : "moment", event_date: event.event_date, recurs: !!event.recurs, lead_days: 7 });
+        let kdId = existing && existing.length ? existing[0].id : null;
+        if (!kdId) {
+          const kind = hasReminders ? "situation" : (event.recurs ? "custom" : "moment");
+          // A situation is one-time (recurs:false); its lead_days is unused (child reminders carry timing).
+          const kd = await addKeyDate(res.personId, {
+            label, kind, event_date: event.event_date,
+            recurs: hasReminders ? false : !!event.recurs, lead_days: hasReminders ? 0 : 7,
+          });
+          kdId = kd?.id || null;
+        }
+        if (hasReminders && kdId) {
+          for (const r of reminders) {
+            try { await addReminder(sb, kdId, r.lead_days); }
+            catch (e) { console.error("seed situation reminder (confirm card)", e); }
+          }
         }
       } catch (e) { console.error("set event key_date", e); }
+    } else if (res && res.ok && res.personId && hasReminders && reminders.length && res.situationKeyDateId) {
+      // CONTRACT (see summary): if WP-B seeds the situation key_date server-side and echoes its id as
+      // res.situationKeyDateId (with NO editable `event` on the card), seed the user's chip edits onto it.
+      for (const r of reminders) {
+        try { await addReminder(sb, res.situationKeyDateId, r.lead_days); }
+        catch (e) { console.error("seed situation reminder (server-seeded kd)", e); }
+      }
     }
     renderHome(await loadPeople(), { highlightId: res?.personId });
   };
@@ -1398,38 +1479,90 @@ function startGuidedAdd(container, { onConfirmed, onClose } = {}) {
   render();
 }
 
+// The starter nudges a NEW situation offers (spec §4.2 / §6): chips the user toggles on. DEFAULT is
+// UNSELECTED — no auto-cadence; the user chooses whatever timing (if any) they want. Each chip is a
+// signed lead_days (positive=before, 0=day-of, negative=after), seeded into situation_reminders on save.
+const SITUATION_STARTER_NUDGES = [
+  { lead_days: 3, label: "3 days before" },
+  { lead_days: 0, label: "Day of" },
+  { lead_days: -1, label: "The day after" },
+  { lead_days: -7, label: "A week after" },
+];
+
 function openAddDate(personId) {
+  ensureReminderStyles(); // situation-nudge chip + row styles available before this form renders
   const kindOpts = KINDS.map((k) => `<option value="${k.v}">${k.label}</option>`).join("");
   const leadOpts = LEADS.map((l) => `<option value="${l.v}"${l.v === 7 ? " selected" : ""}>${l.label}</option>`).join("");
+  const nudgeChips = SITUATION_STARTER_NUDGES
+    .map((n) => `<button type="button" class="tc-nudge-chip" data-lead="${n.lead_days}" aria-pressed="false">${n.label}</button>`).join("");
   const box = document.createElement("div");
   box.className = "block tc-addwrap";
   box.innerHTML = `
     <h4>Add a date or reminder</h4>
-    <p class="tc-help-sm">A recurring date like a birthday, or a one-time nudge to reach out. Say, to check in a few weeks from now.</p>
+    <p class="tc-help-sm">A recurring date like a birthday, a one-time nudge to reach out, or a situation to check in around.</p>
     <select id="kd_kind" class="tc-select">${kindOpts}</select>
-    <input type="text" id="kd_label" placeholder="Label (e.g. Birthday, or 'Check in after her move')" style="margin-top:10px;" />
+    <input type="text" id="kd_label" placeholder="Label (e.g. Birthday, or 'Marcus's chemo')" style="margin-top:10px;" />
     <input type="date" id="kd_date" style="margin-top:10px;" />
-    <label class="k-remind" style="margin-top:10px;"><input type="checkbox" id="kd_recurs" checked /> Happens every year</label>
-    <label class="tc-field-label" for="kd_lead">Remind me</label>
-    <select id="kd_lead" class="tc-select">${leadOpts}</select>
+    <label class="k-remind" id="kd_recurs_wrap" style="margin-top:10px;"><input type="checkbox" id="kd_recurs" checked /> Happens every year</label>
+    <!-- Plain date: a single lead time. -->
+    <div id="kd_lead_wrap">
+      <label class="tc-field-label" for="kd_lead">Remind me</label>
+      <select id="kd_lead" class="tc-select">${leadOpts}</select>
+    </div>
+    <!-- Situation: several nudges around the day (before / day-of / after). None on by default. -->
+    <div id="kd_nudge_wrap" style="display:none;">
+      <label class="tc-field-label">Nudge me around it</label>
+      <p class="tc-help-sm" style="margin:2px 0 8px;">Pick when you'd like a gentle nudge. You can change these anytime, or add none for now.</p>
+      <div class="tc-nudge-chips">${nudgeChips}</div>
+    </div>
     <div class="nav"><button class="link-btn" id="kd_cancel">Cancel</button><button class="cta" id="kd_save">Save →</button></div>
     <div class="k-msg" id="kd_msg"></div>`;
   const card = modalBody().querySelector(`.block[data-pid="${personId}"]`);
   card.appendChild(box);
   const kindEl = box.querySelector("#kd_kind"), labelEl = box.querySelector("#kd_label"), recEl = box.querySelector("#kd_recurs"), leadEl = box.querySelector("#kd_lead");
+  const recWrap = box.querySelector("#kd_recurs_wrap"), leadWrap = box.querySelector("#kd_lead_wrap"), nudgeWrap = box.querySelector("#kd_nudge_wrap");
   const syncKind = () => {
     const k = KINDS.find((x) => x.v === kindEl.value);
-    if (k && k.v !== "custom" && k.v !== "moment") labelEl.value = k.label;
-    recEl.checked = !!k?.recurs;
+    const isSituation = k?.v === "situation";
+    if (k && k.v !== "custom" && k.v !== "moment" && !isSituation) labelEl.value = k.label;
+    // A situation is a one-time stretch, so it never "happens every year" — hide recurrence + the
+    // single lead select, and reveal the several-nudge chip picker instead.
+    recEl.checked = !isSituation && !!k?.recurs;
+    recWrap.style.display = isSituation ? "none" : "";
+    leadWrap.style.display = isSituation ? "none" : "";
+    nudgeWrap.style.display = isSituation ? "" : "none";
   };
   syncKind(); kindEl.onchange = syncKind;
+  // Toggle a starter nudge chip on/off (spec §4.2: chips, default off, add/remove).
+  box.querySelectorAll(".tc-nudge-chip").forEach((chip) => {
+    chip.onclick = () => {
+      const on = chip.getAttribute("aria-pressed") === "true";
+      chip.setAttribute("aria-pressed", on ? "false" : "true");
+      chip.classList.toggle("is-on", !on);
+    };
+  });
   box.querySelector("#kd_cancel").onclick = () => box.remove();
   box.querySelector("#kd_save").onclick = async () => {
     const msg = box.querySelector("#kd_msg");
     const label = labelEl.value.trim(), event_date = box.querySelector("#kd_date").value;
     if (!label || !event_date) { msg.className = "k-msg bad"; msg.textContent = "A label and a date are both needed."; return; }
+    const isSituation = kindEl.value === "situation";
     msg.className = "k-msg"; msg.textContent = "Saving...";
-    try { await addKeyDate(personId, { label, kind: kindEl.value, event_date, recurs: recEl.checked, lead_days: Number(leadEl.value) }); renderHome(await loadPeople()); }
+    try {
+      if (isSituation) {
+        // A situation is one-time (recurs:false); its lead_days field is unused (the child
+        // situation_reminders carry the timing). Seed the chosen starter nudges after insert.
+        const kd = await addKeyDate(personId, { label, kind: "situation", event_date, recurs: false, lead_days: 0 });
+        const chosen = [...box.querySelectorAll('.tc-nudge-chip[aria-pressed="true"]')].map((c) => Number(c.dataset.lead));
+        for (const lead of chosen) {
+          try { await addReminder(sb, kd.id, lead); }
+          catch (e) { console.error("seed situation reminder failed", e); } // best-effort; the situation still saved
+        }
+      } else {
+        await addKeyDate(personId, { label, kind: kindEl.value, event_date, recurs: recEl.checked, lead_days: Number(leadEl.value) });
+      }
+      renderHome(await loadPeople());
+    }
     catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save."; }
   };
 }

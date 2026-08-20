@@ -13,6 +13,7 @@ import { openImport } from "/import.js";
 import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { mountNoticed, mountPersonDelete, exportUserData, loadPersonFacts, noticedList } from "/_memory.js";
 import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard } from "/_capture.js";
+import { mountReminders, remindersSummary, loadReminders } from "/_reminders.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -120,12 +121,24 @@ async function openRoster() {
   await reload();
 }
 async function reload() {
-  const { data, error } = await sb
+  // Situations (kind='situation') carry nested situation_reminders — one round-trip. DEGRADE
+  // GRACEFULLY: if that table isn't migrated, PostgREST errors the embed, so retry the plain select.
+  const KD_WITH_REM = "key_dates(id,label,kind,event_date,date_precision,recurs,lead_days,situation_reminders(id,key_date_id,lead_days,label,active))";
+  const KD_PLAIN = "key_dates(id,label,kind,event_date,date_precision,recurs,lead_days)";
+  const SEL = (kd) => `id,name,relationship,notes,location,created_at,contact_kind,primary_email,primary_phone,${kd}`;
+  const runSelect = (kd) => sb
     .from("people")
-    .select("id,name,relationship,notes,location,created_at,contact_kind,primary_email,primary_phone,key_dates(id,label,kind,event_date,date_precision,recurs,lead_days)")
+    .select(SEL(kd))
     .eq("contact_kind", "contact")
     .is("deleted_at", null) // hard-deleted people (TC-49) never reappear in any read
     .order("created_at", { ascending: false });
+  let { data, error } = await runSelect(KD_WITH_REM);
+  if (error) {
+    const msg = String(error.message || "").toLowerCase();
+    if (/situation_reminders|relationship|schema cache|does not exist/.test(msg)) {
+      ({ data, error } = await runSelect(KD_PLAIN)); // pre-migration: situations render as plain dates
+    }
+  }
   if (error) { console.error(error); body().innerHTML = `<div class="panel-body"><p class="k-msg bad">We couldn't load your roster. Please try again.</p></div>`; return; }
   people = data || [];
   try { reviewCount = await pendingCount(sb); } catch { reviewCount = 0; }
@@ -286,17 +299,26 @@ function toggleDetail(id) {
     const ob = isPartialDate(b.date_precision) ? null : nextOccurrence(b.event_date, b.recurs);
     return (oa ? daysUntil(oa) : 9e9) - (ob ? daysUntil(ob) : 9e9);
   });
+  // The bare "label · when" row for a date (situation reuses this exact markup — no regression).
+  const dateRow = (d) => {
+    // TC-43: partial ("2021" / "June 2020") shows only what was given — no invented day.
+    const partial = formatKeyDate(d.event_date, d.date_precision);
+    if (partial) return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${esc(partial)}</span></div>`;
+    const occ = nextOccurrence(d.event_date, d.recurs); const soon = occ ? daysUntil(occ) : null;
+    // A one-time date already in the past shows its real date (e.g. "Apr 2, 2019") — the
+    // same value the companion view shows — instead of a vague "past". Recurring → "yearly".
+    const when = soon != null ? whenLabel(occ, soon)
+      : (d.recurs ? "yearly" : new Date(d.event_date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }));
+    return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${esc(when)}</span></div>`;
+  };
   const dateHtml = dates.length
     ? dates.map((d) => {
-        // TC-43: partial ("2021" / "June 2020") shows only what was given — no invented day.
-        const partial = formatKeyDate(d.event_date, d.date_precision);
-        if (partial) return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${esc(partial)}</span></div>`;
-        const occ = nextOccurrence(d.event_date, d.recurs); const soon = occ ? daysUntil(occ) : null;
-        // A one-time date already in the past shows its real date (e.g. "Apr 2, 2019") — the
-        // same value the companion view shows — instead of a vague "past". Recurring → "yearly".
-        const when = soon != null ? whenLabel(occ, soon)
-          : (d.recurs ? "yearly" : new Date(d.event_date + "T00:00:00").toLocaleDateString(undefined, { month: "short", day: "numeric", year: "numeric" }));
-        return `<div class="tc-date-row"><span>${esc(d.label)}</span><span class="tc-date-when">${esc(when)}</span></div>`;
+        if (d.kind !== "situation") return dateRow(d); // non-situation: exactly as before
+        const summary = remindersSummary(d.situation_reminders);
+        const nudges = summary
+          ? `<div class="tc-sit-nudges">Nudges: ${esc(summary)}</div>`
+          : `<div class="tc-sit-nudges tc-sit-nudges-empty">No nudges yet.</div>`;
+        return `<div class="tc-sit" data-kdid="${d.id}">${dateRow(d)}${nudges}<div class="tc-rem-mount" data-kdid="${d.id}"></div></div>`;
       }).join("")
     : `<div class="tc-empty">No dates yet.</div>`;
   const contact = [p.primary_email, p.primary_phone].filter(Boolean).map(esc).join(" · ");
@@ -319,6 +341,19 @@ function toggleDetail(id) {
   // "Things you've noticed" (TC-49) — loaded lazily per person on expand (the roster can be
   // hundreds of people, so we never bulk-fetch facts here).
   mountNoticed(el.querySelector(".tc-noticed-mount"), sb, p);
+  // Situation reminders (spec §6) — each situation row gets the inline add/retime/remove editor,
+  // seeded from the nested reminders loaded with the person. On change we re-render THIS detail in
+  // place (close + reopen) so the "Nudges: …" summary stays in step without collapsing the roster.
+  el.querySelectorAll(".tc-rem-mount").forEach((mount) => {
+    const kd = (p.key_dates || []).find((k) => k.id === mount.dataset.kdid);
+    if (kd) mountReminders(mount, sb, kd, {
+      reminders: kd.situation_reminders || [],
+      onChange: async () => {
+        try { kd.situation_reminders = await loadReminders(sb, kd.id); } catch (e) {}
+        el.hidden = true; rowEl?.classList.remove("open"); toggleDetail(id); // re-render with fresh summary
+      },
+    });
+  });
   // Whole-person hard-delete (TC-49) — on removal, reload the roster so the row disappears.
   mountPersonDelete(el.querySelector(".tc-persondel-mount"), sb, p, { onDeleted: () => reload() });
 }

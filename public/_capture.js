@@ -15,6 +15,7 @@
 
 import { mountInlineMic, ensureInlineMicStyles } from "/_inline-mic.js";
 import { formatMonthDay, parseBirthdayInput, isYearlessBirthday } from "/_dates.js";
+import { offsetPhrase, REMINDER_PRESETS } from "/_reminders.js";
 
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
@@ -43,8 +44,11 @@ async function post(sb, path, body) {
 export function captureExtract(sb, { rawText, lockedPersonId = null, source = "typed", preview = false }) {
   return post(sb, "/api/capture/extract", { rawText, lockedPersonId, source, preview });
 }
-export function captureResolve(sb, { captureId, action, personId = null, newPersonName = null, contactKind = null }) {
-  return post(sb, "/api/capture/resolve", { captureId, action, personId, newPersonName, contactKind });
+export function captureResolve(sb, { captureId, action, personId = null, newPersonName = null, contactKind = null, reminders = null }) {
+  // TC capture-loop (seam 3): `reminders` (when provided) is the user's EDITED nudge set from the
+  // confirm card — the SERVER is authoritative and seeds exactly this list (removals included). Only
+  // sent on a confirm/reassign of a situation; null/absent leaves the capture's own reminders as-is.
+  return post(sb, "/api/capture/resolve", { captureId, action, personId, newPersonName, contactKind, ...(Array.isArray(reminders) ? { reminders } : {}) });
 }
 // TC-89 — resolve a bare NAME against the user's people, writing nothing. Returns
 // { kind:'match'|'ambiguous'|'none', person?, candidates?, evidence }. Used to re-check a
@@ -432,6 +436,16 @@ function ensureImportStyles() {
   .tc-imp-pick{appearance:none;background:transparent;border:1.5px solid var(--sage);color:var(--sage-deep);font:inherit;font-weight:600;font-size:.9rem;padding:8px 14px;border-radius:999px;cursor:pointer;transition:background .12s,border-color .12s,color .12s;}
   .tc-imp-pick:hover,.tc-imp-pick:focus-visible{background:var(--mist);border-color:var(--sage-deep);outline:none;}
   .tc-imp-pick:active,.tc-imp-pick.is-selected{background:var(--sage-deep);border-color:var(--sage-deep);color:#fff;}
+  /* Situation reminder chips on the confirm card (spec §4.2): filled = a chosen nudge, tap to remove. */
+  .tc-imp-reminders label{display:block;color:var(--sage-deep);font-size:.8rem;margin-bottom:5px;}
+  .tc-imp-remchips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:8px;}
+  .tc-imp-remchip{display:inline-flex;align-items:center;gap:6px;appearance:none;background:var(--sage-deep);
+    border:1.5px solid var(--sage-deep);color:#fff;font:inherit;font-weight:600;font-size:.86rem;
+    padding:6px 12px;border-radius:999px;cursor:pointer;transition:background .12s,border-color .12s;}
+  .tc-imp-remchip:hover,.tc-imp-remchip:focus-visible{background:var(--tc-blue-active,#0d6c91);outline:none;}
+  .tc-imp-remx{font-size:1.05em;line-height:1;opacity:.85;}
+  .tc-imp-rem-empty{color:var(--ink-soft);font-size:.85rem;}
+  .tc-imp-remadd .tc-select{width:auto;min-width:160px;}
   `;
   document.head.appendChild(s);
 }
@@ -485,6 +499,18 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
     evidence: preview.evidence || "",
   };
   const facts = Array.isArray(preview.facts) ? preview.facts : [];
+
+  // Spec §4.2 — situation reminders editor. A situation (a surgery, chemo, a move) can carry several
+  // nudges. We show them as editable CHIPS pre-filled from whatever the extractor read
+  // (preview.reminders = [{ lead_days, phrase? }]); DEFAULT is exactly that, and EMPTY when the user
+  // gave no timing (no auto-cadence). The user can remove any chip or add another. On confirm the
+  // final list rides up through onConfirmed(meta.reminders); the server (WP-A/WP-B) seeds them from
+  // the capture-resolve path. Only shown when this preview is a situation.
+  const isSituation = preview.isSituation === true ||
+    (preview.event && /situation/i.test(preview.event.kind || "")) ||
+    Array.isArray(preview.reminders);
+  let reminders = (Array.isArray(preview.reminders) ? preview.reminders : [])
+    .map((r) => ({ lead_days: Number(r.lead_days) })).filter((r) => Number.isFinite(r.lead_days));
 
   const card = document.createElement("div");
   card.className = "tc-imp-card";
@@ -560,12 +586,29 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
     const occasionField = showOccasion ? `
       <div class="tc-imp-field"><label>Occasion</label>${occInput}</div>
       ${showEvDate ? `<div class="tc-imp-field"><label>Date (optional)</label><input type="text" class="tc-imp-occdate" value="${esc(evDateText)}" placeholder="${isObituary ? "" : "e.g. June 15, 2027"}" autocomplete="off" inputmode="text" /></div>` : ""}` : "";
+    // Spec §4.2: the situation reminders editor — chips (default = what was read; empty if none),
+    // each removable, plus an "add another" picker. Only for a situation preview.
+    const remChips = reminders.length
+      ? reminders.map((r, i) => `<button type="button" class="tc-imp-remchip" data-idx="${i}">${esc(offsetPhrase(r.lead_days))}<span class="tc-imp-remx" aria-hidden="true">×</span></button>`).join("")
+      : `<span class="tc-imp-rem-empty">No nudges yet — add one below, or leave it and add them later.</span>`;
+    const have = new Set(reminders.map((r) => Number(r.lead_days)));
+    const remPresetOpts = REMINDER_PRESETS.filter((p) => !have.has(p.lead_days))
+      .map((p) => `<option value="${p.lead_days}">${esc(p.label)}</option>`).join("");
+    const remindersField = isSituation ? `
+      <div class="tc-imp-field tc-imp-reminders">
+        <label>Nudge me around it</label>
+        <div class="tc-imp-remchips">${remChips}</div>
+        <div class="tc-imp-remadd">
+          <select class="tc-select tc-imp-rempreset"><option value="">Add another…</option>${remPresetOpts}</select>
+        </div>
+      </div>` : "";
     card.innerHTML = `
       <div class="tc-imp-eyebrow">${eyebrow}</div>
       <div class="tc-imp-field"><label>Name</label><input type="text" class="tc-imp-name" value="${esc(preview.personHint || state.personName || "")}" autocomplete="off" /></div>
       <div class="tc-imp-field"><label>Who they are to you</label><input type="text" class="tc-imp-rel" value="${esc(preview.relationshipHint || "")}" placeholder="e.g. a friend, someone I manage" autocomplete="off" /></div>
       ${showOccasion ? "" : `<div class="tc-imp-field"><label>Birthday (optional)</label><input type="text" class="tc-imp-bday" value="${esc(bday)}" placeholder="e.g. June 15 (year optional)" autocomplete="off" inputmode="text" /></div>`}
       ${occasionField}
+      ${remindersField}
       <div class="tc-imp-who">${whoLine()}</div>
       ${cands}
       ${otherFacts.length ? `<ul class="tc-imp-facts">${otherFacts.map((f) => `<li>${factLine(f)}</li>`).join("")}</ul>` : ""}
@@ -613,6 +656,19 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
       } catch (e) { console.error("re-resolve name", e); }
     };
 
+    // Spec §4.2 — situation reminder chips: remove one (tap the chip), or add another (the picker).
+    // Each edit mutates the `reminders` array and redraws so the chip set + the "add another" options
+    // stay in step. draw() re-runs wire(), so these handlers re-bind each pass.
+    card.querySelectorAll(".tc-imp-remchip").forEach((chip) => {
+      chip.onclick = () => { reminders.splice(Number(chip.dataset.idx), 1); draw(); };
+    });
+    const remPreset = card.querySelector(".tc-imp-rempreset");
+    if (remPreset) remPreset.onchange = () => {
+      const v = Number(remPreset.value);
+      if (Number.isFinite(v) && !reminders.some((r) => Number(r.lead_days) === v)) reminders.push({ lead_days: v });
+      draw();
+    };
+
     // The relationship value at draw time — so the host can tell an intentional set/change from an
     // untouched prefill and never clobber an existing person's relationship with a stale value.
     const relInitial = relEl.value.trim();
@@ -649,6 +705,10 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
           personId: personId || state.personId || null,
           newPersonName: personId || state.personId ? null : nm,
           contactKind,
+          // Seam 3: on a situation, send the current chip state so the server (authoritative) seeds
+          // exactly the edited set. An empty array is a deliberate "no nudges". Non-situations send
+          // nothing, so the capture keeps whatever reminders it already carried.
+          reminders: isSituation ? reminders.map((r) => ({ lead_days: Number(r.lead_days) })) : null,
         });
         card.remove();
         showToast(res.message || (res.personName ? `Saved to ${firstName(res.personName)}` : "Saved"), {});
@@ -679,6 +739,10 @@ export function renderImportConfirm(container, sb, preview, { contactKind = "per
           isNew: !(personId || state.personId),
           birthday: bdayChanged ? bdayNow : null,
           event,
+          // Spec §4.2: the final situation-nudge list the user landed on (the read defaults, minus any
+          // they removed, plus any they added). The host seeds these into situation_reminders once the
+          // situation's key_date exists. Empty array = the user chose no nudges (no auto-cadence).
+          reminders: isSituation ? reminders.map((r) => ({ lead_days: Number(r.lead_days) })) : null,
         });
       } catch (e) { setMsg(e.message, true); }
     };
