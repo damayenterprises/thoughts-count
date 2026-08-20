@@ -110,7 +110,7 @@ export default async (req) => {
           raw_text: rawText, source, status: "pending", context_locked: false,
           proposed_person_id: existing ? existing.id : (r.proposedPersonId || null),
           match_confidence: r.confidence, match_evidence: r.evidence,
-          parsed: { facts: g.facts, person_hint: g.personHint, location_hint: parsed.location_hint || "", candidates: r.candidates || [] },
+          parsed: { facts: g.facts, person_hint: g.personHint, person_relationship: g.personRelationship || "", location_hint: parsed.location_hint || "", candidates: r.candidates || [] },
         });
         const kind = existing ? "update" : ((r.candidates && r.candidates.length) ? "pick" : "add");
         // TC-89 refinement: when a spoken/typed name RESOLVED to an existing saved person, name
@@ -154,7 +154,7 @@ export default async (req) => {
         const cap = await insertCapture(supa, userId, {
           raw_text: rawText, source, status: "pending", context_locked: false,
           proposed_person_id: r.proposedPersonId || null, match_confidence: r.confidence, match_evidence: r.evidence,
-          parsed: { facts: g.facts, person_hint: g.personHint, location_hint: parsed.location_hint || "", candidates: r.candidates || [] },
+          parsed: { facts: g.facts, person_hint: g.personHint, person_relationship: g.personRelationship || "", location_hint: parsed.location_hint || "", candidates: r.candidates || [] },
         });
         results.push({ level: "B", captureId: cap.id, personName: g.personHint || null, count: g.facts.length, evidence: r.evidence });
       }

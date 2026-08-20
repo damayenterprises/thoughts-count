@@ -12,7 +12,7 @@
 import { requireUser, serviceClient, json } from "./_supabase.mjs";
 import { writeFactsToPerson, normalizeReminders } from "./_capture.mjs";
 import { deleteFact, reopenFact } from "./_memory.mjs";
-import { splitNameRelationship } from "./_names.mjs";
+import { splitNameRelationship, normalizeRelationshipWord } from "./_names.mjs";
 
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 
@@ -82,7 +82,12 @@ export default async (req) => {
         } else {
           const name = String(body?.newPersonName || cap.parsed?.person_hint || "").trim();
           if (!name) return json(400, { error: "Choose who this is about." });
-          personId = await createPerson(supa, userId, name, body?.contactKind);
+          // TC-136 follow-up: the relationship the extractor captured for this named person ("my
+          // neighbor Dave" → "neighbor"), held on the capture. Passed so createPerson sets it on the
+          // NEW person. Only used when the user didn't type a fresh name (an explicit newPersonName is
+          // a deliberate rename and carries no relationship of its own).
+          const relHint = body?.newPersonName ? "" : String(cap.parsed?.person_relationship || "").trim();
+          personId = await createPerson(supa, userId, name, body?.contactKind, relHint);
         }
 
         // TC-109: persist any detected email/phone into `identifiers` so a later import of the same
@@ -192,14 +197,21 @@ async function getPerson(supa, userId, personId) {
 // Create a person the user just confirmed adding from a capture. contact_kind mirrors where the
 // capture came from: 'contact' (book of business / roster) or 'personal' (the intimate circle).
 //
-// TC capture-loop (FIX 1): the extractor sometimes carries a relationship descriptor INTO the name
-// ("my neighbor Tom" → person_hint "Tom, neighbor" or "neighbor Tom"). splitNameRelationship peels a
-// CLEAR leading "my/the <rel> <Name>" or trailing "<Name>, <rel>" off so people.name is the proper
-// name and people.relationship gets the descriptor. Conservative: a bare ambiguous name (no "my",
-// no comma — e.g. "Uncle Bob") is left exactly as-is. We only set relationship when we split one.
-async function createPerson(supa, userId, name, contactKind) {
+// TC-136 follow-up: relationship is now captured at EXTRACTION ("my neighbor Dave" → person_hint
+// "Dave" + person_relationship "neighbor"), so createPerson sets people.relationship from that clean
+// `relHint` (already validated to the known vocabulary by normalizeRelationshipWord; re-validated
+// here as a belt). splitNameRelationship stays as the BELT-AND-SUSPENDERS FALLBACK for the older
+// shape where the model lumped the descriptor into the name ("my neighbor Tom" → "Tom, neighbor" or
+// "neighbor Tom"): it peels a CLEAR leading "my/the <rel> <Name>" or trailing "<Name>, <rel>" so
+// people.name is the proper name. Conservative throughout: a bare ambiguous name (no "my", no comma,
+// no stated relationship — e.g. "Uncle Bob", "Sarah") is left exactly as-is with NO relationship, and
+// the split fallback ONLY runs when the extracted relHint is empty (never overrides what was captured).
+export async function createPerson(supa, userId, name, contactKind, relHint) {
   const kind = contactKind === "contact" ? "contact" : "personal";
-  const { name: cleanName, relationship } = splitNameRelationship(name);
+  const { name: cleanName, relationship: splitRel } = splitNameRelationship(name);
+  // Prefer the relationship the extractor captured; fall back to a name-embedded descriptor only when
+  // that's empty. Both are conservative + validated, so we never invent one from a bare proper name.
+  const relationship = normalizeRelationshipWord(relHint) || splitRel;
   const row = { user_id: userId, name: cleanName || name, contact_kind: kind };
   if (relationship) row.relationship = relationship;
   const { data, error } = await supa.from("people").insert(row).select("id").single();
