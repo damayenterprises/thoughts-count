@@ -528,10 +528,13 @@ alt="" /></noscript>
   .block.say ul li::before { content: "\201C"; color: var(--sage-deep); font-size: 22px; top: -3px; }
   .block.avoid ul li::before { content: "\2013"; color: var(--clay-deep); top: 0; }
   /* TC-86: unobtrusive one-tap copy on the lines a user actually sends. */
-  .block.say ul li.say-line { display: flex; align-items: baseline; gap: 8px; }
+  /* TC-137 "Send it": a tidy action row (Text / Email / Share / Copy) beside each line. */
+  .block.say ul li.say-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .block.say ul li.say-line .say-text { flex: 1 1 auto; }
-  .tc-copy { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; border: none; background: transparent; color: var(--ink-soft, #9a927f); cursor: pointer; font: inherit; font-size: 12.5px; line-height: 1; padding: 3px 7px; border-radius: 7px; opacity: .6; transition: opacity .15s ease, color .15s ease, background .15s ease; }
-  .tc-copy:hover, .tc-copy:focus-visible { opacity: 1; color: var(--tc-blue-deep); background: rgba(17,138,185,.09); outline: none; }
+  .tc-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 2px; }
+  .block.say ul li.say-line .tc-actions { margin-left: auto; }
+  .tc-copy, .tc-send { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; border: none; background: transparent; color: var(--ink-soft, #9a927f); cursor: pointer; font: inherit; font-size: 12.5px; line-height: 1; padding: 3px 7px; border-radius: 7px; opacity: .6; transition: opacity .15s ease, color .15s ease, background .15s ease; }
+  .tc-copy:hover, .tc-copy:focus-visible, .tc-send:hover, .tc-send:focus-visible { opacity: 1; color: var(--tc-blue-deep); background: rgba(17,138,185,.09); outline: none; }
   .tc-copy.copied { color: var(--tc-blue-deep); opacity: 1; }
   .tc-copy .lbl { font-weight: 600; }
   .followup .fu-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 4px; }
@@ -631,7 +634,7 @@ alt="" /></noscript>
   /* TC-76 mobile: enlarge key tap targets on TOUCH devices only (keeps desktop compact) */
   @media (pointer: coarse) {
     .close { min-width: 44px; min-height: 44px; }
-    .tc-copy { min-height: 40px; padding: 8px 10px; }
+    .tc-copy, .tc-send { min-height: 40px; min-width: 40px; justify-content: center; padding: 8px 9px; }
     .gift .g-link { min-height: 44px; }
     .cta.ghost { min-height: 44px; }
   }
@@ -4496,6 +4499,13 @@ function tcFlushPendingRemember(){
 // or carries a stray smart quote / ellipsis char.
 const TC_COPY_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2.2"/><path d="M5 15V5.5A2.5 2.5 0 0 1 7.5 3H16"/></svg>';
 const TC_CHECK_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
+// TC-137 "Send it": icons for the last-mile send actions (text / email / share).
+// Line-icons (not emoji) matching the copy button's stroke idiom.
+const TC_TEXT_SVG  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 9 9 0 0 1-3.8-.8L3 21l1.9-5.2A8.5 8.5 0 0 1 4 11.5 8.38 8.38 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5Z"/></svg>';
+const TC_MAIL_SVG  = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="5" width="18" height="14" rx="2.2"/><path d="M3.5 6.5l8.5 6 8.5-6"/></svg>';
+const TC_SHARE_SVG = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="18" cy="5" r="2.6"/><circle cx="6" cy="12" r="2.6"/><circle cx="18" cy="19" r="2.6"/><path d="M8.3 10.7l7.4-4.3M8.3 13.3l7.4 4.3"/></svg>';
+// TC-137: warm, human email subject when a user emails the note to their person.
+const TC_SEND_SUBJECT = 'Thinking of you';
 function tcCleanForHuman(s){
   return String(s == null ? '' : s)
     .replace(/\r\n?/g, '\n')
@@ -4530,6 +4540,52 @@ async function tcCopyLine(text, btn){
     tcCopiedFlash(btn);
   } catch(e){ console.error('copy failed', e); }
 }
+
+// TC-137 "Send it": the last-mile send row. Users love Della's words but had to leave
+// the app, open Messages/Mail, and paste. These pre-fill the user's OWN Messages / Mail /
+// share sheet with the (human-cleaned) text — the human still hits send. Never auto-sends.
+// tcSendMenu(text, opts) returns the action-row HTML for a given piece of text so both the
+// what-to-say lines and the follow-up gestures reuse it (TC-56's nudge last-mile will too).
+// Web Share is feature-detected at render time: no navigator.share (most desktops) => no
+// Share button rendered (never show a broken one). The click wiring keys off data-send-*
+// on the row's parent stage, reading source text from the plan object (clean copy).
+const TC_HAS_SHARE = (typeof navigator !== 'undefined' && typeof navigator.share === 'function');
+function tcSendMenu(refAttr, opts){
+  opts = opts || {};
+  var withCopyLbl = !!opts.copyLabel; // follow-up copy shows a "Copy" word; say-lines are icon-only
+  var out = '';
+  out += '<button type="button" class="tc-send tc-send-text" ' + refAttr + ' aria-label="Text this" title="Text this">' + TC_TEXT_SVG + '</button>';
+  out += '<button type="button" class="tc-send tc-send-email" ' + refAttr + ' aria-label="Email this" title="Email this">' + TC_MAIL_SVG + '</button>';
+  if (TC_HAS_SHARE) out += '<button type="button" class="tc-send tc-send-share" ' + refAttr + ' aria-label="Share" title="Share">' + TC_SHARE_SVG + '</button>';
+  out += '<button type="button" class="tc-copy" ' + refAttr + ' aria-label="Copy this' + (withCopyLbl ? ' message' : ' line') + '" title="Copy">' + TC_COPY_SVG + (withCopyLbl ? '<span class="lbl">Copy</span>' : '') + '</button>';
+  return out;
+}
+// sms: body param is inconsistent across platforms/OS versions. iOS historically wants
+// `sms:&body=` (pre-iOS8) then `sms:?&body=`; Android wants `sms:?body=`. Rather than
+// sniff UA (brittle, and desktop has no sms handler anyway), we copy the clean text to the
+// clipboard FIRST (so paste is one tap even if the body doesn't survive) and open the most
+// broadly-honored form: `sms:?&body=<encoded>` (accepted on modern iOS and Android). No
+// recipient is set — the user picks who from their own Messages app.
+async function tcSendText(text){
+  var clean = tcCleanForHuman(text); if (!clean) return;
+  try { if (navigator.clipboard && navigator.clipboard.writeText) await navigator.clipboard.writeText(clean); } catch(e){}
+  try { window.tcTrack && tcTrack('plan_send', { channel: 'sms' }); } catch(e){}
+  window.location.href = 'sms:?&body=' + encodeURIComponent(clean);
+}
+function tcSendEmail(text){
+  var clean = tcCleanForHuman(text); if (!clean) return;
+  try { window.tcTrack && tcTrack('plan_send', { channel: 'email' }); } catch(e){}
+  window.location.href = 'mailto:?subject=' + encodeURIComponent(TC_SEND_SUBJECT) + '&body=' + encodeURIComponent(clean);
+}
+async function tcSendShare(text, btn){
+  var clean = tcCleanForHuman(text); if (!clean) return;
+  if (!(typeof navigator !== 'undefined' && typeof navigator.share === 'function')) { tcCopyLine(text, btn); return; }
+  try {
+    try { window.tcTrack && tcTrack('plan_send', { channel: 'share' }); } catch(e){}
+    await navigator.share({ text: clean });
+  } catch(e){ /* user dismissed the share sheet — do nothing */ }
+}
+
 function renderPlan(p){
   currentPlan = p;
   // TC-81: silently persist for device-local recovery (overwrites each render). A freshly
@@ -4540,7 +4596,8 @@ function renderPlan(p){
   try { window.tcTrack && tcTrack('plan_viewed'); } catch(e){}
   const li = arr => (arr||[]).map(x => `<li>${escapeHtml(x)}</li>`).join('');
   // TC-86: the "what you might say" lines get an unobtrusive copy button (sendable copy).
-  const sayLi = arr => (arr||[]).map((x, i) => `<li class="say-line"><span class="say-text">${escapeHtml(x)}</span><button type="button" class="tc-copy" data-copy-say="${i}" aria-label="Copy this line" title="Copy">${TC_COPY_SVG}</button></li>`).join('');
+  // TC-137: each sendable line gets the full send row (Text / Email / Share / Copy).
+  const sayLi = arr => (arr||[]).map((x, i) => `<li class="say-line"><span class="say-text">${escapeHtml(x)}</span><span class="tc-actions">${tcSendMenu(`data-say="${i}"`)}</span></li>`).join('');
   const icon = d => `<span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="#0a5876" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round">${d}</svg></span>`;
   const actions = (p.thoughtful_actions||[]).map(a => `
     <div class="action">
@@ -4554,7 +4611,7 @@ function renderPlan(p){
       <div class="body">
         <div class="g">${escapeHtml(f.gesture)}</div>
         <div class="fu-actions">
-          <button type="button" class="tc-copy" data-copy-follow="${i}" aria-label="Copy this message" title="Copy">${TC_COPY_SVG}<span class="lbl">Copy</span></button>
+          <span class="tc-actions">${tcSendMenu(`data-follow="${i}"`, { copyLabel: true })}</span>
           <button class="remind-btn" data-fi="${i}">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="2"/><path d="M16 3v4M8 3v4M3 10h18"/><path d="M12 14v3M10.5 15.5h3"/></svg>
             Set reminder
@@ -4675,14 +4732,22 @@ function renderPlan(p){
     });
   });
 
-  // TC-86: wire the one-tap copy buttons on sendable lines. Source text comes from the plan
-  // object (not the DOM) so what lands on the clipboard is the clean, humanized copy.
-  stage.querySelectorAll('.tc-copy').forEach(btn => {
+  // TC-86 / TC-137: wire the send + copy buttons on every sendable line. Source text comes
+  // from the plan object (not the DOM) so what is sent/copied is the clean, humanized copy.
+  // data-say / data-follow point back into the plan; the button's class picks the channel.
+  const tcResolveText = btn => {
+    if (btn.dataset.say != null) return (p.what_to_say||[])[Number(btn.dataset.say)] || '';
+    if (btn.dataset.follow != null) { const ff = (p.follow_up||[])[Number(btn.dataset.follow)]; return ff ? ff.gesture : ''; }
+    return '';
+  };
+  stage.querySelectorAll('.tc-actions button').forEach(btn => {
     btn.addEventListener('click', () => {
-      let text = '';
-      if (btn.dataset.copySay != null) text = (p.what_to_say||[])[Number(btn.dataset.copySay)] || '';
-      else if (btn.dataset.copyFollow != null) { const ff = (p.follow_up||[])[Number(btn.dataset.copyFollow)]; text = ff ? ff.gesture : ''; }
-      if (text) tcCopyLine(text, btn);
+      const text = tcResolveText(btn);
+      if (!text) return;
+      if (btn.classList.contains('tc-send-text')) tcSendText(text);
+      else if (btn.classList.contains('tc-send-email')) tcSendEmail(text);
+      else if (btn.classList.contains('tc-send-share')) tcSendShare(text, btn);
+      else tcCopyLine(text, btn);
     });
   });
 
