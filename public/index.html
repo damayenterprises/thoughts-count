@@ -531,11 +531,11 @@ alt="" /></noscript>
   /* TC-137 "Send it": a tidy action row (Text / Email / Share / Copy) beside each line. */
   .block.say ul li.say-line { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
   .block.say ul li.say-line .say-text { flex: 1 1 auto; }
-  .tc-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 2px; }
+  .tc-actions { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 4px; }
   .block.say ul li.say-line .tc-actions { margin-left: auto; }
-  .tc-copy, .tc-send { flex: 0 0 auto; display: inline-flex; align-items: center; gap: 5px; border: none; background: transparent; color: var(--ink-soft, #9a927f); cursor: pointer; font: inherit; font-size: 12.5px; line-height: 1; padding: 3px 7px; border-radius: 7px; opacity: .6; transition: opacity .15s ease, color .15s ease, background .15s ease; }
-  .tc-copy:hover, .tc-copy:focus-visible, .tc-send:hover, .tc-send:focus-visible { opacity: 1; color: var(--tc-blue-deep); background: rgba(17,138,185,.09); outline: none; }
-  .tc-copy.copied { color: var(--tc-blue-deep); opacity: 1; }
+  .tc-copy, .tc-act { flex: 0 0 auto; display: inline-flex; align-items: center; justify-content: center; gap: 5px; border: none; background: rgba(17,138,185,.08); color: var(--tc-blue, #118ab9); cursor: pointer; font: inherit; font-size: 12.5px; line-height: 1; padding: 7px; border-radius: 8px; opacity: 1; transition: color .15s ease, background .15s ease; }
+  .tc-copy:hover, .tc-copy:focus-visible, .tc-act:hover, .tc-act:focus-visible { color: var(--tc-blue-deep); background: rgba(17,138,185,.16); outline: none; }
+  .tc-copy.copied { color: var(--tc-blue-deep); background: rgba(17,138,185,.16); }
   .tc-copy .lbl { font-weight: 600; }
   .followup .fu-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; margin-top: 4px; }
 
@@ -634,7 +634,7 @@ alt="" /></noscript>
   /* TC-76 mobile: enlarge key tap targets on TOUCH devices only (keeps desktop compact) */
   @media (pointer: coarse) {
     .close { min-width: 44px; min-height: 44px; }
-    .tc-copy, .tc-send { min-height: 40px; min-width: 40px; justify-content: center; padding: 8px 9px; }
+    .tc-copy, .tc-act { min-height: 40px; min-width: 40px; justify-content: center; padding: 8px 9px; }
     .gift .g-link { min-height: 44px; }
     .cta.ghost { min-height: 44px; }
   }
@@ -4554,9 +4554,9 @@ function tcSendMenu(refAttr, opts){
   opts = opts || {};
   var withCopyLbl = !!opts.copyLabel; // follow-up copy shows a "Copy" word; say-lines are icon-only
   var out = '';
-  out += '<button type="button" class="tc-send tc-send-text" ' + refAttr + ' aria-label="Text this" title="Text this">' + TC_TEXT_SVG + '</button>';
-  out += '<button type="button" class="tc-send tc-send-email" ' + refAttr + ' aria-label="Email this" title="Email this">' + TC_MAIL_SVG + '</button>';
-  if (TC_HAS_SHARE) out += '<button type="button" class="tc-send tc-send-share" ' + refAttr + ' aria-label="Share" title="Share">' + TC_SHARE_SVG + '</button>';
+  out += '<button type="button" class="tc-act tc-send-text" ' + refAttr + ' aria-label="Text this" title="Text this">' + TC_TEXT_SVG + '</button>';
+  out += '<button type="button" class="tc-act tc-send-email" ' + refAttr + ' aria-label="Email this" title="Email this">' + TC_MAIL_SVG + '</button>';
+  if (TC_HAS_SHARE) out += '<button type="button" class="tc-act tc-send-share" ' + refAttr + ' aria-label="Share" title="Share">' + TC_SHARE_SVG + '</button>';
   out += '<button type="button" class="tc-copy" ' + refAttr + ' aria-label="Copy this' + (withCopyLbl ? ' message' : ' line') + '" title="Copy">' + TC_COPY_SVG + (withCopyLbl ? '<span class="lbl">Copy</span>' : '') + '</button>';
   return out;
 }
