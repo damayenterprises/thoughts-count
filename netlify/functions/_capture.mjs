@@ -22,7 +22,7 @@
 // and treat it as versioned.
 
 import { getEnv } from "./_email.mjs";
-import { sameSurname, firstNamesEquivalent } from "./_names.mjs";
+import { sameSurname, firstNamesEquivalent, normalizeRelationshipWord, RELATIONSHIP_WORDS } from "./_names.mjs";
 import { insertFact } from "./_memory.mjs";
 // TC capture-loop CONTRACT (WP-A owns seedSituation in _memory.mjs). We depend on it but must not
 // hard-fail to load if WP-A hasn't merged yet, so import the whole namespace and resolve the symbol
@@ -89,7 +89,12 @@ const EXTRACT_SCHEMA = {
           person_hint: {
             type: "string",
             description:
-              "The NAMED person this fact is about, exactly as the user named them (e.g. \"Maria\", \"Maria Edmond\"). CRITICAL: if the fact is about that person's relative — \"her mom\", \"his wife\", \"their son Eli\" — the person_hint STAYS the named person (Maria), and the relative goes in `subject`. Never put \"mom\"/\"wife\" here. Leave EMPTY only when the user named no one (a person is supplied by context).",
+              "The NAMED person this fact is about, exactly as the user named them (e.g. \"Maria\", \"Maria Edmond\"). This must be JUST the proper name — NOT a relationship word. If the user refers to them by relationship (\"my neighbor Dave\", \"our coworker Marc\", \"my sister Jen\"), put ONLY the proper name here (\"Dave\", \"Marc\", \"Jen\") and put the relationship word in `person_relationship`. CRITICAL: if the fact is about that person's relative — \"her mom\", \"his wife\", \"their son Eli\" — the person_hint STAYS the named person (Maria), and the relative goes in `subject`. Never put \"mom\"/\"wife\" here. Leave EMPTY only when the user named no one (a person is supplied by context).",
+          },
+          person_relationship: {
+            type: "string",
+            description:
+              "HOW the user relates to the named person, when they state it — the relationship word ONLY (\"neighbor\", \"friend\", \"coworker\", \"sister\", \"brother\", \"mom\", \"dad\", \"boss\", \"aunt\", \"uncle\", \"cousin\", \"wife\", \"husband\", etc.), lowercased, WITHOUT \"my/our/the\". Set it when the user names the person BY relationship: \"my neighbor Dave\" → person_hint \"Dave\", person_relationship \"neighbor\"; \"our coworker Marc\" → \"Marc\" + \"coworker\"; \"my sister Jen\" → \"Jen\" + \"sister\". Leave EMPTY when the user gives just a bare proper name with no relationship (\"Dave\", \"Sarah\") — NEVER guess or invent a relationship. This describes the named person's tie to the USER; do NOT use it for a relative-of-the-person (that stays in `subject`).",
           },
           subject: {
             type: "string",
@@ -165,6 +170,7 @@ const EXTRACT_SYSTEM = `You read a short note a thoughtful person jotted about s
 Rules:
 - Split everything worth remembering into separate facts. One sentence often holds several.
 - A fact about someone's RELATIVE ("her mom", "his wife", "their son Eli") is a fact about the SAME named person, with the relative in the subject field. It must NEVER become its own person. Only a directly-named person is a person_hint.
+- When the user names the person BY a relationship ("my neighbor Dave", "our coworker Marc", "my sister Jen"), put ONLY the proper name in person_hint ("Dave", "Marc", "Jen") and the relationship word in person_relationship ("neighbor", "coworker", "sister") — lowercased, without "my/our/the". A bare proper name with no stated relationship ("Dave", "Sarah") leaves person_relationship empty — never invent one. person_relationship is the named person's tie to the USER, not a relative-of-the-person (that stays in subject).
 - For a replaceable, one-value-at-a-time attribute use a canonical single-valued relation (health_status, job, location, marital_status, birthday) so a later update can supersede it. For anything a person can have several of (hobby, allergy, interest, preference, food, pet) use a plain category relation — these accumulate and must never replace each other. Use "note" for a general observation.
 - Classify each fact's temporal behavior with fact_class. Mark health/medical episodes is_health:true.
 - Set event_date (YYYY-MM-DD) whenever the note pins down a specific day. That includes a RELATIVE day resolved against TODAY'S DATE (given below): "in 3 weeks", "next Tuesday", "next month", "chemo is in 3 weeks", "surgery next Friday" all resolve to a concrete date. An explicit full date works too. A month/year with no day ("moved in June 2026") stays null. Never fabricate a day or year the note did not reference.
@@ -238,6 +244,11 @@ function normalizeParsed(input, lockedPersonId) {
     const factClass = FACT_CLASSES.includes(f.fact_class) ? f.fact_class : "DURABLE";
     const subject = String(f.subject || "").trim() || "self";
     const personHint = lockedPersonId ? "" : String(f.person_hint || "").trim();
+    // TC-136 follow-up: the relationship the user stated for THIS named person ("my neighbor Dave"),
+    // validated against the known vocabulary (normalizeRelationshipWord → "" if not a real one, so the
+    // model can never invent a descriptor). Only carried for a freshly NAMED person — under a context
+    // lock the person is already known and we never touch their relationship (empty here).
+    const personRelationship = (lockedPersonId || !personHint) ? "" : normalizeRelationshipWord(f.person_relationship);
     let eventDate = /^\d{4}-\d{2}-\d{2}$/.test(String(f.event_date || "").trim()) ? f.event_date.trim() : null;
     // TC-112: a year-less birthday/anniversary (month_day "MM-DD") becomes a RECURRING date under
     // the sentinel year so it still seeds a yearly key_date. event_date wins if both are present.
@@ -263,6 +274,7 @@ function normalizeParsed(input, lockedPersonId) {
       : defaultRemindersFor({ eventDate, factClass: factClassFinal, reminders: userReminders });
     clean.push({
       person_hint: personHint,
+      person_relationship: personRelationship,
       subject,
       relation,
       object,
@@ -416,6 +428,10 @@ export function noteToParsed(input = {}, { statedReminders = [] } = {}) {
   const note = String(input.note || "").trim();
   if (!note) return { facts: [], location_hint: "", co_mentioned: false };
   const personHint = String(input.person_hint || "").trim();
+  // TC-136 follow-up: the relationship the user stated for the named person ("my neighbor Dave"),
+  // validated to a known vocabulary word (or "" — never an invented descriptor). Only meaningful with
+  // a named person; a context-locked note (empty person_hint) never carries/overwrites a relationship.
+  const personRelationship = personHint ? normalizeRelationshipWord(input.person_relationship) : "";
   const eventDate = /^\d{4}-\d{2}-\d{2}$/.test(String(input.event_date || "").trim()) ? String(input.event_date).trim() : null;
   const userReminders = eventDate ? normalizeReminders(input.reminders) : [];
   // A dated note is a real event to remember on a day (a MILESTONE seeds a key_date, which the
@@ -438,6 +454,7 @@ export function noteToParsed(input = {}, { statedReminders = [] } = {}) {
       : defaultRemindersFor({ eventDate, factClass, reminders: userReminders });
   const fact = {
     person_hint: personHint,
+    person_relationship: personRelationship,
     subject: "self",
     relation: "note",
     object: note,
@@ -702,8 +719,12 @@ export async function resolve(userId, parsed, supa, context = {}) {
   const byHint = new Map();
   for (const f of facts) {
     const key = norm(f.person_hint);
-    if (!byHint.has(key)) byHint.set(key, { personHint: f.person_hint || "", facts: [] });
-    byHint.get(key).facts.push(f);
+    if (!byHint.has(key)) byHint.set(key, { personHint: f.person_hint || "", personRelationship: "", facts: [] });
+    const grp = byHint.get(key);
+    grp.facts.push(f);
+    // TC-136 follow-up: carry the first stated relationship for this named person up to the group, so
+    // the caller can persist it on a NEW person (createPerson). Already validated in normalizeParsed.
+    if (!grp.personRelationship && f.person_relationship) grp.personRelationship = String(f.person_relationship).trim();
   }
   const groups = [];
   for (const g of byHint.values()) {

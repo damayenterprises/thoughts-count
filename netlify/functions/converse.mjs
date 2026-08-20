@@ -118,7 +118,8 @@ const NOTE_AND_REMIND_TOOL = {
   input_schema: {
     type: "object",
     properties: {
-      person_hint: { type: "string", description: "The person this is about, exactly as the user named them (\"Sarah\", \"Marcus Bryant\"). Empty ONLY if the conversation is already locked to a person in focus. On a bare first name you must have confirmed WHO first — never guess here." },
+      person_hint: { type: "string", description: "The person this is about, exactly as the user named them (\"Sarah\", \"Marcus Bryant\"). This must be JUST the proper name — never a relationship word. If the user names them by relationship (\"my neighbor Dave\", \"our coworker Marc\"), put ONLY the proper name here (\"Dave\", \"Marc\") and the relationship in person_relationship. Empty ONLY if the conversation is already locked to a person in focus. On a bare first name you must have confirmed WHO first — never guess here." },
+      person_relationship: { type: "string", description: "HOW the user relates to this person, ONLY when they state it — the relationship word alone (\"neighbor\", \"friend\", \"coworker\", \"sister\", \"brother\", \"mom\", \"dad\", \"boss\", \"aunt\", \"uncle\", \"cousin\", \"wife\", \"husband\", etc.), lowercased, without \"my/our/the\". Set it when the user names the person by relationship: \"my neighbor Dave\" → person_hint \"Dave\", person_relationship \"neighbor\". Leave EMPTY for a bare proper name with no stated relationship — never guess or invent one." },
       note: { type: "string", description: "What to remember, in a few plain words as the user said it (\"having a baby in April\", \"surgery on the 12th\", \"just got promoted\")." },
       event_date: { type: "string", description: "The real-world date as YYYY-MM-DD. Set it whenever the user gives a date you can pin down — either an explicit date (\"April 20th 2027\") OR a relative one you resolve against today's date (given in your instructions): \"in 3 weeks\", \"next Tuesday\", \"next month\", \"in April\" all become a concrete YYYY-MM-DD. Reminders are meaningless without this, so a stated reminder time means you MUST resolve and set event_date. Omit ONLY when the user truly referenced no time at all — never invent a day or year the user did not point to." },
       reminders: {
@@ -795,7 +796,7 @@ export async function dispatchNoteAndRemind(userId, input, ctx, messages = []) {
       raw_text: note, status: "pending", context_locked: false,
       proposed_person_id: existing ? existing.id : (r.proposedPersonId || null),
       match_confidence: r.confidence, match_evidence: r.evidence,
-      parsed: { facts: g.facts, person_hint: g.personHint, location_hint: parsed.location_hint || "", candidates: r.candidates || [] },
+      parsed: { facts: g.facts, person_hint: g.personHint, person_relationship: g.personRelationship || "", location_hint: parsed.location_hint || "", candidates: r.candidates || [] },
     });
     const kind = existing ? "update" : ((r.candidates && r.candidates.length) ? "pick" : "add");
     let personDetail = "", personHasDetail = false;

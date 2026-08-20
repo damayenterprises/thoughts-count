@@ -1,7 +1,7 @@
 // Unit tests for the deterministic name-equivalence helper (Spec A / A1b + Validator R1
 // fix a). Pure functions, no DB. Run: node test/names.test.mjs
 import assert from "node:assert";
-import { firstNamesEquivalent, sameSurname, levenshtein, splitNameRelationship } from "../netlify/functions/_names.mjs";
+import { firstNamesEquivalent, sameSurname, levenshtein, splitNameRelationship, normalizeRelationshipWord, RELATIONSHIP_WORDS } from "../netlify/functions/_names.mjs";
 
 let pass = 0, fail = 0;
 function t(name, fn) { try { fn(); pass++; console.log(`  ok   ${name}`); } catch (e) { fail++; console.log(`  FAIL ${name} — ${e.message}`); } }
@@ -67,6 +67,30 @@ t('"my Tom" (not a relationship word) left alone', () => SR("my Tom", "my Tom", 
 t('"my neighbor" (no name after) left alone', () => SR("my neighbor", "my neighbor", ""));
 t('"Tom, Denver" (trailing non-rel) left alone', () => SR("Tom, Denver", "Tom, Denver", ""));
 t('empty → empty', () => SR("", "", ""));
+
+console.log("\n# normalizeRelationshipWord — TC-136 follow-up (validate a MODEL-supplied relationship)");
+const NR = (raw, expected) =>
+  assert.equal(normalizeRelationshipWord(raw), expected, `"${raw}" → expected "${expected}", got "${normalizeRelationshipWord(raw)}"`);
+// Accepts a known relationship word, canonicalized + lowercased.
+t('"neighbor" → neighbor', () => NR("neighbor", "neighbor"));
+t('"Neighbor" (case) → neighbor', () => NR("Neighbor", "neighbor"));
+t('"co-worker" → coworker (canonicalized)', () => NR("co-worker", "coworker"));
+t('"mother-in-law" → mother-in-law', () => NR("mother-in-law", "mother-in-law"));
+t('"best friend" → best friend', () => NR("best friend", "best friend"));
+// Tolerates a leading possessive/article the model may echo.
+t('"my neighbor" → neighbor (peels my)', () => NR("my neighbor", "neighbor"));
+t('"the boss" → boss (peels the)', () => NR("the boss", "boss"));
+// Tolerates a simple trailing plural when the singular is known.
+t('"coworkers" → coworker (plural)', () => NR("coworkers", "coworker"));
+t('"neighbor." → neighbor (trailing punct)', () => NR("neighbor.", "neighbor"));
+// Rejects anything NOT a real relationship word — never invents/passes a free-form value or a NAME.
+t('"Dave" (a name) → "" (rejected)', () => NR("Dave", ""));
+t('"acquaintance" (not in vocab) → ""', () => NR("acquaintance", ""));
+t('empty → ""', () => NR("", ""));
+t('null → ""', () => NR(null, ""));
+t('"my Dave" (name not rel) → ""', () => NR("my Dave", ""));
+// The exported vocabulary is the same one splitNameRelationship recognizes.
+t("RELATIONSHIP_WORDS is exported + non-empty", () => assert.ok(Array.isArray(RELATIONSHIP_WORDS) && RELATIONSHIP_WORDS.includes("neighbor")));
 
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);

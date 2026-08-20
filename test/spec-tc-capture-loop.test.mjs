@@ -18,8 +18,9 @@
 
 import assert from "node:assert";
 import converse, { dispatchNoteAndRemind } from "../netlify/functions/converse.mjs";
-import { noteToParsed, normalizeReminders, writeFactsToPerson, seedReminders, parseStatedReminders, statedRemindersFromMessages } from "../netlify/functions/_capture.mjs";
+import { noteToParsed, normalizeReminders, writeFactsToPerson, seedReminders, parseStatedReminders, statedRemindersFromMessages, resolve } from "../netlify/functions/_capture.mjs";
 import { seedSituation } from "../netlify/functions/_memory.mjs";
+import { createPerson } from "../netlify/functions/capture-resolve.mjs";
 
 // No key / no supabase → primeAuth is anon, and the handler's own Anthropic call would 200
 // not_configured. We instead mock global.fetch so the ONE Anthropic call returns a forced tool_use.
@@ -191,6 +192,90 @@ await t("undated note → DURABLE, no date, NO reminder (default only applies to
 await t("empty note → no facts", () => {
   assert.deepEqual(noteToParsed({ note: "   " }).facts, []);
   assert.deepEqual(noteToParsed({}).facts, []);
+});
+
+console.log("\n# TC-136 follow-up — relationship captured at extraction, threaded to createPerson\n");
+
+await t("noteToParsed: 'my neighbor Dave' → person_hint 'Dave', person_relationship 'neighbor'", () => {
+  const p = noteToParsed({ person_hint: "Dave", person_relationship: "neighbor", note: "turning 40 next month" });
+  const f = p.facts[0];
+  assert.equal(f.person_hint, "Dave");        // NAME stays clean (no descriptor)
+  assert.equal(f.person_relationship, "neighbor");
+});
+await t("noteToParsed: bare 'Dave' (no relationship) → person_relationship empty (never invented)", () => {
+  const p = noteToParsed({ person_hint: "Dave", note: "turning 40" });
+  assert.equal(p.facts[0].person_relationship, "");
+});
+await t("noteToParsed: an invented/unknown relationship is rejected to empty (validated vocab)", () => {
+  const p = noteToParsed({ person_hint: "Dave", person_relationship: "acquaintance", note: "x" });
+  assert.equal(p.facts[0].person_relationship, "");
+});
+await t("noteToParsed: 'my co-worker Marc' → relationship canonicalized to 'coworker'", () => {
+  const p = noteToParsed({ person_hint: "Marc", person_relationship: "co-worker", note: "got promoted" });
+  assert.equal(p.facts[0].person_relationship, "coworker");
+});
+
+await t("resolve() lifts the stated relationship onto the group (for createPerson)", async () => {
+  const parsed = noteToParsed({ person_hint: "Dave", person_relationship: "neighbor", note: "turning 40" });
+  // A supa whose fuzzy RPC + people reads are all empty → a brand-new person (no match).
+  const emptySupa = { rpc: async () => ({ data: [], error: null }), from: () => ({ select() { return this; }, eq() { return this; }, is() { return this; }, in() { return this; }, order() { return this; }, limit() { return this; }, maybeSingle: async () => ({ data: null, error: null }), then(r) { return Promise.resolve({ data: [], error: null }).then(r); } }) };
+  const { groups } = await resolve("user-1", parsed, emptySupa);
+  assert.equal(groups[0].personHint, "Dave");
+  assert.equal(groups[0].personRelationship, "neighbor");
+});
+
+// createPerson via a minimal in-memory people table: assert name + relationship land on the row.
+function makePeopleSupa() {
+  const inserted = [];
+  return {
+    inserted,
+    supa: {
+      from() {
+        let pending = null;
+        const api = {
+          select() { return api; },
+          eq() { return api; },
+          is() { return api; },
+          insert(row) { pending = { id: `p-${inserted.length + 1}`, ...row }; inserted.push(pending); return api; },
+          async single() { return { data: pending, error: null }; },
+          async maybeSingle() { return { data: pending, error: null }; },
+        };
+        return api;
+      },
+    },
+  };
+}
+
+await t("createPerson: relHint 'neighbor' → stores name 'Dave' + relationship 'neighbor'", async () => {
+  const { supa, inserted } = makePeopleSupa();
+  await createPerson(supa, "user-1", "Dave", "personal", "neighbor");
+  assert.equal(inserted[0].name, "Dave");
+  assert.equal(inserted[0].relationship, "neighbor");
+  assert.equal(inserted[0].contact_kind, "personal");
+});
+await t("createPerson: bare 'Dave' + no relHint → NO relationship key set (never invents)", async () => {
+  const { supa, inserted } = makePeopleSupa();
+  await createPerson(supa, "user-1", "Dave", "personal", "");
+  assert.equal(inserted[0].name, "Dave");
+  assert.ok(!("relationship" in inserted[0]), "relationship must be absent for a bare name");
+});
+await t("createPerson FALLBACK: no relHint but name lumps descriptor ('my neighbor Tom') → splits to name 'Tom' + rel 'neighbor'", async () => {
+  const { supa, inserted } = makePeopleSupa();
+  await createPerson(supa, "user-1", "my neighbor Tom", "personal", "");
+  assert.equal(inserted[0].name, "Tom");
+  assert.equal(inserted[0].relationship, "neighbor");
+});
+await t("createPerson: relHint WINS over a clean name (name kept clean, rel from hint)", async () => {
+  const { supa, inserted } = makePeopleSupa();
+  await createPerson(supa, "user-1", "Dave", "personal", "friend");
+  assert.equal(inserted[0].name, "Dave");     // name never gets the descriptor
+  assert.equal(inserted[0].relationship, "friend");
+});
+await t("createPerson: an invalid relHint is ignored, falls back to split (empty here) → no relationship", async () => {
+  const { supa, inserted } = makePeopleSupa();
+  await createPerson(supa, "user-1", "Sarah", "personal", "acquaintance");
+  assert.equal(inserted[0].name, "Sarah");
+  assert.ok(!("relationship" in inserted[0]));
 });
 
 console.log("\n# seedSituation — a NEGATIVE 'after' reminder seeds a situation_reminders row unchanged (BLOCKER 2)\n");

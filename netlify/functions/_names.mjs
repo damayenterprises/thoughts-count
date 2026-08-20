@@ -153,7 +153,10 @@ export function firstNamesEquivalent(a, b) {
 
 // The relationship vocabulary we recognize as a descriptor. Multi-word forms ("co-worker",
 // "in-law", "mother in law") are matched as phrases. Kept in one place so callers don't duplicate.
-const RELATIONSHIP_WORDS = [
+// EXPORTED (TC-136 follow-up) so the extractor/tool prompt can teach Della the SAME vocabulary the
+// deterministic split recognizes, and normalizeRelationshipWord() can validate a model-supplied
+// person_relationship against it (we never trust a free-form invented relationship).
+export const RELATIONSHIP_WORDS = [
   "neighbor", "friend", "best friend", "coworker", "co-worker", "colleague", "boss", "manager",
   "sister", "brother", "sibling", "mom", "mother", "dad", "father", "aunt", "uncle", "cousin",
   "niece", "nephew", "partner", "wife", "husband", "spouse", "girlfriend", "boyfriend",
@@ -215,6 +218,25 @@ function canonicalRel(rel) {
   const r = normRel(rel);
   const canon = { "co-worker": "coworker" };
   return canon[r] || r;
+}
+
+// TC-136 follow-up — validate + canonicalize a MODEL-SUPPLIED relationship (the extractor's new
+// per-person `relationship`/`person_relationship` field). CONSERVATIVE by design: we only accept a
+// value that is in our known RELATIONSHIP_WORDS vocabulary (after stripping a leading possessive/
+// article "my/our/the" and a trailing possessive/plural tail), so the model can never invent an
+// arbitrary descriptor or smuggle a name in here. Returns the canonical relationship word, or ""
+// when the value isn't a recognized relationship (the caller then leaves relationship empty). Pure.
+export function normalizeRelationshipWord(raw) {
+  let r = normRel(raw);
+  if (!r) return "";
+  // Peel a leading possessive/article the model may echo ("my neighbor" → "neighbor").
+  r = r.replace(/^(?:my|our|the)\s+/i, "").trim();
+  // Tolerate a simple trailing plural ("coworkers" → "coworker") only when the singular is known.
+  if (!RELATIONSHIP_SET.has(r) && r.endsWith("s") && RELATIONSHIP_SET.has(r.slice(0, -1))) {
+    r = r.slice(0, -1);
+  }
+  if (!RELATIONSHIP_SET.has(r)) return "";
+  return canonicalRel(r);
 }
 
 function escapeRe(s) { return String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"); }

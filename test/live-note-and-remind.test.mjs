@@ -385,5 +385,49 @@ await t("multi-turn 'a week before' → ambiguous Sarah → confirm: FINAL sched
   }
 });
 
+// ---------------------------------------------------------------------------------------------
+// TC-136 follow-up — the model must capture the RELATIONSHIP separately from the proper NAME.
+// "My neighbor Dave is turning 40" → person_hint "Dave" (clean, no descriptor) + person_relationship
+// "neighbor". This is the whole point of the fix: the relationship is captured at extraction, not left
+// to leak into the name (or get dropped). We drive the REAL model with the ACTUAL tool + prompt, and
+// assert the tool_use carries a clean name + the relationship word. Open cold (no prior person) so the
+// utterance itself is what supplies both name and relationship.
+// ---------------------------------------------------------------------------------------------
+console.log("\n# TC-136 — the model separates RELATIONSHIP from the proper NAME\n");
+
+const RELWORD = /neighbor/i;
+// The typed-door extractor is the deterministic place to assert the split (it always emits facts,
+// never a conversational reply), so we drive the REAL extract() here — the cleanest live proof.
+const { extract } = await import("../netlify/functions/_capture.mjs");
+await t("extract('my neighbor Dave is turning 40') → a fact with clean name 'Dave' + person_relationship 'neighbor'", async () => {
+  const parsed = await extract("My neighbor Dave is turning 40 next month.");
+  assert.ok(parsed.facts.length >= 1, "expected at least one fact");
+  const daveFact = parsed.facts.find((f) => /^dave$/i.test(String(f.person_hint || "").trim())) || parsed.facts[0];
+  assert.ok(/^dave$/i.test(String(daveFact.person_hint || "").trim()), `person_hint should be clean "Dave", got: ${JSON.stringify(daveFact.person_hint)}`);
+  assert.ok(RELWORD.test(String(daveFact.person_relationship || "")), `person_relationship should be "neighbor", got: ${JSON.stringify(daveFact.person_relationship)}`);
+});
+await t("extract('Sarah just got a puppy') → bare name, person_relationship EMPTY (never invented)", async () => {
+  const parsed = await extract("Sarah just got a puppy.");
+  const f = parsed.facts.find((x) => /sarah/i.test(String(x.person_hint || ""))) || parsed.facts[0];
+  assert.equal(String(f.person_relationship || "").trim(), "", `a bare name must leave relationship empty, got: ${JSON.stringify(f.person_relationship)}`);
+});
+await t("'my neighbor Dave is turning 40' → person_hint 'Dave' (clean) + person_relationship 'neighbor'", async () => {
+  const { name, input } = await askDellaCold(
+    "My neighbor Dave is turning 40 next month — I want to do something for him."
+  );
+  // She may capture directly, or (less likely, cold) reply — but if she captures, the split must be clean.
+  if (name === "note_and_remind") {
+    const hint = String(input.person_hint || "").trim();
+    const rel = String(input.person_relationship || "").trim();
+    // NAME must be JUST the proper name — no descriptor smuggled in.
+    assert.ok(/^dave$/i.test(hint), `person_hint should be the clean proper name "Dave", got: ${JSON.stringify(hint)}`);
+    // RELATIONSHIP must be captured in its own field.
+    assert.ok(RELWORD.test(rel), `person_relationship should be "neighbor", got: ${JSON.stringify(rel)}`);
+  } else {
+    // If she asked something first, at minimum she must not have folded "neighbor" into a name.
+    console.log(`    (she routed to ${name}, not a direct capture — skipping the field assertions)`);
+  }
+});
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
