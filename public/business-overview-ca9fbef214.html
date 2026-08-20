@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Thoughts Count — Business Overview</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&family=Fraunces:ital,opsz,wght@0,9..144,500;1,9..144,400;1,9..144,500;1,9..144,600&display=swap" rel="stylesheet" />
+<style>
+  :root{
+    --blue:#118ab9; --blue-deep:#0a5876; --blue-tint:#e3f0f6; --blue-tint-2:#f0f7fb;
+    --red:#ef4136; --red-hover:#e02f24;
+    --paper:#f7f3ec; --paper-2:#f1ebe1; --surface:#fdfbf7; --white:#fff;
+    --ink:#2c2a26; --ink-soft:#5a554c; --ink-mute:#8a8377;
+    --line:#e7ded0; --line-strong:#d8cdba;
+    --glass:rgba(255,255,255,.1); --glass-line:rgba(255,255,255,.22); --glass-hi:rgba(255,255,255,.16);
+    --w:#fff; --w-soft:rgba(255,255,255,.9); --w-mute:rgba(255,255,255,.7);
+    --shadow-md:0 3px 10px rgba(6,38,54,.16), 0 16px 40px rgba(6,38,54,.24);
+    --r:14px; --r-lg:20px; --r-pill:999px;
+    --font:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;
+    --serif:'Fraunces',Georgia,serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  html{scroll-behavior:smooth;}
+  body{font-family:var(--font);color:var(--w);line-height:1.62;-webkit-font-smoothing:antialiased;min-height:100vh;}
+  /* live-site background: the same fixed blue wash as thoughtscount.com */
+  body::before{content:"";position:fixed;inset:0;z-index:-2;
+    background:radial-gradient(145% 122% at 22% 0%, #e2f3fb 0%, #a3d3ec 22%, #3f9ecb 52%, #0e73a2 78%, #06466a 100%);}
+  .fr{font-family:var(--serif);font-style:italic;font-weight:500;}
+  a{color:inherit;}
+  .wrap{max-width:940px;margin:0 auto;padding:0 30px;}
+
+  /* ---------- HEADER + TABS ---------- */
+  .top{position:sticky;top:0;z-index:50;background:rgba(9,74,105,.28);backdrop-filter:blur(10px);border-bottom:1px solid var(--glass-line);}
+  .top-in{display:flex;align-items:center;gap:18px;height:62px;}
+  .brand{display:flex;align-items:center;gap:11px;text-decoration:none;}
+  .brand svg{width:30px;height:30px;filter:drop-shadow(0 1px 5px rgba(6,38,54,.4));}
+  .brand span{font-weight:700;letter-spacing:.16em;text-transform:uppercase;font-size:13.5px;color:var(--w);}
+  .try-orb{position:relative;margin-left:auto;width:52px;height:52px;display:flex;align-items:center;justify-content:center;text-decoration:none;transition:transform .15s;}
+  .try-orb:hover{transform:translateY(-1px) scale(1.05);}
+  .try-orb .mini-stage{position:absolute;inset:0;border-radius:50%;overflow:visible;}
+  .try-orb .mini-stage .orb,.try-orb .orbIW{position:absolute;inset:0;border-radius:50%;}
+  .try-orb .orbIW canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;display:block;}
+  .try-orb .try-label{position:relative;z-index:2;color:#fff;font-weight:800;font-size:12px;letter-spacing:.02em;
+    text-shadow:0 1px 5px rgba(6,38,54,.85),0 0 2px rgba(6,38,54,.7);pointer-events:none;}
+  .tabs{position:sticky;top:62px;z-index:49;background:rgba(9,74,105,.22);backdrop-filter:blur(10px);border-bottom:1px solid var(--glass-line);}
+  .tabs-in{display:flex;gap:4px;overflow-x:auto;scrollbar-width:none;}
+  .tabs-in::-webkit-scrollbar{display:none;}
+  .tab{appearance:none;border:none;background:none;font-family:var(--font);cursor:pointer;
+    padding:15px 4px;margin-right:22px;font-size:15px;font-weight:600;color:var(--w-mute);
+    border-bottom:2px solid transparent;white-space:nowrap;transition:color .15s;}
+  .tab:hover{color:var(--w-soft);}
+  .tab.current{color:var(--w);border-bottom-color:var(--red);}
+
+  /* ---------- PANELS ---------- */
+  .panel{display:none;}
+  .panel.active{display:block;animation:fade .35s ease;}
+  @keyframes fade{from{opacity:0;transform:translateY(6px);}to{opacity:1;transform:none;}}
+  .sec{padding:clamp(44px,6.5vw,74px) 0;}
+  .kick{font-size:12.5px;font-weight:600;letter-spacing:.16em;text-transform:uppercase;color:var(--w-soft);margin-bottom:16px;}
+  h1{font-size:clamp(34px,5.4vw,54px);font-weight:800;line-height:1.06;letter-spacing:-.02em;color:var(--w);text-shadow:0 2px 16px rgba(6,38,54,.28);}
+  h2{font-size:clamp(26px,3.6vw,38px);font-weight:800;line-height:1.14;letter-spacing:-.015em;max-width:20ch;color:var(--w);text-shadow:0 2px 14px rgba(6,38,54,.24);}
+  .lead{font-size:clamp(17px,1.7vw,19.5px);color:var(--w-soft);max-width:60ch;margin-top:18px;}
+  p{color:var(--w-soft);}
+
+  /* ---------- OVERVIEW ---------- */
+  .over{text-align:center;}
+  .over h1{max-width:16ch;margin:0 auto;}
+  .over .lead{margin-left:auto;margin-right:auto;}
+  .over .promise{margin:24px auto 0;font-size:16px;color:var(--w-soft);max-width:52ch;}
+  .orb-cta{display:inline-flex;flex-direction:column;align-items:center;gap:12px;text-decoration:none;cursor:pointer;margin-top:34px;}
+  .orb-cta .stage{position:relative;width:200px;height:200px;display:flex;align-items:center;justify-content:center;border-radius:50%;outline:none;}
+  .orb-cta .stage:focus-visible{box-shadow:0 0 0 3px rgba(255,255,255,.9),0 0 0 6px rgba(255,255,255,.35);}
+  .orb-cta .orb{position:relative;width:184px;height:184px;border-radius:50%;will-change:transform;animation:orbBreath 5.4s ease-in-out infinite;}
+  .orb-cta .orbIW{position:absolute;inset:0;overflow:visible;}
+  .orb-cta .orbIW canvas{position:absolute;inset:0;width:100%;height:100%;border-radius:50%;display:block;}
+  @keyframes orbBreath{0%,100%{transform:translateY(0) scale(1);}50%{transform:translateY(-4px) scale(1.028);}}
+  .orb-cta:hover .orb{animation-play-state:paused;transform:translateY(-3px) scale(1.03);transition:transform .2s;}
+  .orb-label{color:var(--w);font-weight:700;font-size:19px;}
+  .orb-sub{color:var(--w-mute);font-size:14.5px;margin-top:-6px;}
+  .over .three{margin:56px auto 0;display:grid;grid-template-columns:repeat(3,1fr);gap:34px;border-top:1px solid var(--glass-line);padding-top:34px;text-align:left;}
+  .over .three .lbl{font-family:var(--serif);font-style:italic;font-weight:500;color:var(--w);font-size:20px;margin-bottom:8px;}
+  .over .three p{font-size:15px;color:var(--w-soft);}
+
+  /* ---------- EDITORIAL FLOW (how) ---------- */
+  .flow{margin-top:20px;}
+  .flow .row{display:grid;grid-template-columns:60px 1fr;gap:22px;padding:26px 0;border-top:1px solid var(--glass-line);}
+  .flow .row:first-child{border-top:none;}
+  .flow .n{font-family:var(--serif);font-style:italic;font-weight:500;font-size:40px;color:var(--w);line-height:1;opacity:.92;}
+  .flow .row.fresh{background:var(--glass);border:1px solid var(--glass-line);border-radius:var(--r);padding:26px 24px;margin-top:10px;border-top:1px solid var(--glass-line);}
+  .flow h3{font-size:20px;font-weight:700;margin-bottom:6px;color:var(--w);}
+  .flow h3 .flag{display:inline-block;font-family:var(--font);font-style:normal;font-size:11px;font-weight:700;letter-spacing:.08em;
+    text-transform:uppercase;color:#fff;background:var(--red);border-radius:var(--r-pill);padding:3px 9px;margin-left:10px;vertical-align:middle;}
+  .flow p{font-size:16px;max-width:56ch;color:var(--w-soft);}
+  .flow .tell{margin-top:10px;font-family:var(--serif);font-style:italic;font-weight:500;color:var(--w);font-size:18px;}
+
+  /* ---------- WHY ---------- */
+  .why .lede{font-family:var(--serif);font-style:italic;font-weight:400;font-size:clamp(20px,2.4vw,26px);line-height:1.42;color:var(--w);max-width:30ch;margin-top:16px;}
+  .why .list{margin-top:34px;display:grid;grid-template-columns:1fr 1fr;gap:32px 44px;}
+  .why .item h3{font-size:18px;font-weight:700;color:var(--w);margin-bottom:6px;}
+  .why .item p{font-size:15.5px;color:var(--w-soft);}
+
+  /* ---------- WHO ---------- */
+  .who .split{margin-top:34px;display:grid;grid-template-columns:1fr 1fr;gap:22px;}
+  .who .block{border-radius:var(--r-lg);padding:32px 30px;background:var(--glass);border:1px solid var(--glass-line);backdrop-filter:blur(4px);}
+  .who .block .tag{font-size:12px;font-weight:700;letter-spacing:.12em;text-transform:uppercase;color:var(--w);opacity:.85;margin-bottom:10px;}
+  .who .block h3{font-size:21px;font-weight:800;margin-bottom:10px;color:var(--w);}
+  .who .block p{font-size:16px;color:var(--w-soft);}
+
+  /* ---------- PRICING (opaque warm cards pop on blue) ---------- */
+  .price .tiers{margin-top:32px;display:grid;grid-template-columns:repeat(3,1fr);gap:18px;}
+  .tier{background:var(--surface);border:1px solid var(--line);border-radius:var(--r-lg);padding:26px 24px;display:flex;flex-direction:column;box-shadow:var(--shadow-md);}
+  .tier.flag{border:2px solid var(--red);}
+  .tier .for{font-size:12px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-mute);margin-bottom:8px;}
+  .tier.flag .for{color:var(--red);}
+  .tier h3{font-size:22px;font-weight:800;margin-bottom:2px;color:var(--ink);}
+  .tier .amt{font-family:var(--serif);font-style:italic;font-weight:600;font-size:21px;color:var(--ink);margin-bottom:16px;}
+  .tier .amt small{font-family:var(--font);font-style:normal;font-weight:500;font-size:13.5px;color:var(--ink-mute);}
+  .tier ul{list-style:none;display:flex;flex-direction:column;gap:10px;}
+  .tier li{font-size:14.5px;color:var(--ink-soft);padding-left:20px;position:relative;line-height:1.45;}
+  .tier li::before{content:"";position:absolute;left:0;top:8px;width:9px;height:9px;border-radius:50%;background:var(--blue-tint);border:2px solid var(--blue);}
+  .price .line{margin-top:24px;background:var(--glass);border:1px solid var(--glass-line);border-left:3px solid var(--red);border-radius:0 var(--r) var(--r) 0;padding:22px 26px;backdrop-filter:blur(4px);}
+  .price .line h4{font-size:17px;font-weight:800;color:var(--w);margin-bottom:8px;}
+  .price .line p{font-size:15.5px;max-width:78ch;color:var(--w-soft);}
+  .price .honest{margin-top:16px;font-size:15px;color:var(--w-mute);max-width:78ch;}
+
+  /* ---------- TODAY ---------- */
+  .today .status{margin-top:30px;display:flex;flex-direction:column;}
+  .today .st{display:grid;grid-template-columns:26px 1fr;gap:16px;padding:18px 0;border-top:1px solid var(--glass-line);align-items:start;}
+  .today .st:first-child{border-top:none;}
+  .today .ck{width:22px;height:22px;margin-top:2px;color:var(--w);}
+  .today .st strong{display:block;font-size:16.5px;font-weight:700;color:var(--w);margin-bottom:2px;}
+  .today .st span{font-size:15.5px;color:var(--w-soft);}
+  .today .next{margin-top:30px;background:var(--glass);border:1px solid var(--glass-line);border-radius:var(--r-lg);padding:28px 30px;backdrop-filter:blur(4px);}
+  .today .next .k{font-size:12.5px;font-weight:600;letter-spacing:.14em;text-transform:uppercase;color:var(--w-soft);margin-bottom:8px;}
+  .today .next p{color:var(--w);font-size:17px;max-width:60ch;}
+
+  /* ---------- FOOTER ---------- */
+  .foot{border-top:1px solid var(--glass-line);padding:26px 0 40px;margin-top:20px;}
+  .foot .wrap{display:flex;align-items:center;gap:14px;flex-wrap:wrap;font-size:13.5px;color:var(--w-mute);}
+  .foot a{color:var(--w);text-decoration:none;font-weight:600;}
+  .foot .sp{margin-left:auto;}
+
+  @media (max-width:720px){
+    .over .three,.why .list,.who .split,.price .tiers{grid-template-columns:1fr;}
+    .over .three{gap:24px;}
+  }
+
+  /* ---------- PRINT (all tabs; hide live orb, show link) ---------- */
+  @media print{
+    @page{margin:14mm;}
+    body::before{display:none;}
+    body{color:#1a1a1a;background:#fff;}
+    h1,h2,.kick,.lead,p,.flow .n,.flow h3,.flow p,.flow .tell,.why .lede,.why .item h3,.why .item p,
+    .who .block .tag,.who .block h3,.who .block p,.price .line h4,.price .line p,.price .honest,
+    .today .st strong,.today .st span,.today .next p,.today .next .k,.foot .wrap,.over .three .lbl,.over .three p{color:#1a1a1a !important;text-shadow:none !important;}
+    .top,.tabs{display:none !important;}
+    .panel{display:block !important;}
+    .sec{padding:18px 0 24px;break-inside:avoid;border-top:1px solid #ddd;}
+    .panel:first-of-type .sec{border-top:none;}
+    .orb-cta .stage{display:none;}
+    .orb-label::after{content:" — thoughtscount.com";font-weight:500;color:#0a5876;}
+    .who .block,.today .next,.price .line{background:#f4f1ea !important;border:1px solid #ddd !important;}
+    .tier.flag,.today .next{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+  }
+</style>
+</head>
+<body>
+
+<!-- ===== HEADER ===== -->
+<div class="top">
+  <div class="wrap top-in">
+    <a class="brand" href="#overview">
+      <svg viewBox="0 0 250 250" aria-hidden="true">
+        <path fill="#fff" d="M30.84,247.61c-1.22,0-2.42-.54-3.34-1.57-1.36-1.51-1.87-3.82-1.31-5.92l9.28-34.68C14.07,182.85,2.33,153.46,2.33,122.3,2.33,55.3,57.27.8,124.8.8s122.47,54.5,122.47,121.5-54.94,121.5-122.47,121.5c-19.29,0-38.44-4.55-55.53-13.17l-36.69,16.6c-.57.26-1.16.38-1.74.38ZM69.39,218.66c.68,0,1.35.17,1.99.5,16.31,8.59,34.78,13.13,53.42,13.13,62.16,0,112.73-49.34,112.73-110S186.96,12.3,124.8,12.3,12.07,61.65,12.07,122.3c0,28.9,11.42,56.2,32.16,76.89,1.5,1.5,2.09,3.92,1.5,6.13l-7.2,26.9,29.12-13.18c.56-.25,1.15-.38,1.74-.38Z"/>
+        <path fill="#ef4136" d="M148.18,75.95c-7.61,0-15.23,2.92-21.04,8.75l-2.35,2.36-2.35-2.36c-5.81-5.83-13.42-8.75-21.03-8.75-7.62,0-15.23,2.92-21.04,8.76l-.42.43c-11.62,11.67-11.62,30.59,0,42.27l2.35,2.36,5.15,5.18,37.34,37.52,42.5-42.7,2.35-2.36c11.61-11.67,11.61-30.6,0-42.27l-.43-.43c-5.81-5.83-13.42-8.75-21.04-8.75h0Z"/>
+      </svg>
+      <span>Thoughts&nbsp;Count</span>
+    </a>
+    <a class="try-orb" href="https://thoughtscount.com" target="_blank" rel="noopener" aria-label="Try it">
+      <span class="mini-stage" data-state="idle" data-orb><span class="orb"><span class="orbIW"><canvas></canvas></span></span></span>
+      <span class="try-label">Try&nbsp;It</span>
+    </a>
+  </div>
+</div>
+
+<!-- ===== TABS ===== -->
+<nav class="tabs">
+  <div class="wrap tabs-in">
+    <button class="tab" data-tab="overview">Overview</button>
+    <button class="tab" data-tab="how">How it works</button>
+    <button class="tab" data-tab="why">Why it's different</button>
+    <button class="tab" data-tab="who">Who it's for</button>
+    <button class="tab" data-tab="pricing">Pricing</button>
+    <button class="tab" data-tab="today">Where it stands</button>
+  </div>
+</nav>
+
+<!-- ===== OVERVIEW ===== -->
+<section class="panel active" id="overview">
+  <div class="wrap sec over">
+    <div class="kick">A relationship companion</div>
+    <h1>Be there for the people who <span class="fr">matter.</span></h1>
+    <p class="lead">Thoughts Count helps you show up for the moments that count in someone's life, with the right words, a thoughtful gesture, and the timing to match. It is not a gift shop or a greeting card. It is the confidence to get it right.</p>
+    <p class="promise">Our promise is simple: helping good intentions become meaningful actions.</p>
+    <a class="orb-cta" href="https://thoughtscount.com" target="_blank" rel="noopener" aria-label="Try it now at thoughtscount.com">
+      <div class="stage" data-state="idle" data-orb>
+        <div class="orb"><div class="orbIW"><canvas></canvas></div></div>
+      </div>
+      <span class="orb-label">Try it now</span>
+      <span class="orb-sub">Meet Della at thoughtscount.com</span>
+    </a>
+    <div class="three">
+      <div>
+        <div class="lbl fr">Say it</div>
+        <p>The right words for the moment, and the ones better left unsaid.</p>
+      </div>
+      <div>
+        <div class="lbl fr">Do it</div>
+        <p>A thoughtful gesture, a local shop, a real gift idea, and how much to spend.</p>
+      </div>
+      <div>
+        <div class="lbl fr">Keep it up</div>
+        <p>She remembers, and reminds you, so you stay present long after others move on.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== HOW IT WORKS ===== -->
+<section class="panel" id="how">
+  <div class="wrap sec how">
+    <div class="kick">How it works</div>
+    <h2>Tell her what's going on. She takes it from there.</h2>
+    <div class="flow">
+      <div class="row">
+        <div class="n">1</div>
+        <div>
+          <h3>You talk it through</h3>
+          <p>In your own words, out loud or by typing. What happened, who the person is to you, and what feels like something you would actually do.</p>
+        </div>
+      </div>
+      <div class="row">
+        <div class="n">2</div>
+        <div>
+          <h3>She gives you a real plan</h3>
+          <p>What to say and what to steer clear of. Something thoughtful to do. A gift idea if one fits, from a real shop, with a sense of how much to spend. Not a list of products, a way to show up.</p>
+        </div>
+      </div>
+      <div class="row">
+        <div class="n">3</div>
+        <div>
+          <h3>She remembers, and nudges you</h3>
+          <p>Tell her something matters today, next week, or next spring, and she holds onto it. When the time gets close, she reaches out so you don't have to carry it all in your head.</p>
+          <div class="tell">Today, tomorrow, or a year from now. Just tell her.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== WHY DIFFERENT ===== -->
+<section class="panel" id="why">
+  <div class="wrap sec why">
+    <div class="kick">Why it's different</div>
+    <h2>A kinder chatbot is easy to copy. This is not.</h2>
+    <p class="lede">A general assistant answers your question and forgets you. Della is built to know your people, and to help you become someone who shows up, over a whole life.</p>
+    <div class="list">
+      <div class="item">
+        <h3>She remembers your people</h3>
+        <p>Not a form you fill out once. She learns the people in your life over time. The longer you stay, the better she knows them, and the harder it would be to start over anywhere else.</p>
+      </div>
+      <div class="item">
+        <h3>She thinks in moments, not contacts</h3>
+        <p>A person's story adds up over the years. So when she suggests something, it always has real history behind it, not a blank slate.</p>
+      </div>
+      <div class="item">
+        <h3>She learns what actually helps</h3>
+        <p>Tell her how it landed, and she gets wiser about what really works. Over time that becomes a kind of understanding no one else has written down.</p>
+      </div>
+      <div class="item">
+        <h3>She looks ahead for you</h3>
+        <p>A year after a hard loss, when most people have gone quiet, she gently reminds you that today might be the day to reach out. That is when it matters most.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== WHO ===== -->
+<section class="panel" id="who">
+  <div class="wrap sec who">
+    <div class="kick">Who it's for</div>
+    <h2>The people in your life, and the people in your work.</h2>
+    <div class="split">
+      <div class="block life">
+        <div class="tag">For your life</div>
+        <h3>Anyone who wants to show up</h3>
+        <p>To be a better friend, partner, son or daughter, and actually keep up with the people you love. This part is free, and it stays that way. We never ask you to pay in the middle of caring about someone.</p>
+      </div>
+      <div class="block work">
+        <div class="tag">For your work</div>
+        <h3>People who live on relationships</h3>
+        <p>Realtors, financial advisors, insurance agents, account managers. If your livelihood depends on never letting a relationship go cold, Della becomes the system that makes sure no one slips through.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ===== PRICING ===== -->
+<section class="panel" id="pricing">
+  <div class="wrap sec price">
+    <div class="kick">Pricing</div>
+    <h2>Free where it counts. Paid when you want her for more.</h2>
+    <div class="tiers">
+      <div class="tier">
+        <div class="for">For your closest few</div>
+        <h3>Free</h3>
+        <div class="amt fr">$0 <small>always</small></div>
+        <ul>
+          <li>Full plans, start to finish, never held back</li>
+          <li>Save up to five people, entered by hand</li>
+          <li>Nudges on every date you save</li>
+        </ul>
+      </div>
+      <div class="tier flag">
+        <div class="for">For your personal circle</div>
+        <h3>Plus</h3>
+        <div class="amt fr">$4 to $6 <small>a month</small></div>
+        <ul>
+          <li>Everyone you love, as many as you'll add by hand</li>
+          <li>Full memory and history, so every idea has context</li>
+          <li>Nudges on every date you save</li>
+        </ul>
+      </div>
+      <div class="tier">
+        <div class="for">For your book of clients</div>
+        <h3>Business</h3>
+        <div class="amt fr">$15 to $25 <small>a seat</small></div>
+        <ul>
+          <li>Import your whole roster at once</li>
+          <li>She surfaces who's slipping, from your dates and your last touch</li>
+          <li>Proactive reminders on the moments already in the record</li>
+          <li>A ready-to-send draft for each, in a professional tone</li>
+          <li>Share it across a team</li>
+        </ul>
+      </div>
+    </div>
+    <div class="line">
+      <h4>Why a business can't just use Plus</h4>
+      <p>Every plan remembers your people and nudges you on the dates you save. The difference is reactive versus proactive. Plus remembers what you tell her. Business works from your own book, the dates, the details, the last time you talked, to surface who is about to slip before they go cold, with a draft ready to send. She never scrapes the web on your clients. She just makes sure nothing you already know falls through the cracks. That, plus importing a whole roster and sharing it across a team, is the work tool. Different job, different tool.</p>
+    </div>
+    <p class="honest">These prices are our current thinking, not a locked menu. We are proving that people come back on their own before we ever put up a paywall. The free experience carries the heart of this. Business is where the real revenue lives.</p>
+  </div>
+</section>
+
+<!-- ===== TODAY ===== -->
+<section class="panel" id="today">
+  <div class="wrap sec today">
+    <div class="kick">Where it stands</div>
+    <h2>Live today, and already helping people show up.</h2>
+    <div class="status">
+      <div class="st">
+        <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <div><strong>The full experience is live at thoughtscount.com</strong><span>Have a real conversation and get a real plan, working right now.</span></div>
+      </div>
+      <div class="st">
+        <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <div><strong>Talk to Della out loud</strong><span>She listens and answers in a warm, natural voice.</span></div>
+      </div>
+      <div class="st">
+        <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <div><strong>She remembers your people</strong><span>Save the ones who matter and the dates that count, and get a nudge before they arrive.</span></div>
+      </div>
+      <div class="st">
+        <svg class="ck" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>
+        <div><strong>Real gifts, real shops</strong><span>Thoughtful ideas and actual local businesses, never a made-up name or link.</span></div>
+      </div>
+    </div>
+    <div class="next">
+      <div class="k">What's next</div>
+      <p>A public push the <span class="fr">week of August 28</span>, tied to National Launch Day, with the professional version close behind.</p>
+    </div>
+  </div>
+</section>
+
+<script>
+  (function(){
+    var tabs = Array.prototype.slice.call(document.querySelectorAll('.tab'));
+    var panels = Array.prototype.slice.call(document.querySelectorAll('.panel'));
+    function show(id){
+      if(!document.getElementById(id)) id = 'overview';
+      panels.forEach(function(p){ p.classList.toggle('active', p.id === id); });
+      tabs.forEach(function(t){ t.classList.toggle('current', t.dataset.tab === id); });
+      if(history.replaceState) history.replaceState(null, '', '#' + id);
+      window.scrollTo(0, 0);
+    }
+    tabs.forEach(function(t){ t.addEventListener('click', function(){ show(t.dataset.tab); }); });
+    document.querySelectorAll('a[href^="#"]').forEach(function(a){
+      a.addEventListener('click', function(e){ e.preventDefault(); show(a.getAttribute('href').slice(1)); });
+    });
+    show((location.hash || '').slice(1) || 'overview');
+  })();
+</script>
+<script type="module">
+  // Mount the real Della orb (same engine as thoughtscount.com) as the Try-it CTA.
+  try{
+    const { mountOrb } = await import('/_orb.js');
+    document.querySelectorAll('[data-orb]').forEach(function(stage){ mountOrb(stage, { life: 'energetic' }); });
+  }catch(e){ /* orb is a nicety; the CTA link still works without it */ }
+</script>
+</body>
+</html>
