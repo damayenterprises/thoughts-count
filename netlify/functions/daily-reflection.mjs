@@ -17,12 +17,16 @@ import { serviceClient, supabaseConfigured } from "./_supabase.mjs";
 
 const APP = "thoughts-count";
 const ZONE = "America/Chicago";
+// The new thought goes live at 7:00am Central (not midnight): before 7am we still show
+// yesterday's thought, so the "quote of the day" turns over in the morning and matches the
+// morning social post (same day's reflection). David's call, 2026-08-19.
+const GO_LIVE_HOUR = 7;
 
 export default async () => {
   // No Supabase yet → nothing to show, cleanly.
   if (!supabaseConfigured()) return json({ line: null });
 
-  const day = ymd(todayInZone(ZONE));
+  const day = reflectionDay(ZONE, GO_LIVE_HOUR);
 
   try {
     const sb = serviceClient();
@@ -61,15 +65,15 @@ function json(obj) {
   });
 }
 
-// Midnight of "today" as seen in a given IANA timezone (copied in shape from nudges-cron.mjs
-// so the site's notion of "today" matches the cron's — Central Time, DST-correct).
-function todayInZone(tz) {
+// The reflection's "day" (YYYY-MM-DD) in Central Time, rolling at goLiveHour (7am) rather
+// than midnight — so the new thought turns over in the morning. DST-correct via Intl.
+function reflectionDay(tz, goLiveHour) {
   const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit",
+    timeZone: tz, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", hour12: false,
   }).formatToParts(new Date());
   const g = (t) => parts.find((x) => x.type === t).value;
-  return new Date(Number(g("year")), Number(g("month")) - 1, Number(g("day")));
-}
-function ymd(d) {
-  return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+  const hour = Number(g("hour")) % 24; // en-CA can emit "24" at midnight
+  const base = new Date(Date.UTC(Number(g("year")), Number(g("month")) - 1, Number(g("day"))));
+  if (hour < goLiveHour) base.setUTCDate(base.getUTCDate() - 1); // before 7am → still yesterday's thought
+  return base.toISOString().slice(0, 10);
 }

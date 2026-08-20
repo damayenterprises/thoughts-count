@@ -1039,30 +1039,22 @@ alt="" /></noscript>
     var labelEl = document.getElementById('tcDailyLabel');
     var dismissBtn = document.getElementById('tcDailyDismiss');
 
-    // Local calendar date (matches the "once per day, this device" model of tc_met_her).
-    function localYmd(){
-      var d = new Date();
-      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
-    }
-    var dismissKey = 'tc_daily_' + localYmd();
-
-    // Today's thought stays for the whole day (shows on every visit) UNTIL the user
-    // dismisses it; only then is it hidden for the rest of today. New day, new thought.
-    var dismissed = false;
-    try { dismissed = localStorage.getItem(dismissKey) === '1'; } catch(e){}
-    if (dismissed) return;
-
-    function markDismissed(){ try { localStorage.setItem(dismissKey, '1'); } catch(e){} }
-
-    dismissBtn.addEventListener('click', function(){
-      el.hidden = true;         // dismissed for the rest of today (returns with tomorrow's thought)
-      markDismissed();
-    });
-
     fetch('/api/daily-reflection', { cache: 'no-store' })
       .then(function(r){ return r.ok ? r.json() : null; })
       .then(function(d){
-        if (!d || !d.line) return;                 // nothing approved today → stay hidden, no layout shift
+        if (!d || !d.line) return;                 // nothing approved for today → stay hidden, no layout shift
+        // The thought stays all day and shows on every visit UNTIL dismissed. The dismiss key
+        // is tied to the DAY THE SERVER SERVES (which turns over at 7am CT), so a dismissal
+        // lasts exactly until the next morning's thought — never the local midnight.
+        var dismissKey = 'tc_daily_' + (d.day || '');
+        var dismissed = false;
+        try { dismissed = !!dismissKey && localStorage.getItem(dismissKey) === '1'; } catch(e){}
+        if (dismissed) return;                      // already dismissed this day's thought → stay hidden
+        function markDismissed(){ try { localStorage.setItem(dismissKey, '1'); } catch(e){} }
+        dismissBtn.addEventListener('click', function(){
+          el.hidden = true;                          // dismissed until tomorrow's thought (returns at 7am CT)
+          markDismissed();
+        });
         // Label in Della's voice, name single-sourced (window.__HER_NAME from public-config).
         // companion.js may still be resolving the config, so apply now and again on tc-her-name.
         function applyLabel(){
