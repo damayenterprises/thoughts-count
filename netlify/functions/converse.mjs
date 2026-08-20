@@ -754,7 +754,7 @@ export async function dispatchNoteAndRemind(userId, input, ctx) {
           match_confidence: 1, match_evidence: `saved to ${person.name}`,
           parsed: { facts: parsed.facts, person_hint: person.name, written_fact_ids: factIds, superseded_fact_ids: supersededIds }, resolved_at: new Date().toISOString(),
         });
-        return { action: "noted", say, personName: person.name, personId: person.id, factIds, reminders: parsed.facts[0].reminders || [], reminderIds };
+        return { action: "noted", say, personName: person.name, personId: person.id, factIds, reminders: parsed.facts[0].reminders || [], eventDate: parsed.facts[0].event_date || null, reminderIds };
       }
       // locked person vanished → fall through to normal resolution on the note.
     }
@@ -774,7 +774,7 @@ export async function dispatchNoteAndRemind(userId, input, ctx) {
         match_confidence: r.confidence, match_evidence: r.evidence,
         parsed: { facts: g.facts, person_hint: g.personHint, written_fact_ids: factIds, superseded_fact_ids: supersededIds }, resolved_at: new Date().toISOString(),
       });
-      return { action: "noted", say, personName: person.name, personId: person.id, factIds, reminders: g.facts[0]?.reminders || [], reminderIds };
+      return { action: "noted", say, personName: person.name, personId: person.id, factIds, reminders: g.facts[0]?.reminders || [], eventDate: g.facts[0]?.event_date || null, reminderIds };
     }
 
     // Level B / ambiguous / brand-new — write NOTHING. Hold a pending capture (carrying the facts +
@@ -803,6 +803,7 @@ export async function dispatchNoteAndRemind(userId, input, ctx) {
       personHint: g.personHint || null,
       candidates: r.candidates || [], evidence: r.evidence,
       reminders: g.facts[0]?.reminders || [],
+      eventDate: g.facts[0]?.event_date || null,
     };
   } catch (e) {
     console.error("dispatchNoteAndRemind (soft-fail to spoken reply)", e);

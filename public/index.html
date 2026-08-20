@@ -2848,6 +2848,56 @@ function cvHandleReady(ans){
 //   • noted       → a quiet "saved" chip (already written; just a glanceable confirmation).
 // Fail-open: if the companion bridge isn't available, we still show the invite/copy so the user is
 // never left staring at a dropped request. Returns true if it handled the action.
+// TC capture-loop (close-the-loop): compose Della's warm confirmation for a save that set one or more
+// reminders, naming the timing AND (when we can) the concrete nudge date — so the user can trust the
+// nudge was actually scheduled, not just that the person was saved. Returns the plain base label
+// unchanged when there is no reminder (never invents a nudge). Reuses the ONE offset→phrase vocabulary
+// from _reminders.js (exposed on window by companion.js) so this reads identically to the editor.
+function cvReminderPhrase(lead_days){
+  const f = window.TCReminderPhrase && window.TCReminderPhrase.offsetPhrase;
+  if (f){ try { return f(lead_days); } catch(e){} }
+  // Tiny fallback mirroring offsetPhrase, only if the module hasn't loaded yet.
+  const n = Number(lead_days);
+  if (!Number.isFinite(n) || n === 0) return 'day of';
+  if (n === 1) return '1 day before'; if (n === 7) return 'a week before'; if (n === 14) return 'two weeks before';
+  if (n > 0) return n + ' days before';
+  const a = Math.abs(n); if (a === 1) return '1 day after'; if (a === 7) return 'a week after'; return a + ' days after';
+}
+// The concrete calendar date of a nudge = event_date minus lead_days, in a warm "September 24th" form.
+function cvNudgeDate(eventDate, lead_days){
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(eventDate || '').trim());
+  const n = Number(lead_days);
+  if (!m || !Number.isFinite(n)) return '';
+  const dt = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  dt.setUTCDate(dt.getUTCDate() - n);
+  const MO = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+  const day = dt.getUTCDate();
+  const suf = (day % 10 === 1 && day !== 11) ? 'st' : (day % 10 === 2 && day !== 12) ? 'nd' : (day % 10 === 3 && day !== 13) ? 'rd' : 'th';
+  return MO[dt.getUTCMonth()] + ' ' + day + suf;
+}
+// Build the full saved line. baseLabel is her existing "Saved <name>." / "Saved to <name>." phrasing;
+// we DROP its trailing period and continue in her voice. name (first name) is used for warmth ("her move"
+// stays generic — we don't guess the possessive noun, just name the timing + date honestly).
+function cvSavedWithReminders(baseLabel, reminders, eventDate){
+  const active = (Array.isArray(reminders) ? reminders : []).filter(r => r && r.lead_days != null)
+    .slice().sort((a, b) => Number(b.lead_days) - Number(a.lead_days));
+  if (!active.length) return baseLabel; // no reminder → keep it simple, invent nothing
+  // Drop the trailing period, and trim a "to your people"/"to <name>" tail so the reminder clause reads
+  // as her warm example ("Saved Priya — I'll nudge you…") rather than a longer "…to your people — I'll…".
+  const stem = String(baseLabel || 'Saved.').replace(/\.\s*$/, '').replace(/\s+to your people$/i, '');
+  if (active.length === 1){
+    const phrase = cvReminderPhrase(active[0].lead_days);
+    const date = cvNudgeDate(eventDate, active[0].lead_days);
+    return date ? (stem + ' — I’ll nudge you ' + date + ', ' + phrase + '.')
+                : (stem + ' — I’ll nudge you ' + phrase + '.');
+  }
+  // Multiple nudges: list the timings warmly; lead with the earliest concrete date if it reads cleanly.
+  const phrases = active.map(r => cvReminderPhrase(r.lead_days));
+  const joined = phrases.length === 2 ? (phrases[0] + ' and ' + phrases[1])
+    : (phrases.slice(0, -1).join(', ') + ', and ' + phrases[phrases.length - 1]);
+  return stem + ' — I’ll nudge you ' + joined + '.';
+}
+
 function cvHandleCapture(d){
   try {
     if (!d || !d.action) return false;
@@ -2873,7 +2923,10 @@ function cvHandleCapture(d){
           const conf = window.TCCompanion && window.TCCompanion.captureConfirm;
           if (!conf || !cid){ finish('I’ll hold onto that.'); return; }
           await conf({ captureId: cid, personId: opts.personId || null, newPersonName: opts.newPersonName || null });
-          finish(opts.savedLabel || 'Saved.');
+          // Close the loop: if this capture set reminders, name the nudge timing + concrete date so the
+          // user can trust it — not just that the person was saved. The reminders/eventDate ride on the
+          // confirm_who payload (server echo); no reminder → the simple base label, unchanged.
+          finish(cvSavedWithReminders(opts.savedLabel || 'Saved.', d.reminders, d.eventDate));
         } catch(e){ console.error('cv confirm_who resolve failed', e); finish('I’ll hold onto that.'); }
       };
       const cands = Array.isArray(d.candidates) ? d.candidates.filter(c => c && c.name) : [];
@@ -2908,9 +2961,12 @@ function cvHandleCapture(d){
       return true;
     }
     if (d.action === 'noted'){
-      // Already written server-side → a quiet glanceable confirmation (her spoken line carried the warmth).
+      // Already written server-side → a glanceable confirmation. Close the loop: when this save set
+      // reminders, name the nudge timing + concrete date (event_date − lead) so the chip confirms the
+      // NUDGE too, not just the person. No reminder → the quiet "Saved to <name>." exactly as before.
       const s = document.createElement('div'); s.className = 'tc-cvsaved';
-      s.textContent = d.personName ? ('Saved to ' + d.personName + '.') : 'Saved.';
+      const base = d.personName ? ('Saved to ' + d.personName + '.') : 'Saved.';
+      s.textContent = cvSavedWithReminders(base, d.reminders, d.eventDate);
       if (log){ log.appendChild(s); log.scrollTop = log.scrollHeight; }
       return true;
     }

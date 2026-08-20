@@ -8,7 +8,11 @@ import { formatKeyDate, isPartialDate } from "/_dates.js";
 import { loadFactsFor, loadPersonFacts, mountNoticed, mountPersonDelete, exportUserData, createNote, noticedList } from "/_memory.js";
 import { mountQuickCapture, mountToReview, pendingCount, qcHintHtml, wireQcHint, flashCard, captureExtract, captureResolve, resolveName, captureFromFile, renderImportConfirm, transcribeAudioFile } from "/_capture.js";
 import { mountInlineMic } from "/_inline-mic.js";
-import { mountReminders, remindersSummary, addReminder, ensureReminderStyles } from "/_reminders.js";
+import { mountReminders, remindersSummary, addReminder, ensureReminderStyles, offsetPhrase } from "/_reminders.js";
+// Expose the ONE offset→phrase vocabulary to the non-module conversation-capture handler in
+// index.html (cvHandleCapture), so its "I'll nudge you a week before" confirmation reuses the exact
+// same wording as the reminders editor rather than a parallel copy. Read-only helper, safe on window.
+try { window.TCReminderPhrase = { offsetPhrase, remindersSummary }; } catch (e) {}
 import { pickCheckback as pickCheckbackPure, classifyValenceLite, planValence, readOutcome } from "/_checkback.js";
 import { GUIDED_STEPS, makeGuidedState, stepAt, advance, back as guidedBack, isDone as guidedIsDone, canFinish as guidedCanFinish, answersToDraft } from "/_guided.js";
 
