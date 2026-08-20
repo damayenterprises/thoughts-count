@@ -18,7 +18,7 @@
 
 import assert from "node:assert";
 import converse, { dispatchNoteAndRemind } from "../netlify/functions/converse.mjs";
-import { noteToParsed, normalizeReminders, writeFactsToPerson, seedReminders } from "../netlify/functions/_capture.mjs";
+import { noteToParsed, normalizeReminders, writeFactsToPerson, seedReminders, parseStatedReminders, statedRemindersFromMessages } from "../netlify/functions/_capture.mjs";
 import { seedSituation } from "../netlify/functions/_memory.mjs";
 
 // No key / no supabase → primeAuth is anon, and the handler's own Anthropic call would 200
@@ -314,6 +314,93 @@ await t("anon → noted_anon + signInPrompt, no DB touched", async () => {
 await t("empty note → falls back to a plain spoken reply (never a phantom capture)", async () => {
   const out = await dispatchNoteAndRemind("user-1", { note: "   ", say: "Sorry?" }, {});
   assert.equal(out.action, "reply");
+});
+
+// ---------------------------------------------------------------------------------------------
+// BLOCKER (clarify-then-capture) — the SERVER SAFETY NET: a stated timing dropped by the model
+// across a "which person?" clarification is recovered from the earlier user turns, so the SCHEDULED
+// reminder matches what the user asked (and what her say promised) — never the lead-3 default.
+// ---------------------------------------------------------------------------------------------
+console.log("\n# Clarify-then-capture safety net — earlier-stated timing is carried, not defaulted\n");
+
+await t("parseStatedReminders reads the prompt vocabulary from one utterance", () => {
+  assert.deepEqual(parseStatedReminders("Remind me about Sarah's move on October 1st, a week before."), [{ lead_days: 7, phrase: "a week before" }]);
+  assert.deepEqual(parseStatedReminders("nudge me the day before"), [{ lead_days: 1, phrase: "the day before" }]);
+  assert.deepEqual(parseStatedReminders("the day of"), [{ lead_days: 0, phrase: "the day of" }]);
+  // A "before" AND an "after" in one breath → both, negatives preserved.
+  const both = parseStatedReminders("check on me a few days before and again the day after").map((r) => r.lead_days).sort((a, b) => a - b);
+  assert.deepEqual(both, [-1, 3]);
+  // No timing phrase → nothing invented.
+  assert.deepEqual(parseStatedReminders("just remember it"), []);
+  assert.deepEqual(parseStatedReminders("her surgery is October 1st"), []);
+});
+
+await t("statedRemindersFromMessages returns the LATEST stated timing, newest turn wins", () => {
+  // The reproduced path: user stated "a week before" in turn 1, then a clarifying turn, then confirm.
+  const msgs = [
+    { role: "user", content: "Remind me about Sarah's move on October 1st, a week before." },
+    { role: "assistant", content: "Which Sarah do you mean?" },
+    { role: "user", content: "My sister Sarah." },
+  ];
+  assert.deepEqual(statedRemindersFromMessages(msgs), [{ lead_days: 7, phrase: "a week before" }]);
+  // If the user RETIMES later, the latest explicit statement wins.
+  const retimed = [
+    { role: "user", content: "Remind me a week before." },
+    { role: "assistant", content: "Which Sarah?" },
+    { role: "user", content: "My sister — actually make it the day before." },
+  ];
+  assert.deepEqual(statedRemindersFromMessages(retimed), [{ lead_days: 1, phrase: "the day before" }]);
+  // No user turn stated a timing → [] (the default will apply downstream).
+  assert.deepEqual(statedRemindersFromMessages([{ role: "user", content: "It's my sister Sarah." }]), []);
+});
+
+await t("noteToParsed carries stated timing when the model dropped reminders (lead 7, NOT default 3)", () => {
+  // The exact bug: model returns note_and_remind with event_date but reminders:[] (dropped across the
+  // clarification). With the earlier-stated "a week before" carried in, we schedule lead 7, not 3.
+  const input = { person_hint: "Sarah", note: "moving", event_date: "2027-10-01" /* reminders omitted */ };
+  const stated = statedRemindersFromMessages([
+    { role: "user", content: "Remind me about Sarah's move on October 1st, a week before." },
+    { role: "assistant", content: "Which Sarah?" },
+    { role: "user", content: "My sister Sarah." },
+  ]);
+  const p = noteToParsed(input, { statedReminders: stated });
+  assert.deepEqual(p.facts[0].reminders, [{ lead_days: 7, phrase: "a week before" }]); // NOT [{lead_days:3,label:null}]
+});
+
+await t("noteToParsed: model reminders WIN over carried stated timing (no double-count)", () => {
+  // If the model DID include reminders (e.g. the user retimed and she captured it), use them as-is;
+  // the safety net must not override or add on top.
+  const input = { person_hint: "Sarah", note: "moving", event_date: "2027-10-01", reminders: [{ lead_days: 1, phrase: "the day before" }] };
+  const stated = [{ lead_days: 7, phrase: "a week before" }]; // stale earlier timing
+  const p = noteToParsed(input, { statedReminders: stated });
+  assert.deepEqual(p.facts[0].reminders, [{ lead_days: 1, phrase: "the day before" }]); // model wins
+});
+
+await t("noteToParsed: truly NO stated timing anywhere → the single lead-3 default still applies", () => {
+  const input = { person_hint: "Sarah", note: "surgery", event_date: "2027-03-12" };
+  const p = noteToParsed(input, { statedReminders: [] });
+  assert.deepEqual(p.facts[0].reminders, [{ lead_days: 3, label: null }]); // default preserved
+});
+
+await t("dispatchNoteAndRemind end-to-end (anon): carried timing flows through — no default substitution", async () => {
+  // Anon returns before the write, but noteToParsed runs on the parsed path only for signed-in. To
+  // prove the wiring deterministically WITHOUT a DB, assert the parsed reminders the dispatch WOULD
+  // seed: reconstruct dispatch's own inputs. (The signed-in write path is covered live + by the
+  // seedSituation engine tests above; here we lock the carry logic that feeds it.)
+  const messages = [
+    { role: "user", content: "Remind me about Sarah's move on October 1st, a week before." },
+    { role: "assistant", content: "Which Sarah do you mean?" },
+    { role: "user", content: "My sister Sarah." },
+  ];
+  const stated = statedRemindersFromMessages(messages);
+  assert.deepEqual(stated, [{ lead_days: 7, phrase: "a week before" }]);
+  // The model dropped reminders on the confirm turn; the parsed fact must still carry lead 7.
+  const parsed = noteToParsed({ person_hint: "Sarah", note: "moving on October 1st", event_date: "2027-10-01" }, { statedReminders: stated });
+  assert.equal(parsed.facts[0].reminders[0].lead_days, 7, "scheduled lead must match the stated 'a week before', not the default 3");
+  // And anon dispatch still speaks safely (no false promise) regardless.
+  const out = await dispatchNoteAndRemind(null, { person_hint: "Sarah", note: "moving", event_date: "2027-10-01", say: "Done, I'll nudge you." }, {}, messages);
+  assert.equal(out.action, "noted_anon");
+  assert.ok(!/\bdone\b|i'll nudge you/i.test(out.say), `anon say must not promise; got: ${out.say}`);
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);

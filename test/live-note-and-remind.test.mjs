@@ -219,19 +219,32 @@ const PROMISES_DONE = /\bdone\b|i'll nudge you|i'll remind you|\bsaved\b|it's se
 
 console.log("\n# NO-FALSE-PROMISE — she never declares done before it is saved\n");
 
-// (a) SIGNED-OUT dated note → the model may say whatever, but dispatch OVERRIDES the spoken line to a
-// value-first sign-in invite: signInPrompt true, and NO done/nudge promise survives.
-await t("(a) signed-out dated note → noted_anon, signInPrompt, say makes NO done/nudge promise", async () => {
-  const { name, input } = await askDella(
-    "My sister is moving on October 1st 2027. Remind me a week before."
-  );
-  assert.equal(name, "note_and_remind", `expected note_and_remind, got ${name}`);
-  // Drive dispatch as an ANONYMOUS user (userId null) — the authoritative override runs here.
-  const out = await dispatchNoteAndRemind(null, input, {});
-  assert.equal(out.action, "noted_anon", `anon should route to noted_anon, got ${out.action}`);
-  assert.equal(out.signInPrompt, true, "anon must surface the sign-in prompt");
-  assert.ok(!PROMISES_DONE.test(out.say), `anon say must NOT promise done/nudge; got: ${out.say}`);
-  assert.ok(/sign(ed)? in/i.test(out.say), `anon say should invite sign-in; got: ${out.say}`);
+// (a) SIGNED-OUT dated note → the model may say whatever, but the SPOKEN line must never carry a
+// false done/nudge promise. The utterance names a relationship word ("my sister") with NO proper
+// name, so the CORRECT model behavior is often to ask the name first via `reply` (verify-who) rather
+// than route straight to note_and_remind — this test used to hard-require note_and_remind and flaked
+// on that correct choice. Loosened to accept EITHER: (i) note_and_remind → dispatch overrides to the
+// value-first sign-in invite (noted_anon, signInPrompt, no false promise), or (ii) a reply that asks
+// who. Either way, NO done/nudge promise may survive on an unsettled/unsaved capture. (The real guard
+// (b) below — "never declares done for an unknown person" — is unchanged.)
+await t("(a) signed-out relationship-word note → note_and_remind→noted_anon (no false promise) OR a reply asking who", async () => {
+  const { name, input, say } = await (async () => {
+    const r = await askDella("My sister is moving on October 1st 2027. Remind me a week before.");
+    return { ...r, say: String((r.input || {}).say || "") };
+  })();
+  if (name === "note_and_remind") {
+    // Drive dispatch as an ANONYMOUS user (userId null) — the authoritative override runs here.
+    const out = await dispatchNoteAndRemind(null, input, {});
+    assert.equal(out.action, "noted_anon", `anon should route to noted_anon, got ${out.action}`);
+    assert.equal(out.signInPrompt, true, "anon must surface the sign-in prompt");
+    assert.ok(!PROMISES_DONE.test(out.say), `anon say must NOT promise done/nudge; got: ${out.say}`);
+    assert.ok(/sign(ed)? in/i.test(out.say), `anon say should invite sign-in; got: ${out.say}`);
+  } else {
+    // She (correctly) asked who first — mirror of (b): must ask who, must NOT declare done.
+    assert.equal(name, "reply", `expected note_and_remind or reply, got ${name}`);
+    assert.ok(!PROMISES_DONE.test(say), `a who-asking reply must NOT promise done/nudge; got: ${say}`);
+    assert.ok(/name|who|which|sister/i.test(say), `a reply here should be asking who; got: ${say}`);
+  }
 });
 
 // (b) SIGNED-IN, UNKNOWN person: with a saved roster that does NOT contain the sister, the model
@@ -279,6 +292,96 @@ await t("(b) signed-in, UNKNOWN person → asks the name (reply) OR routes to a 
   assert.ok(!PROMISES_DONE.test(say), `must not declare done for an unknown person; got (${name}): ${say}`);
   if (name === "reply") {
     assert.ok(/name|who|which|sister/i.test(say), `a reply here should be asking who; got: ${say}`);
+  }
+});
+
+// ---------------------------------------------------------------------------------------------
+// BLOCKER (clarify-then-capture) — the EXACT multi-turn path the Validator reproduced live:
+//   Turn 1: user states a timing ("a week before") for an AMBIGUOUS person (two Sarahs).
+//   Turn 2: Della asks "which Sarah?".
+//   Turn 3: user confirms which Sarah.
+// The bug: on turn 3 the model regenerates note_and_remind with reminders:[] (drops the earlier
+// "a week before"), so the SCHEDULE falls to the lead-3 default while her say still promises "a week
+// before" — a promise/schedule mismatch. We assert the FINAL scheduled reminder the pipeline would
+// persist is lead 7 (matching the stated timing + her say), NOT 3 — whether the model carried it
+// (prompt fix) OR the server safety net recovered it from the earlier turns. We drive the real model
+// AND the real noteToParsed carry logic; the seedSituation engine test proves lead 7 then persists.
+// ---------------------------------------------------------------------------------------------
+console.log("\n# CLARIFY-THEN-CAPTURE — stated timing survives the 'which person?' turn (schedule == say)\n");
+
+const { noteToParsed, statedRemindersFromMessages } = await import("../netlify/functions/_capture.mjs");
+
+// Drive a full multi-turn conversation, returning the model's final tool_use + the messages sent.
+async function askDellaMultiTurn(messages, { signedIn = true, roster = [], retries = 2 } = {}) {
+  const payload = {
+    model: MODEL, max_tokens: 600,
+    system: systemForCache({ roster }),
+    tools: toolsFor({ signedIn }),
+    tool_choice: { type: "any" },
+    messages,
+  };
+  let lastErr = "";
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const tool = (data.content || []).find((b) => b.type === "tool_use");
+      if (!tool) throw new Error("no tool_use in the response");
+      return { name: tool.name, input: tool.input || {} };
+    }
+    lastErr = `Anthropic ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
+    if (res.status < 500) break;
+    await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+  }
+  throw new Error(lastErr);
+}
+
+await t("multi-turn 'a week before' → ambiguous Sarah → confirm: FINAL schedule is lead 7 (not the default 3), matching her say", async () => {
+  // A roster with TWO Sarahs so the first name is genuinely ambiguous → she must ask which one.
+  const roster = [
+    { name: "Sarah Bennett", detail: "your sister" },
+    { name: "Sarah Cole", detail: "coworker in Austin" },
+  ];
+  // Turn 1: state the timing up front for the ambiguous "Sarah".
+  const t1 = { role: "user", content: "Remind me about Sarah's move on October 1st 2027, a week before." };
+  // Turn 2 (assistant): she asks which Sarah (we assert she does NOT capture yet — verify-who holds).
+  const clarify = await askDellaMultiTurn([t1], { signedIn: true, roster });
+  assert.notEqual(clarify.name, "note_and_remind", `on an ambiguous first name she must ask WHO first, not capture; got ${clarify.name}`);
+  const clarifySay = String(clarify.input.say || "");
+  assert.ok(/which|sarah|sister|austin|coworker/i.test(clarifySay), `turn 2 should ask which Sarah; got: ${clarifySay}`);
+
+  // Turn 3: the user confirms which Sarah (a bare confirmation, NO timing restated — the crux).
+  const messages = [
+    t1,
+    { role: "assistant", content: clarifySay },
+    { role: "user", content: "My sister Sarah — Sarah Bennett." },
+  ];
+  const final = await askDellaMultiTurn(messages, { signedIn: true, roster });
+  assert.equal(final.name, "note_and_remind", `turn 3 (confirm) should capture; got ${final.name}`);
+
+  // What the pipeline ACTUALLY schedules: model reminders if present, else the server safety net's
+  // carried stated timing, else the default. This is the exact precedence noteToParsed applies inside
+  // dispatchNoteAndRemind(...messages). The assertion is the whole blocker: lead 7, never 3.
+  const modelSet = Array.isArray(final.input.reminders) && final.input.reminders.length > 0;
+  const stated = modelSet ? [] : statedRemindersFromMessages(messages);
+  const parsed = noteToParsed(final.input, { statedReminders: stated });
+  const leads = (parsed.facts[0]?.reminders || []).map((r) => r.lead_days);
+  assert.ok(leads.includes(7), `FINAL scheduled reminder must be lead 7 ("a week before"), got ${JSON.stringify(leads)} (model reminders were ${JSON.stringify(final.input.reminders)})`);
+  assert.ok(!leads.includes(3) || leads.includes(7), `must not silently substitute the lead-3 default for the stated 'a week before'; got ${JSON.stringify(leads)}`);
+
+  // And her SPOKEN promise must match the schedule: if she names a nudge date, it should be ~Sep 24
+  // (Oct 1 minus 7), never Sep 28 (Oct 1 minus 3). We assert the promised lead is a week, not a few
+  // days, when she states one — the promise/schedule agreement the blocker is about.
+  const say = String(final.input.say || "").toLowerCase();
+  if (/\bnudge|remind|heads[- ]?up|check\b/.test(say)) {
+    assert.ok(
+      !/(few days before|three days before|3 days before)/.test(say) || /week before|september 24|sep 24|sept 24/.test(say),
+      `her spoken promise must match the scheduled 'a week before' (Sep 24), not a few days before (Sep 28); got: ${final.input.say}`
+    );
   }
 });
 

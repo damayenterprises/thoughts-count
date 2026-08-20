@@ -19,7 +19,7 @@ import { MODEL, humanizeText } from "./generate-background.mjs";
 // EXACT same request the endpoint sends (same model), never a drifted copy.
 export { MODEL };
 import { requireUser, serviceClient, supabaseConfigured } from "./_supabase.mjs";
-import { rosterForPrompt, resolveNameShaped, resolve, writeFactsToPerson, seedReminders, noteToParsed, recognizableDetail } from "./_capture.mjs";
+import { rosterForPrompt, resolveNameShaped, resolve, writeFactsToPerson, seedReminders, noteToParsed, recognizableDetail, statedRemindersFromMessages } from "./_capture.mjs";
 
 const MAX_TOKENS = 600;
 const MAX_TURNS = 40;        // hard cap on history length (safety, not a product limit)
@@ -350,6 +350,7 @@ Two things a person comes to you for — TELL you (capture) or ASK you (plan). R
 - Reminders: honor what the user asks, and for a dated note with no stated timing let the system add ONE light default you then name. Two rules, both load-bearing:
   1. If they tell you ANY timing ("remind me a week before her birthday", "nudge me the day before", "check on me a few days before and the day after", "set two reminders, seven days before and one day before"), you MUST fill the note_and_remind reminders array with EVERY lead time they gave — one entry each, as a signed lead_days (before = positive, the day = 0, after = negative: "a week before"=7, "the day before"=1, "the day of"=0, "the day after"=-1, "a few days after"=-3). Leaving a stated time OUT of the array means it is never scheduled — so if your spoken line promises a nudge, that nudge MUST be in the reminders array. Never promise a reminder you didn't put there. Two timings means two entries.
   2. If they give NO timing but the note pins down a real date, leave the reminders array EMPTY — do NOT put a number in it. The system automatically seeds ONE light default nudge a few days before that date. Your spoken line SHOULD name that default and when it lands (the date minus a few days) and make clear it's adjustable, so it's never a surprise — for example "I'll give you a nudge on September 4th, a few days before his chemo — tell me if you'd like it sooner, later, or not at all." Do NOT add extra reminders yourself; the single default is handled for you. If they clearly want a nudge but named no when AND there's no date to lead from, ask ONE short, situational question about when (use reply), then set exactly what they say. An UNDATED durable fact ("she just started a new job") gets no nudge at all — just confirm you'll remember it, and don't mention a reminder. Adding extra reminders they didn't ask for, or promising a nudge on a date that doesn't exist, is a real mistake.
+- CARRY FORWARD what they already told you, ESPECIALLY the reminder timing. If earlier in THIS conversation the user stated when to nudge them ("remind me a week before", "the day after") and you had to pause to ask WHICH person (or any other clarifying question) before capturing, you MUST still put every one of those earlier-stated timings into the reminders array when you finally call note_and_remind — do NOT drop "a week before" just because a turn or two passed while you sorted out who they meant. The clarifying turn changes WHO, never WHEN. A reminder time the user said out loud, even several turns back, still belongs in reminders. And the existing rule holds: your say may only promise a nudge that is actually in reminders — so if you carry the promise into your say, carry the timing into the array.
 - You CAN hold more than one reminder for the same moment, and people often don't realize that. So OCCASIONALLY — never every time, never as a tacked-on tagline — when it would genuinely help, you may lightly let them know a second nudge is possible: "I can add another closer to the day if you'd like," or "want a second heads-up the day after, too?" Read the moment: offer it when a single nudge seems thin for what they're carrying, and stay quiet about it when they've clearly said what they want or the moment is heavy and doesn't need options. This is a light, situational touch, not a nag — restraint is the whole point, and most confirmations should NOT mention it at all.
 
 If they ask what you can do or how this works (teach, don't lecture):
@@ -721,12 +722,20 @@ export function sayForConfirmWho({ kind, personName, personDetail, personHasDeta
 //   Level B/ambig/new → { action:"confirm_who", say, captureId, kind, personName?, candidates?, ... }
 // The `say` is ALWAYS Della's spoken line (humanized), passed straight through. Never throws — any
 // failure degrades to a graceful spoken reply so the loop never breaks.
-export async function dispatchNoteAndRemind(userId, input, ctx) {
+export async function dispatchNoteAndRemind(userId, input, ctx, messages = []) {
   const say = humanizeText(String(input?.say || "").trim()) || "I'll remember that.";
   const note = String(input?.note || "").trim();
 
   // Nothing worth remembering, or she called the tool with an empty note → just speak her line.
   if (!note) return { action: "reply", say };
+
+  // BLOCKER (clarify-then-capture) safety net: when the model returns EMPTY reminders — the observed
+  // failure after a "which person?" turn — scan the recent USER turns for a timing the user stated
+  // earlier ("a week before") and carry it, so the scheduled reminder matches what she PROMISED aloud
+  // instead of the lead-3 default. Only ever consulted when the model set no reminders (its own timing
+  // wins); parsed by the shared normalizeReminders vocabulary. Cheap + deterministic.
+  const modelSetReminders = Array.isArray(input?.reminders) && input.reminders.length > 0;
+  const statedReminders = modelSetReminders ? [] : statedRemindersFromMessages(messages);
 
   // ANON: value-first. The model's `say` cannot be trusted here — it routinely promises "Done, I'll
   // nudge you on <date>", a nudge that will NEVER fire because there is no account to hold it. We are
@@ -736,7 +745,7 @@ export async function dispatchNoteAndRemind(userId, input, ctx) {
   if (!userId) return { action: "noted_anon", say: sayForAnon(note), signInPrompt: true };
 
   const supa = serviceClient();
-  const parsed = noteToParsed(input);
+  const parsed = noteToParsed(input, { statedReminders });
   if (!parsed.facts.length) return { action: "reply", say };
 
   try {
@@ -1036,7 +1045,7 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
         // just nudge sign-in) and emit the terminal event carrying the result. `t:"noted"` = the
         // NDJSON name; the payload's `action` (noted / confirm_who / noted_anon / reply) tells the
         // client what happened, mirroring the non-stream JSON shape.
-        const result = await dispatchNoteAndRemind(userId, verdict.input, ctx);
+        const result = await dispatchNoteAndRemind(userId, verdict.input, ctx, payload.messages);
         send({ t: "noted", ...result });
         send({ t: "reply_done" });
       } else {
@@ -1145,7 +1154,7 @@ export default async (req) => {
   // anon, speak + nudge sign-in) and return the noted/confirm_who payload. WHO was already confirmed
   // by the prompt rules; dispatch never guesses.
   if (tool?.name === "note_and_remind") {
-    return j(await dispatchNoteAndRemind(userId, tool.input || {}, ctx));
+    return j(await dispatchNoteAndRemind(userId, tool.input || {}, ctx, payload.messages));
   }
 
   const out = replyOrReadyResponse(tool, ctx);

@@ -306,6 +306,104 @@ export function normalizeReminders(raw) {
   return out;
 }
 
+// TC capture-loop (BLOCKER — clarify-then-capture) — the deterministic reminder-phrase reader.
+//
+// When Della finally captures AFTER a "which person?" clarifying turn, the model regenerates the
+// note_and_remind call and (observed live) DROPS the reminders array — the "a week before" the user
+// stated a turn or two earlier silently vanishes, and defaultRemindersFor substitutes lead-3 while
+// her spoken `say` still promises "a week before" (promise/schedule mismatch). This is the SERVER
+// safety net: scan the recent USER turns for an explicitly-stated reminder timing and, if the model
+// returned NO reminders, use THAT instead of the lead-3 default. Never fires when the model DID set
+// reminders (the latest explicit statement wins — the user may have retimed mid-conversation).
+//
+// It reuses the EXACT phrase→lead_days vocabulary the tool/prompt teaches Della (a week before = 7,
+// the day before = 1, the day of = 0, the day after = -1, a few days after = -3, …) and hands its
+// hits straight to normalizeReminders (no parallel normalization). Pure + deterministic — no model
+// call. Returns a normalizeReminders-shaped list ([] when the user stated no timing). Conservative:
+// it only matches unambiguous reminder-timing phrasings, so it never invents a cadence.
+//
+// The signed vocabulary (mirrors offsetPhrase / the tool schema / _reminders.js REMINDER_PRESETS):
+//   BEFORE → positive · ON the day → 0 · AFTER → negative.
+
+// A small word→number reader for the counts people speak ("a"/"one" = 1, "a couple"/"two" = 2,
+// "a few"/"three" = 3, "several" = 3). Digits pass through. Anything else → null.
+function wordNum(w) {
+  const t = String(w || "").trim().toLowerCase();
+  if (/^\d+$/.test(t)) return parseInt(t, 10);
+  const map = { a: 1, an: 1, one: 1, "a couple": 2, couple: 2, two: 2, "a few": 3, few: 3, three: 3, several: 3, four: 4, five: 5, six: 6, seven: 7, ten: 10, fourteen: 14 };
+  return t in map ? map[t] : null;
+}
+
+// Turn a stated count + unit ("week"/"weeks"/"day"/"days") + direction (before/after/of) into a
+// SIGNED lead_days. Returns null if it isn't a real timing phrase.
+function leadFrom(count, unit, direction) {
+  const n = wordNum(count);
+  if (n == null) return null;
+  const days = /week/.test(unit) ? n * 7 : n; // weeks → days; "day(s)" is 1:1
+  if (direction === "after") return -days;
+  return days; // "before" (and a stray "of" won't reach here for a nonzero count)
+}
+
+// Scan a single utterance for EXPLICITLY-stated reminder timings and return them as normalizeReminders
+// entries (each carries the user's own `phrase`). Matches, in the user's own words:
+//   "on the day" / "the day of" / "day-of"                 → 0
+//   "the day before" / "day before"                        → 1
+//   "the day after" / "day after"                          → -1
+//   "<count> <day|days|week|weeks> before"                 → +N (weeks×7)
+//   "<count> <day|days|week|weeks> after"                  → -N
+// Conservative on purpose: only well-formed "…before/after/day of" phrasings hit. No date words, no
+// "remind me" alone (that's a request WITHOUT timing — the prompt asks ONE question, not a default).
+export function parseStatedReminders(text) {
+  const s = String(text || "").toLowerCase();
+  if (!s.trim()) return [];
+  const hits = [];
+  const push = (lead_days, phrase) => hits.push({ lead_days, phrase: String(phrase || "").trim() });
+
+  // "on the day" / "the day of" / "day of" / "day-of" → 0 (guard: not "day before/after").
+  for (const m of s.matchAll(/\b(?:on\s+the\s+day\b(?!\s+(?:before|after))|the\s+day\s+of\b|day\s*[-\s]of\b)/g)) {
+    push(0, m[0]);
+  }
+  // "the day before" / "a day before" / "day before" → 1.
+  for (const m of s.matchAll(/\b(?:the|a)?\s*day\s+before\b/g)) push(1, m[0].trim());
+  // "the day after" / "a day after" / "day after" → -1.
+  for (const m of s.matchAll(/\b(?:the|a)?\s*day\s+after\b/g)) push(-1, m[0].trim());
+  // "<count> <day|days|week|weeks> before|after" — count may be a word ("a", "a few", "two") or digits.
+  const countUnit = /\b(a few|a couple|couple|several|a|an|one|two|three|four|five|six|seven|ten|fourteen|\d+)\s+(days?|weeks?)\s+(before|after)\b/g;
+  for (const m of s.matchAll(countUnit)) {
+    const lead = leadFrom(m[1], m[2], m[3]);
+    if (lead != null) push(lead, m[0].trim());
+  }
+
+  // De-dupe by lead_days (a "day before" and "1 day before" in one breath shouldn't double), keeping
+  // the first phrasing, then normalize through the SHARED reminder normalizer (clamps + shapes).
+  const seen = new Set();
+  const deduped = [];
+  for (const h of hits) {
+    if (seen.has(h.lead_days)) continue;
+    seen.add(h.lead_days);
+    deduped.push(h);
+  }
+  return normalizeReminders(deduped);
+}
+
+// TC capture-loop (BLOCKER — clarify-then-capture) — scan the RECENT user turns of a conversation for
+// the LATEST explicitly-stated reminder timing. `messages` is the sanitized [{role,content}] history.
+// We read the user turns newest→oldest and return the timings from the MOST RECENT user turn that
+// stated any (the latest explicit statement wins — the user may retime mid-conversation). Returns a
+// normalizeReminders-shaped list, [] when no user turn stated a timing. Bounded scan (SCAN_TURNS) so
+// a long history stays cheap. Pure + deterministic.
+const REMINDER_SCAN_TURNS = 12;
+export function statedRemindersFromMessages(messages) {
+  if (!Array.isArray(messages)) return [];
+  const userTurns = messages.filter((m) => m && m.role === "user" && typeof m.content === "string");
+  const recent = userTurns.slice(-REMINDER_SCAN_TURNS);
+  for (let i = recent.length - 1; i >= 0; i--) {
+    const found = parseStatedReminders(recent[i].content);
+    if (found.length) return found;
+  }
+  return [];
+}
+
 // TC capture-loop (§4): the note→parsed adapter. converse.mjs's `note_and_remind` tool hands us a
 // SINGLE freeform note about ONE person (person_hint + note text + optional event_date + optional
 // user-set reminders), already routed by Della — not a multi-fact extraction. Shape it into the
@@ -314,7 +412,7 @@ export function normalizeReminders(raw) {
 // "self" and relation "note" (per the spec's fixed shape for this tool); a full event_date makes it
 // a dated MILESTONE (seeds a key_date + any reminders), otherwise a plain durable note. Reminders
 // only ride when there's a date to lead from. Pure + deterministic — no model call here.
-export function noteToParsed(input = {}) {
+export function noteToParsed(input = {}, { statedReminders = [] } = {}) {
   const note = String(input.note || "").trim();
   if (!note) return { facts: [], location_hint: "", co_mentioned: false };
   const personHint = String(input.person_hint || "").trim();
@@ -323,11 +421,21 @@ export function noteToParsed(input = {}) {
   // A dated note is a real event to remember on a day (a MILESTONE seeds a key_date, which the
   // reminders hang off of); an undated note is a plain durable observation.
   const factClass = eventDate ? "MILESTONE" : "DURABLE";
+  // BLOCKER (clarify-then-capture): if the model dropped the reminders array across a "which person?"
+  // clarification, but the user stated a timing earlier in the conversation, use THAT stated timing
+  // (parsed by statedRemindersFromMessages → same normalizeReminders vocabulary) rather than letting
+  // defaultRemindersFor silently substitute the lead-3 default — which would mismatch her spoken say.
+  // Only consulted when the model returned NO reminders (the model's own timing always wins), and only
+  // when there's a real date to lead from.
+  const carriedStated = eventDate && Array.isArray(statedReminders) ? normalizeReminders(statedReminders) : [];
   // Behavior flip: a dated note with NO user timing takes ONE stated, editable DEFAULT reminder (a
   // few days before) rather than silence; user-set timing is used verbatim; an undated note gets none.
+  // Precedence: model reminders → carried stated timing (safety net) → the single default.
   const reminders = userReminders.length
     ? userReminders
-    : defaultRemindersFor({ eventDate, factClass, reminders: userReminders });
+    : carriedStated.length
+      ? carriedStated
+      : defaultRemindersFor({ eventDate, factClass, reminders: userReminders });
   const fact = {
     person_hint: personHint,
     subject: "self",
