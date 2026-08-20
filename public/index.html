@@ -393,6 +393,26 @@ alt="" /></noscript>
   .reassure { margin-top: 16px; font-size: 13.5px; color: rgba(255,255,255,.85); }
   .reassure b { color: #fff; font-weight: 700; }
 
+  /* WP-3 "A daily thought" — a small, quiet note in Della's voice, sitting just under the
+     hero as a gentle extension of her presence. Continues the hero's blue so it reads as
+     one calm surface, not a loud quote box. Hidden until JS confirms there IS a line today
+     (no empty box, no layout shift). */
+  .tc-daily { background: linear-gradient(180deg, #0f7ea9 0%, #0e769e 100%); color: #fff; padding: 0; }
+  .tc-daily.wrap { max-width: none; padding-left: 0; padding-right: 0; }
+  .tc-daily[hidden] { display: none; }
+  .tc-daily-inner { max-width: 1080px; margin: 0 auto; padding: 20px 30px 24px; display: flex; align-items: flex-start; gap: 14px; }
+  .tc-daily-heart { flex: 0 0 auto; margin-top: 3px; color: var(--tc-red); filter: drop-shadow(0 1px 2px rgba(0,0,0,.18)); }
+  .tc-daily-body { flex: 1 1 auto; min-width: 0; }
+  .tc-daily-label { font-size: 12px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: rgba(255,255,255,.72); margin: 0 0 4px; }
+  .tc-daily-line { font-family: var(--tc-serif); font-style: italic; font-weight: 500; font-size: clamp(16px, 2.2vw, 19px); line-height: 1.5; color: #f4fafd; margin: 0; }
+  .tc-daily-dismiss { flex: 0 0 auto; margin: -2px -6px 0 0; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; color: rgba(255,255,255,.6); border-radius: 8px; cursor: pointer; transition: color .15s ease, background .15s ease; }
+  .tc-daily-dismiss:hover { color: #fff; background: rgba(255,255,255,.1); }
+  .tc-daily-dismiss:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255,255,255,.4); }
+  @media (max-width: 560px) {
+    .tc-daily-inner { padding: 16px 20px 18px; gap: 11px; }
+    .tc-daily-line { font-size: 16px; }
+  }
+
   /* ---------- trust strip (compact, visual) ---------- */
   .trust { border-bottom: 1px solid var(--tc-line); background: var(--tc-paper); }
   .trust-inner { max-width: 1080px; margin: 0 auto; padding: 20px 30px; display: flex; justify-content: center; gap: 40px; flex-wrap: wrap; }
@@ -989,6 +1009,72 @@ alt="" /></noscript>
     <div class="reassure">No account needed · A thoughtful plan in ~60 seconds</div>
    </div>
   </section>
+
+  <!-- WP-3 "A daily thought" — one small, quiet reflection in Della's voice, populated by
+       /api/daily-reflection. Empty by default (hidden until JS confirms a line exists), so
+       there is no empty box and no layout shift on days with nothing approved. It sits below
+       the hero and above the moment cards, and never blocks the primary talk/type path. -->
+  <section class="tc-daily wrap" id="tcDaily" hidden aria-live="polite">
+    <div class="tc-daily-inner">
+      <svg class="tc-daily-heart" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M12 20.5S3.5 14.8 3.5 9.2A4.7 4.7 0 0 1 12 6.3a4.7 4.7 0 0 1 8.5 2.9C20.5 14.8 12 20.5 12 20.5Z"/></svg>
+      <div class="tc-daily-body">
+        <p class="tc-daily-label" id="tcDailyLabel">A thought</p>
+        <p class="tc-daily-line" id="tcDailyLine"></p>
+      </div>
+      <button type="button" class="tc-daily-dismiss" id="tcDailyDismiss" aria-label="Dismiss today's thought" title="Dismiss">
+        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
+      </button>
+    </div>
+  </section>
+  <script>
+  // WP-3 "A daily thought": fetch today's approved reflection and render it ONCE per day.
+  // Quiet by design — if there's no line, or the visitor already saw (or dismissed) today's,
+  // the section stays hidden and takes no space. localStorage key models off tc_met_her.
+  (function(){
+    var el = document.getElementById('tcDaily');
+    if (!el) return;
+    var lineEl = document.getElementById('tcDailyLine');
+    var labelEl = document.getElementById('tcDailyLabel');
+    var dismissBtn = document.getElementById('tcDailyDismiss');
+
+    // Local calendar date (matches the "once per day, this device" model of tc_met_her).
+    function localYmd(){
+      var d = new Date();
+      return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+    }
+    var seenKey = 'tc_daily_' + localYmd();
+
+    // Already seen/dismissed today on this device? Don't nag — render nothing.
+    var seen = false;
+    try { seen = localStorage.getItem(seenKey) === '1'; } catch(e){}
+    if (seen) return;
+
+    function markSeen(){ try { localStorage.setItem(seenKey, '1'); } catch(e){} }
+
+    dismissBtn.addEventListener('click', function(){
+      el.hidden = true;         // dismissed for this session (and marked seen so it won't return today)
+      markSeen();
+    });
+
+    fetch('/api/daily-reflection', { cache: 'no-store' })
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(d){
+        if (!d || !d.line) return;                 // nothing approved today → stay hidden, no layout shift
+        // Label in Della's voice, name single-sourced (window.__HER_NAME from public-config).
+        // companion.js may still be resolving the config, so apply now and again on tc-her-name.
+        function applyLabel(){
+          var her = (typeof window !== 'undefined' && window.__HER_NAME) ? window.__HER_NAME : '';
+          labelEl.textContent = her ? ('A thought from ' + her) : 'A thought';
+        }
+        applyLabel();
+        try { window.addEventListener('tc-her-name', applyLabel); } catch(e){}
+        lineEl.textContent = d.line;               // textContent = no HTML injection
+        el.hidden = false;
+        markSeen();                                // count this as today's one showing
+      })
+      .catch(function(){ /* stay hidden on any error */ });
+  })();
+  </script>
 
   <section class="section wrap">
     <h2>What's the moment?</h2>
