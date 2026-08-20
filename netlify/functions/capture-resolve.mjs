@@ -12,6 +12,7 @@
 import { requireUser, serviceClient, json } from "./_supabase.mjs";
 import { writeFactsToPerson, normalizeReminders } from "./_capture.mjs";
 import { deleteFact, reopenFact } from "./_memory.mjs";
+import { splitNameRelationship } from "./_names.mjs";
 
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 
@@ -190,9 +191,18 @@ async function getPerson(supa, userId, personId) {
 
 // Create a person the user just confirmed adding from a capture. contact_kind mirrors where the
 // capture came from: 'contact' (book of business / roster) or 'personal' (the intimate circle).
+//
+// TC capture-loop (FIX 1): the extractor sometimes carries a relationship descriptor INTO the name
+// ("my neighbor Tom" → person_hint "Tom, neighbor" or "neighbor Tom"). splitNameRelationship peels a
+// CLEAR leading "my/the <rel> <Name>" or trailing "<Name>, <rel>" off so people.name is the proper
+// name and people.relationship gets the descriptor. Conservative: a bare ambiguous name (no "my",
+// no comma — e.g. "Uncle Bob") is left exactly as-is. We only set relationship when we split one.
 async function createPerson(supa, userId, name, contactKind) {
   const kind = contactKind === "contact" ? "contact" : "personal";
-  const { data, error } = await supa.from("people").insert({ user_id: userId, name, contact_kind: kind }).select("id").single();
+  const { name: cleanName, relationship } = splitNameRelationship(name);
+  const row = { user_id: userId, name: cleanName || name, contact_kind: kind };
+  if (relationship) row.relationship = relationship;
+  const { data, error } = await supa.from("people").insert(row).select("id").single();
   if (error) throw error;
   return data.id;
 }
