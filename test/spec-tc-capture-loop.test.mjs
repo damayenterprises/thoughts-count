@@ -76,8 +76,12 @@ await t("note+plan (mixed) → note_and_remind (capture NEVER lost)", async () =
   const { status, body } = await call(post(turn("Sarah's having a baby in April — what should I get her?")));
   restoreFetch();
   assert.equal(status, 200);
-  assert.equal(body.action, "noted_anon"); // the capture fired; the plan continues in the say
-  assert.ok(/find her something|perfect/i.test(body.say)); // still moving toward the plan
+  assert.equal(body.action, "noted_anon"); // the capture routed anon; nothing written
+  // No-false-promise (server say-override): the anon say NEVER claims done/saved/a nudge — it warmly
+  // invites sign-in so she can actually hold it. The model's say is not trusted here.
+  assert.ok(body.signInPrompt === true);
+  assert.ok(!/\bdone\b|i'll nudge you|i'll remind you|\bsaved\b/i.test(body.say), `anon say must not promise done/nudge; got: ${body.say}`);
+  assert.ok(/sign in|signed in|remember/i.test(body.say), `anon say should invite sign-in so she can remember; got: ${body.say}`);
 });
 
 await t("pure-plan → ready → action ready (no capture)", async () => {

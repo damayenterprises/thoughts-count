@@ -16,7 +16,7 @@
 // no-secrets offline CI gate). It is intentionally NOT part of the offline suite list.
 
 import assert from "node:assert";
-import { systemForCache, toolsFor, MODEL } from "../netlify/functions/converse.mjs";
+import { systemForCache, toolsFor, MODEL, dispatchNoteAndRemind } from "../netlify/functions/converse.mjs";
 
 const KEY = process.env.ANTHROPIC_API_KEY;
 if (!KEY) {
@@ -207,6 +207,79 @@ await t("'how does this work / what can you do' → she TEACHES: remembers peopl
     /change|adjust|remove|drop|more than one|another|several|multiple|one or |as many|whenever you|times you|when you want|day before|day of|day after|week before/.test(s),
     `should convey reminders are flexible/changeable OR that more than one is possible; got: ${say}`
   );
+});
+
+// ---------------------------------------------------------------------------------------------
+// NO-FALSE-PROMISE — Della must only claim "done / I'll nudge you" when it is TRULY saved.
+// These drive the REAL model + the REAL dispatchNoteAndRemind so a mock can't hide the bug David hit
+// live (she said "Done, I'll nudge you on <date>" before anything was saved). Runs anon (no DB) so
+// dispatch's own contract (noted_anon / confirm_who / noted) is exercised without a live Supabase.
+// ---------------------------------------------------------------------------------------------
+const PROMISES_DONE = /\bdone\b|i'll nudge you|i'll remind you|\bsaved\b|it's set|all set/i;
+
+console.log("\n# NO-FALSE-PROMISE — she never declares done before it is saved\n");
+
+// (a) SIGNED-OUT dated note → the model may say whatever, but dispatch OVERRIDES the spoken line to a
+// value-first sign-in invite: signInPrompt true, and NO done/nudge promise survives.
+await t("(a) signed-out dated note → noted_anon, signInPrompt, say makes NO done/nudge promise", async () => {
+  const { name, input } = await askDella(
+    "My sister is moving on October 1st 2027. Remind me a week before."
+  );
+  assert.equal(name, "note_and_remind", `expected note_and_remind, got ${name}`);
+  // Drive dispatch as an ANONYMOUS user (userId null) — the authoritative override runs here.
+  const out = await dispatchNoteAndRemind(null, input, {});
+  assert.equal(out.action, "noted_anon", `anon should route to noted_anon, got ${out.action}`);
+  assert.equal(out.signInPrompt, true, "anon must surface the sign-in prompt");
+  assert.ok(!PROMISES_DONE.test(out.say), `anon say must NOT promise done/nudge; got: ${out.say}`);
+  assert.ok(/sign(ed)? in/i.test(out.say), `anon say should invite sign-in; got: ${out.say}`);
+});
+
+// (b) SIGNED-IN, UNKNOWN person: with a saved roster that does NOT contain the sister, the model
+// should FIRST ask the name via reply (verify-on-doubt) rather than confidently declaring done. We
+// assert on the model's OWN choice with the signed-in tool set + a roster the person isn't in.
+async function askDellaSignedIn(userText, roster, { retries = 2 } = {}) {
+  const payload = {
+    model: MODEL,
+    max_tokens: 600,
+    system: systemForCache({ roster }),
+    tools: toolsFor({ signedIn: true }),
+    tool_choice: { type: "any" },
+    messages: [{ role: "user", content: userText }],
+  };
+  let lastErr = "";
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: { "content-type": "application/json", "x-api-key": KEY, "anthropic-version": "2023-06-01" },
+      body: JSON.stringify(payload),
+    });
+    if (res.ok) {
+      const data = await res.json();
+      const tool = (data.content || []).find((b) => b.type === "tool_use");
+      if (!tool) throw new Error("no tool_use in the response");
+      return { name: tool.name, input: tool.input || {}, say: String((tool.input || {}).say || "") };
+    }
+    lastErr = `Anthropic ${res.status}: ${(await res.text().catch(() => "")).slice(0, 120)}`;
+    if (res.status < 500) break;
+    await new Promise((r) => setTimeout(r, 800 * (attempt + 1)));
+  }
+  throw new Error(lastErr);
+}
+
+await t("(b) signed-in, UNKNOWN person → asks the name (reply) OR routes to a who-check, NEVER 'done'", async () => {
+  // Roster deliberately excludes any "sister" / the name — so the sister is a person she doesn't know.
+  const roster = [{ name: "Marcus", detail: "coworker" }, { name: "Priya", detail: "college friend" }];
+  const { name, say } = await askDellaSignedIn(
+    "My sister is moving on October 1st 2027. Remind me a week before.",
+    roster
+  );
+  // She must NOT confidently declare done for someone she hasn't identified. Acceptable: reply asking
+  // the name. If she DID route to note_and_remind, dispatch would confirm_who (server-side override);
+  // either way her SPOKEN line must not promise done before who-it-is is settled.
+  assert.ok(!PROMISES_DONE.test(say), `must not declare done for an unknown person; got (${name}): ${say}`);
+  if (name === "reply") {
+    assert.ok(/name|who|which|sister/i.test(say), `a reply here should be asking who; got: ${say}`);
+  }
 });
 
 console.log(`\n${pass} passed, ${fail} failed`);
