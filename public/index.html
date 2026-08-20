@@ -1077,7 +1077,7 @@ alt="" /></noscript>
         }
         applyLabel();
         try { window.addEventListener('tc-her-name', applyLabel); } catch(e){}
-        lineEl.textContent = d.line;               // textContent = no HTML injection
+        lineEl.textContent = '"' + d.line + '"';   // her thoughts shown in quotes (textContent = no HTML injection)
         el.hidden = false;
         markSeen();                                // count this as today's one showing
       })
