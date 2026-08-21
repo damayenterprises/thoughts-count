@@ -2625,6 +2625,42 @@ function speakSafeText(text, cap){
 }
 if (typeof window !== 'undefined') window.__tcSpeakSafeText = speakSafeText; // test hook (no behavior change)
 
+// --- TC latency instrumentation: the real per-turn dead-silence actuals ---------------------------
+// We were BLIND to the single most important feel-metric — how long a user sits in silence between
+// finishing speaking and hearing Della's first word. This records ONE breakdown per spoken turn and
+// ships it to /api/track (voice_turn_latency) so the lag has a number and we can see WHICH leg
+// dominates before cutting anything. Purely additive + fully guarded: every mark is try/caught and a
+// missing mark just yields a null leg — it can never throw into or slow the conversation.
+//   speechEnd    = the user's last word (VAD silence-start)         [set at recording stop]
+//   userStop     = the turn ended (the ~2s mic-patience wait done)  [recording 'onstop']
+//   transcriptReady = transcript in hand                             [before onText]
+//   converseSent = /api/converse request fired                       [cvStreamReply]
+//   firstSay     = her first complete spoken sentence text arrived   [first say event]
+//   firstAudio   = her first audio clip actually starts playing      [cvPlaySentence] → EMIT here
+let __cvTurnT = null;
+function cvTimeStart(speechEndAt){
+  try { __cvTurnT = { speechEnd: speechEndAt || 0, userStop: 0, transcriptReady: 0, converseSent: 0, firstSay: 0, firstAudio: 0, emitted: false }; } catch(e){}
+}
+function cvTimeMark(k){ try { if (__cvTurnT && !__cvTurnT[k]) __cvTurnT[k] = performance.now(); } catch(e){} }
+function cvTimeEmitFirstAudio(){
+  try {
+    const t = __cvTurnT; if (!t || t.emitted) return;
+    t.firstAudio = performance.now(); t.emitted = true;
+    const d = (a, b) => (a && b && b >= a) ? Math.round(b - a) : null;
+    const props = {
+      eot_ms:        d(t.speechEnd, t.userStop),        // mic patience wait
+      transcribe_ms: d(t.userStop, t.transcriptReady),
+      converse_ms:   d(t.converseSent, t.firstSay),     // request → her first sentence text
+      tts_ms:        d(t.firstSay, t.firstAudio),        // first sentence text → first audio out
+      gap_ms:        d(t.userStop, t.firstAudio),        // total silence after the mic closed
+      felt_ms:       d(t.speechEnd, t.firstAudio),       // total silence the user feels
+    };
+    try { props.turns = (__cv && __cv.messages) ? __cv.messages.length : undefined; } catch(e){}
+    try { window.tcTrack && tcTrack('voice_turn_latency', props); } catch(e){}
+  } catch(e){}
+}
+if (typeof window !== 'undefined') window.__tcCvTime = { start: cvTimeStart, mark: cvTimeMark, get: () => __cvTurnT }; // test/debug hook
+
 // TC-88 — THE STREAMING VOICE TURN. She speaks sentence-by-sentence as she generates. Two pieces:
 //   1) a strictly-sequential speak-queue (one sentence's audio at a time — never overlaps), and
 //   2) a stream reader that enqueues each {t:"say"} the instant it arrives, so sentence 1 plays
@@ -2724,6 +2760,7 @@ async function cvPlaySentence(sp, item){
       if (!url) continue; // this chunk failed → skip it, keep the sentence flowing
       sp.urls.push(url);
       reveal(); // first real clip about to play → reveal the sentence's text now (in step with voice)
+      cvTimeEmitFirstAudio(); // latency: her first audio is starting — emit the turn's breakdown (once)
       await playClipOn(a, url, /* waitBuffer */ false);
     }
   } finally {
@@ -2778,6 +2815,7 @@ async function cvStreamReply(ctx, force){
 
   try {
     armTimeout();
+    cvTimeMark('converseSent'); // latency: /api/converse request fired
     const r = await fetch('/api/converse', {
       method: 'POST', headers: cvConverseHeaders(),
       body: JSON.stringify({ messages: __cv.messages, force: !!force, context: ctx, stream: true }),
@@ -2803,6 +2841,7 @@ async function cvStreamReply(ctx, force){
         if (evt.t === 'say' && evt.text){
           gotAny = true;
           if (gen !== __cvStreamGen || !__cvVoiceActive) break;
+          cvTimeMark('firstSay');     // latency: her first complete spoken sentence text arrived
           recordSay(evt.text);        // keep history in lockstep (one assistant message per reply)
           // TC-88: do NOT reveal the text here (that printed her words ahead of her voice, like a
           // script). cvEnqueueSay reveals each sentence in step with its audio (or immediately in the
@@ -3954,6 +3993,9 @@ async function beginConfirmRecording(onText){
     // would drop the tail. Capture the signal now, before any await, and only in that settled-
     // silence case do we use the speculative; otherwise fall through to the full-blob transcribe.
     const endedOnSilence = !!__crec.silenceStart;
+    // Latency: start this turn's timing at the moment the turn ended. speechEnd = the VAD silence-start
+    // (the user's last word), so eot_ms captures the mic-patience wait. Only for the live conversation.
+    if (__cvVoiceActive){ cvTimeStart(__crec.silenceStart || 0); cvTimeMark('userStop'); }
     // TC-90: DO NOT stop the shared stream's tracks — the next turn (cvVoiceListen re-invokes this)
     // reuses this same live stream + analyser. Only this per-turn MediaRecorder has ended.
     if (__crec.aborted || myGen !== __crec.gen) return; // user tapped or navigated away → ignore this recording
@@ -3973,6 +4015,7 @@ async function beginConfirmRecording(onText){
     if (__crec.aborted || myGen !== __crec.gen) return;
     if (!text){ text = await crecTranscribeBlob(blob); } // fallback / backstop: fresh full-blob transcribe
     if (__crec.aborted || myGen !== __crec.gen) return;
+    cvTimeMark('transcriptReady'); // latency: transcript in hand, about to hand off to the turn
     onText(text || '');
   };
   // TC-88: record with a timeslice so chunks accumulate incrementally — chunk 0 carries the

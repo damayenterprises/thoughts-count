@@ -136,6 +136,32 @@ export function computeSummary(events) {
     by_occasion: rollByKey((e) => e.occasion),
     by_valence: rollByKey((e) => e.valence),
   };
+  // TC voice-latency: the per-leg dead-silence actuals from spoken turns. Each `voice_turn_latency`
+  // event carries the ms breakdown of ONE turn. We surface p50/p95/max per leg so the felt lag has a
+  // number, not a gut-feel — and so we can see which leg (mic-wait / transcribe / Della / TTS)
+  // dominates before we cut anything. Non-identifying; a pure aggregate.
+  const latencyEvents = events.filter((e) => e.event === "voice_turn_latency");
+  const pctile = (arr, p) => {
+    if (!arr.length) return null;
+    const s = [...arr].sort((a, b) => a - b);
+    const idx = Math.min(s.length - 1, Math.max(0, Math.ceil((p / 100) * s.length) - 1));
+    return s[idx];
+  };
+  const legStats = (field) => {
+    const vals = latencyEvents.map((e) => e[field]).filter((v) => Number.isFinite(v));
+    if (!vals.length) return null;
+    return { n: vals.length, p50: pctile(vals, 50), p95: pctile(vals, 95), max: Math.max(...vals) };
+  };
+  const voice_latency = {
+    turns: latencyEvents.length,
+    eot_ms: legStats("eot_ms"),               // mic patience: user's last word → turn ended
+    transcribe_ms: legStats("transcribe_ms"), // turn ended → transcript ready
+    converse_ms: legStats("converse_ms"),     // request sent → her first spoken sentence text
+    tts_ms: legStats("tts_ms"),               // first sentence text → first audio out
+    gap_ms: legStats("gap_ms"),               // total silence AFTER the mic closed (transcribe+converse+tts)
+    felt_ms: legStats("felt_ms"),             // total silence the user feels, INCLUDING the mic wait
+  };
+
   const funnel = {
     visitors: uniqueVisitors,               // distinct sessions (real people)
     page_views: byEvent.page_view || 0,     // total loads (a reload counts again)
@@ -172,6 +198,7 @@ export function computeSummary(events) {
     },
     helpfulness,
     outcomes,
+    voice_latency,
     by_day: tally(events.map((e) => e.ymd)),
   };
 }

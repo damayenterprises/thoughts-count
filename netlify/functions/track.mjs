@@ -5,7 +5,13 @@
 
 import { logEvent, isBot, classifySource } from "./_analytics.mjs";
 
-const ALLOWED = new Set(["page_view", "intake_start", "plan_viewed", "plan_saved", "chip_click"]);
+const ALLOWED = new Set(["page_view", "intake_start", "plan_viewed", "plan_saved", "chip_click", "voice_turn_latency"]);
+
+// TC voice-latency: the per-leg timings (ms) the client records for one spoken turn. Each is a
+// bounded non-negative integer — never free text, never identifying. This is the "actuals" record
+// of the dead-silence a user feels between finishing speaking and hearing Della's first word.
+const LATENCY_FIELDS = ["eot_ms", "transcribe_ms", "converse_ms", "tts_ms", "gap_ms", "felt_ms"];
+const LATENCY_MAX_MS = 120000; // sanity ceiling; anything larger is a stuck turn, not a real gap
 
 export default async (req) => {
   if (req.method !== "POST") return new Response("ok", { status: 405 });
@@ -14,6 +20,20 @@ export default async (req) => {
 
   const event = String(body?.event || "");
   if (!ALLOWED.has(event)) return new Response("ok", { status: 200 });
+
+  // Voice-latency has its own compact, numeric-only shape (no referrer/source classification).
+  if (event === "voice_turn_latency") {
+    const props = { sid: safe(body?.sid, 40) };
+    for (const f of LATENCY_FIELDS) {
+      const n = Number(body?.[f]);
+      if (Number.isFinite(n) && n >= 0 && n <= LATENCY_MAX_MS) props[f] = Math.round(n);
+    }
+    const turns = Number(body?.turns);
+    if (Number.isFinite(turns) && turns >= 0 && turns <= 500) props.turns = Math.round(turns);
+    const bot = isBot(req.headers.get("user-agent"));
+    await logEvent(event, props, { test: !!body?.test, bot });
+    return new Response("ok", { status: 200 });
+  }
 
   const ref = safe(body?.ref, 80); // referrer host (set by the client)
   const { channel, source } = classifySource(ref, { source: body?.utm_source, medium: body?.utm_medium });
