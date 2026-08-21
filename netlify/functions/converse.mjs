@@ -936,6 +936,11 @@ export function registerForReply(messages, ctx = {}) {
   if (valence === "hard_time") return "tender";
   if (valence === "celebration") return "bright";
   if (valence === "gratitude") return "fond";
+  // TC-145: light, playful, affectionate moments the coarse valence buckets miss (a funny friend, a
+  // "you'll laugh at this", a fond character). Without this they fall to WARM and her delivery of a
+  // playful beat like "Ha" lands flat. Runs AFTER hard_time/celebration so a grief memory that
+  // mentions laughing still stays tender. → fond, so the whole line gets the warm-playful color.
+  if (/\b(hilarious|funny|laugh|laughs|laughed|laughing|crack(?:s|ed)? (?:me|us) up|cracks up|joke|joking|goofy|silly|so fun|good for a laugh|what a character|love that|makes me (?:smile|laugh)|giggl)/i.test(momentText)) return "fond";
   return "warm";
 }
 

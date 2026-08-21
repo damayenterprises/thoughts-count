@@ -23,6 +23,12 @@ t("promotion → bright", () => assert.equal(registerForReply(u("my friend got p
 // gratitude → fond
 t("thank you → fond", () => assert.equal(registerForReply(u("I want to thank my mentor"), {}), "fond"));
 
+// TC-145: light / playful moments the valence buckets miss → fond (not flat warm)
+t("hilarious friend → fond", () => assert.equal(registerForReply(u("my friend Bob is hilarious, always good for a laugh"), {}), "fond"));
+t("what a character → fond", () => assert.equal(registerForReply(u("he's such a character, cracks me up"), {}), "fond"));
+t("grief that mentions laughing stays tender (not fond)", () =>
+  assert.equal(registerForReply(u("my dad passed away; we used to laugh so much together"), {}), "tender"));
+
 // default / ambiguous → warm
 t("neutral → warm", () => assert.equal(registerForReply(u("I want to reconnect with an old friend"), {}), "warm"));
 t("empty messages → warm", () => assert.equal(registerForReply([], {}), "warm"));

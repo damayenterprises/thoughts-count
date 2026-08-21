@@ -4017,10 +4017,16 @@ async function beginConfirmRecording(onText){
           // TC-88: at the short soft-pause (well before end-of-turn), speculatively transcribe the
           // audio so far in the background so the transcript is ready when the 2s confirms.
           if (crecShouldSpeculate(__crec, now)) crecFireSpeculative(gen);
-          // TC-143: how long to wait is transcript-aware — snappy on a finished sentence, patient on a
-          // hanging word, the safe default otherwise. Re-read each frame so a late speculative can end
-          // (or extend) the wait the instant it lands.
-          if (now - __crec.silenceStart > endOfTurnMs(__crec.specText)){ stopConfirmRecording(); return; }
+          // TC-143 + TC-145: how long to wait is transcript-aware — snappy on a finished sentence,
+          // patient on a hanging word, the safe default otherwise. CRITICAL race fix: if we've FIRED a
+          // speculative but its text isn't back yet, do NOT end on the plain default — the transcript
+          // that's loading might reveal a hanging word ("...and") that means they're mid-sentence.
+          // While that check is pending, stay patient (EOT_OPEN_MS); the instant specText lands, this
+          // re-reads and ends (or extends) correctly. This is what cut David off at "and": the default
+          // 1700 fired before the transcript proving he was still talking came back.
+          const eotMs = __crec.specText ? endOfTurnMs(__crec.specText)
+            : (__crec.specFired ? EOT_OPEN_MS : END_OF_TURN_SILENCE_MS);
+          if (now - __crec.silenceStart > eotMs){ stopConfirmRecording(); return; }
         }
       }
       __crec.raf = requestAnimationFrame(loop);
