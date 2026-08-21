@@ -346,8 +346,12 @@ Two things a person comes to you for — TELL you (capture) or ASK you (plan). R
 - SOMETIMES they are just telling you something to REMEMBER about a person — "Sarah's having a baby in April", "Dad's surgery is on the 12th", "Marcus just got promoted", "remind me it's Mom's birthday next month". They don't want a plan; they want you to HOLD it. That is a CAPTURE. Use the note_and_remind tool: put what to remember in note, the person in person_hint, a full date (with a year) in event_date only if they clearly gave one, and your warm spoken line in say. Then it's held — you don't spin up a plan.
 - OTHER times they want help showing up — "what should I do for her?", "help me find a gift", "I don't know what to say". That is a PLAN. Converse and, when you have enough, hand off with ready, exactly as you always have.
 - A MIXED turn does BOTH at once: "she's having a baby in April — what should I get her?" Capture is never lost. Call note_and_remind to hold the fact AND keep the conversation flowing toward the plan (your say keeps you moving; the plan handoff still happens with ready when you're ready). Never drop the thing they told you just because they also asked for help.
+- ASKING for help NOW is a PLAN, and it demands ACTION this same turn. When they ask you to help them do or say something now — "I want to send him a note now", "help me write something", "what do I say", "can you help me with a message" — do NOT answer it with a capture confirmation, and do NOT just agree to help and then stop. Take the next real step immediately: if you already have enough, hand off with ready and your warm send-off; if one thing is genuinely missing (what's going on with them, what you want the note to carry), ask that ONE thing with reply. Never say you'll "get the note right" and then leave the next move to them — offering to help and then going quiet is a broken promise and forces them to lead.
+- Hold BOTH halves of a "now and later" turn. "Remind me in a month, and I want to send something today" is a reminder to capture AND a plan to help with now — do both: capture the reminder if it's new, and move on the note now (ask the one thing, or hand off). Don't let one half swallow the other, and don't set up the future nudge while quietly dropping the thing they want to do today.
 - WHO still comes first, always. note_and_remind does NOT bypass figuring out who they mean. If the person is NOT already known to you — not one of the saved people above, and not the person this conversation is locked to — do NOT call note_and_remind yet and do NOT say "done" or promise a nudge. FIRST use the reply tool to ask who they are with ONE short, warm question ("what's your sister's name?", "which Sarah do you mean?") and WAIT for their answer. Only once who-it-is is settled (a confident saved match, or they've named the new person) do you call note_and_remind. On a bare first name, CONFIRM WHO first (the same roster/confirm rules above) and WAIT — do not capture to a guessed person.
 - NEVER say "done", "saved", "I'll remember", or "I'll nudge you" until BOTH are true: (a) you have settled WHO it is about, and (b) this person is actually signed in. If you are not sure they are signed in, do not promise a nudge — warmly note you'd love to hold it and let the sign-in happen. Claiming something is done before it is saved is the worst mistake here; when in doubt, ask or invite rather than declare.
+- Once you have captured something or given a confirmation in THIS conversation, do not re-do it. NEVER call note_and_remind again for a thing you already captured, and never repeat a confirmation you already gave. If they add something genuinely NEW (a new detail, a different reminder time), capture only that new part; otherwise leave the tool alone.
+- Know when a conversation is winding down, and CLOSE like a person. If they simply thank you, acknowledge, or sign off — "thank you", "thanks", "great", "perfect", "okay", "that's all", "bye" — and there is nothing new to hold or help with, that is NOT a new task and NOT a capture. Answer with ONE brief, warm, genuinely varied line in your own voice — a real "you're welcome", a small kindness, a light send-off — and let it rest. Do not re-save anything, do not replay a nudge you already confirmed, do not tack on another question. Re-running a save or repeating the same confirmation after a simple thank-you is the surest way to sound like a machine instead of someone who was actually listening.
 - Reminders: honor what the user asks, and for a dated note with no stated timing let the system add ONE light default you then name. Two rules, both load-bearing:
   1. If they tell you ANY timing ("remind me a week before her birthday", "nudge me the day before", "check on me a few days before and the day after", "set two reminders, seven days before and one day before"), you MUST fill the note_and_remind reminders array with EVERY lead time they gave — one entry each, as a signed lead_days (before = positive, the day = 0, after = negative: "a week before"=7, "the day before"=1, "the day of"=0, "the day after"=-1, "a few days after"=-3). Leaving a stated time OUT of the array means it is never scheduled — so if your spoken line promises a nudge, that nudge MUST be in the reminders array. Never promise a reminder you didn't put there. Two timings means two entries.
   2. If they give NO timing but the note pins down a real date, leave the reminders array EMPTY — do NOT put a number in it. The system automatically seeds ONE light default nudge a few days before that date. Your spoken line SHOULD name that default and when it lands (the date minus a few days) and make clear it's adjustable, so it's never a surprise — for example "I'll give you a nudge on September 4th, a few days before his chemo — tell me if you'd like it sooner, later, or not at all." Do NOT add extra reminders yourself; the single default is handled for you. If they clearly want a nudge but named no when AND there's no date to lead from, ask ONE short, situational question about when (use reply), then set exactly what they say. An UNDATED durable fact ("she just started a new job") gets no nudge at all — just confirm you'll remember it, and don't mention a reminder. Adding extra reminders they didn't ask for, or promising a nudge on a date that doesn't exist, is a real mistake.
@@ -490,6 +494,29 @@ export function takeFirstEarlyChunk(soFar) {
   const chunk = s.slice(0, cut).trim();
   if (!chunk) return null;
   return { chunk, tail: s.slice(cut) };
+}
+
+// --- TC-140: SMARTER early-first-chunk (the retooled, non-choppy version of takeFirstEarlyChunk) ---
+//
+// Waiting for her whole first SENTENCE before any audio starts is a big chunk of the felt lag
+// (converse + tts are both measured on a full sentence). The old takeFirstEarlyChunk emitted the
+// first tiny sub-clause — even "Oh," — which sounded choppy in its own TTS clip, so it was retired.
+// This version emits the first chunk ONLY at a REAL clause boundary: a comma+space that lands at
+// least `minChars` in, so the early chunk is always a substantial phrase with natural falling
+// prosody ("That's such a gutting thing for Sarah,"), never a stub. If the first sentence has no
+// such clause (short/comma-less), returns null and we simply wait for the sentence — no mid-word
+// cuts, ever. Pure + deterministic → unit-testable.
+export function takeFirstEarlyClause(soFar, { minChars = 24 } = {}) {
+  const s = String(soFar == null ? "" : soFar);
+  if (s.trim().length < minChars) return null;
+  for (let i = minChars; i < s.length; i++) {
+    if (s[i] === "," && i + 1 < s.length && /\s/.test(s[i + 1])) {
+      const chunk = s.slice(0, i + 1).trim(); // include the comma → natural continuation intonation
+      if (!chunk) return null;
+      return { chunk, rest: s.slice(i + 1) };
+    }
+  }
+  return null;
 }
 
 // Tolerant extraction of the `say` string value out of accumulating tool partial_json. The model
@@ -757,6 +784,8 @@ export async function dispatchNoteAndRemind(userId, input, ctx, messages = []) {
     if (lockedId && !parsed.facts[0].person_hint) {
       const person = await getConversePerson(supa, userId, lockedId);
       if (person) {
+        // Don't double-write the same note to the same person (TC-141) — speak, but skip the write.
+        if (await recentDuplicateCapture(supa, userId, person.id, note)) return { action: "reply", say };
         const { writtenIds: factIds, supersededIds, writtenFacts } = await writeFactsToPerson(supa, userId, person.id, parsed.facts, "conversation", note);
         const { reminderIds } = await seedReminders(supa, userId, writtenFacts);
         await insertConversationCapture(supa, userId, {
@@ -777,6 +806,8 @@ export async function dispatchNoteAndRemind(userId, input, ctx, messages = []) {
     // Level A — a confident single match → write now + seed user-set reminders.
     const person = r.level === "A" && r.proposedPersonId ? await getConversePerson(supa, userId, r.proposedPersonId) : null;
     if (person) {
+      // Don't double-write the same note to the same person (TC-141) — speak, but skip the write.
+      if (await recentDuplicateCapture(supa, userId, person.id, note)) return { action: "reply", say };
       const { writtenIds: factIds, supersededIds, writtenFacts } = await writeFactsToPerson(supa, userId, person.id, g.facts, "conversation", note);
       const { reminderIds } = await seedReminders(supa, userId, writtenFacts);
       await insertConversationCapture(supa, userId, {
@@ -818,6 +849,33 @@ export async function dispatchNoteAndRemind(userId, input, ctx, messages = []) {
   } catch (e) {
     console.error("dispatchNoteAndRemind (soft-fail to spoken reply)", e);
     return { action: "reply", say };
+  }
+}
+
+// TC-141 dedup guard (defense-in-depth behind the prompt rules). If an identical note for the SAME
+// person was just confirmed — the observed "thank you re-fires the capture" bug — do NOT write it
+// again or render a second "saved" chip. Matches on person + normalized note text within a short
+// recent window (covers one conversation). Fail-open: any error → return false so the write proceeds.
+async function recentDuplicateCapture(supa, userId, personId, note) {
+  try {
+    if (!userId || !personId || !note) return false;
+    const since = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+    const { data } = await supa
+      .from("captures")
+      .select("id, raw_text, created_at")
+      .eq("user_id", userId)
+      .eq("proposed_person_id", personId)
+      .eq("status", "confirmed")
+      .gte("created_at", since)
+      .order("created_at", { ascending: false })
+      .limit(5);
+    if (!data || !data.length) return false;
+    const norm = (s) => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+    const n = norm(note);
+    return !!n && data.some((r) => norm(r.raw_text) === n);
+  } catch (e) {
+    console.error("recentDuplicateCapture (fail-open)", e);
+    return false;
   }
 }
 
@@ -919,18 +977,34 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
         let partial = "";        // accumulating tool input JSON text
         let sayEmitted = "";     // the portion of `say` already sent as sentences (reply only)
         let emittedAnySay = false;
+        let firstChunkDone = false; // TC-140: has the reply's first spoken chunk gone out yet?
 
         // reply AND note_and_remind both carry a `say` we speak live, sentence-by-sentence.
         const speaksSay = () => toolName === "reply" || toolName === "note_and_remind";
         const flushSay = (final) => {
           if (!speaksSay()) return;
           const full = extractSayPartial(partial);
-          const remainder = full.slice(sayEmitted.length);
+          let remainder = full.slice(sayEmitted.length);
+          // TC-140 fast start: for the VERY FIRST chunk of the reply only, emit an early clause (a
+          // real comma-phrase) so she starts talking a beat sooner — but never a stub, and never on
+          // the final flush (a short whole reply speaks as one clean sentence). Falls through to
+          // sentence emission when there's no substantial early clause yet.
+          if (!firstChunkDone && !final) {
+            const early = takeFirstEarlyClause(remainder);
+            if (early) {
+              const text = humanizeText(String(early.chunk).trim());
+              if (text) { send({ t: "say", text }); emittedAnySay = true; }
+              firstChunkDone = true;
+              sayEmitted += remainder.slice(0, remainder.length - early.rest.length);
+              remainder = full.slice(sayEmitted.length);
+            }
+          }
           const { sentences, tail } = takeSentences(remainder, { final });
           for (const raw of sentences) {
             const text = humanizeText(String(raw).trim());
             if (text) { send({ t: "say", text }); emittedAnySay = true; }
           }
+          if (sentences.length) firstChunkDone = true; // a full sentence went out → fast-start phase over
           sayEmitted = full.slice(0, full.length - tail.length);
         };
 

@@ -3848,7 +3848,13 @@ function parseYesNo(text){
 // (~1-2s) was ending the turn. These are the easy-to-tune knobs for how patiently she waits.
 // Bump END_OF_TURN_SILENCE_MS up if she still cuts in; down if she feels laggy to respond.
 const CREC_SPEECH_RMS = 0.05;              // mic level above this counts as "speaking"
-const END_OF_TURN_SILENCE_MS = 2000;       // continuous silence AFTER speech that ends the turn
+const END_OF_TURN_SILENCE_MS = 1700;       // continuous silence AFTER speech that ends the turn
+// TC-140 tuning (David device tests 2026-08-20): 1400 clipped natural "find the words" pauses 3×;
+// 2000 clipped only ONCE and only on a DELIBERATE slow-play he didn't mind. So his real pauses sit
+// below 1700 → 1700 is the middle ground: 0.3s faster than 2000 every turn, while only ever risking
+// a clip on intentional slow-play (which she handles gracefully). This is a STOPGAP. The proper fix
+// is transcript-aware end-of-turn (TC-143): end fast when the last phrase sounds finished, stay
+// patient when it trails off — speed with zero cut-offs, making this flat knob obsolete.
 const CREC_MIN_SPEECH_MS = 400;            // grace: ignore silence until they've spoken this long,
                                            // so a beat right after they start doesn't end the turn
 const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can never hang

@@ -21,6 +21,22 @@ export default async (req) => {
   const events = await loadAllEvents(store);
   const real = events.filter((e) => includeTest || (!e.test && !e.bot));
 
+  // Raw per-turn latency view for dialing in the voice lags. Token-gated + non-identifying (ms + a
+  // random sid + timestamp only). ?raw=voice_latency returns each turn, newest first, so we can see
+  // the per-turn breakdown and drop known self-test sids by hand.
+  if (url.searchParams.get("raw") === "voice_latency") {
+    const legs = ["eot_ms", "transcribe_ms", "converse_ms", "tts_ms", "gap_ms", "felt_ms"];
+    const turns = real
+      .filter((e) => e.event === "voice_turn_latency")
+      .sort((a, b) => String(b.t).localeCompare(String(a.t)))
+      .map((e) => {
+        const row = { t: e.t, sid: e.sid, test: !!e.test, turns: e.turns };
+        for (const k of legs) if (Number.isFinite(e[k])) row[k] = e[k];
+        return row;
+      });
+    return json(200, { generated_at: new Date().toISOString(), count: turns.length, turns });
+  }
+
   return json(200, {
     generated_at: new Date().toISOString(),
     excluded_noise_events: includeTest ? 0 : events.length - real.length,
