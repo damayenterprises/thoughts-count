@@ -3853,13 +3853,14 @@ function parseYesNo(text){
 // (~1-2s) was ending the turn. These are the easy-to-tune knobs for how patiently she waits.
 // Bump END_OF_TURN_SILENCE_MS up if she still cuts in; down if she feels laggy to respond.
 const CREC_SPEECH_RMS = 0.05;              // mic level above this counts as "speaking"
-const END_OF_TURN_SILENCE_MS = 1700;       // continuous silence AFTER speech that ends the turn
-// TC-140 tuning (David device tests 2026-08-20): 1400 clipped natural "find the words" pauses 3×;
-// 2000 clipped only ONCE and only on a DELIBERATE slow-play he didn't mind. So his real pauses sit
-// below 1700 → 1700 is the middle ground: 0.3s faster than 2000 every turn, while only ever risking
-// a clip on intentional slow-play (which she handles gracefully). This is a STOPGAP. The proper fix
-// is transcript-aware end-of-turn (TC-143, BELOW): END_OF_TURN_SILENCE_MS is now the FALLBACK the
-// predicate returns when the transcript is ambiguous or not yet in — a flat knob no longer decides alone.
+const END_OF_TURN_SILENCE_MS = 2200;       // continuous silence AFTER speech that ends the turn
+// TC-140/143/145 tuning (David device tests 2026-08-20). This is the AMBIGUOUS/CONTENT-WORD case —
+// he paused mid-sentence after an ordinary word ("...dwell much on him") and the transcript can't tell
+// that from "done." Instrumented eot actuals showed him getting clipped at ~1.7-2.0s on exactly these,
+// so the default is 2200 (patient) — the response now feels fast because the FAST-START clause emit
+// (converse.mjs) carries the speed, not a rushed mic. Snappy only when the transcript proves he
+// finished (EOT_FINISHED_MS, terminal punctuation); very patient when it proves he's mid-thought
+// (EOT_OPEN_MS, a hanging word). A flat knob no longer decides alone — see endOfTurnMs (TC-143, BELOW).
 //
 // TC-143 — transcript-aware end-of-turn. Instead of one flat wait, read the SHAPE of what they've
 // said so far (from the speculative transcript already in flight) and pick how long to keep waiting:
@@ -3874,7 +3875,16 @@ const END_OF_TURN_SILENCE_MS = 1700;       // continuous silence AFTER speech th
 const EOT_FINISHED_MS = 1400; // a clear sentence end → respond promptly (but leave margin for a
                               // "finished a sentence, then added more" pause — David's slow-play style;
                               // UX flagged 1200 as riskier for that. Still 0.3s under the 1700 default.)
-const EOT_OPEN_MS = 2200;     // trailing off on a hanging word → give them room to keep going
+const EOT_OPEN_MS = 4500;     // trailing off on a hanging word ("...and") → they are ALMOST CERTAINLY
+                              // still talking, so be VERY patient. 2200 kept clipping David mid-sentence
+                              // (he pauses long to gather words). A hanging conjunction is a strong,
+                              // reliable "not done" signal — rarely a real sentence end — so a long wait
+                              // here is safe: it only ever triggers when the transcript proves he's
+                              // mid-thought, never on a finished sentence (those end at EOT_FINISHED_MS).
+const EOT_PENDING_MS = 2600;  // speculative FIRED but transcript not back yet → we don't know if he's
+                              // done, so hold longer than the default while the check lands (it resolves
+                              // ~1-1.7s after firing → this covers it), but not the full open wait (a
+                              // rare failed transcript shouldn't hang the turn). Distinct from EOT_OPEN.
 // Words that, as the LAST thing said, mean the thought isn't done — conjunctions, articles,
 // prepositions, pronouns, auxiliaries, and spoken fillers. Lowercase, no punctuation.
 const EOT_OPEN_ENDERS = new Set(['and','but','so','or','because','cause','if','when','while','though','although','to','of','for','with','at','in','on','as','the','a','an','my','your','our','their','his','her','its','i','we','you','they','it','that','this','is','are','was','were','am','be','been','being','like','um','uh','er','hmm','well','also','then','maybe','really','just','about','into','from','than',"that's","it's","i'm","we're","you're"]);
@@ -4025,7 +4035,7 @@ async function beginConfirmRecording(onText){
           // re-reads and ends (or extends) correctly. This is what cut David off at "and": the default
           // 1700 fired before the transcript proving he was still talking came back.
           const eotMs = __crec.specText ? endOfTurnMs(__crec.specText)
-            : (__crec.specFired ? EOT_OPEN_MS : END_OF_TURN_SILENCE_MS);
+            : (__crec.specFired ? EOT_PENDING_MS : END_OF_TURN_SILENCE_MS);
           if (now - __crec.silenceStart > eotMs){ stopConfirmRecording(); return; }
         }
       }

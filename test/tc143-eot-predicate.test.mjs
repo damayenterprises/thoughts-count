@@ -4,9 +4,9 @@
 // Run: node test/tc143-eot-predicate.test.mjs
 import assert from "node:assert";
 
-const END_OF_TURN_SILENCE_MS = 1700;
+const END_OF_TURN_SILENCE_MS = 2200;
 const EOT_FINISHED_MS = 1400;
-const EOT_OPEN_MS = 2200;
+const EOT_OPEN_MS = 4500;
 const EOT_OPEN_ENDERS = new Set(['and','but','so','or','because','cause','if','when','while','though','although','to','of','for','with','at','in','on','as','the','a','an','my','your','our','their','his','her','its','i','we','you','they','it','that','this','is','are','was','were','am','be','been','being','like','um','uh','er','hmm','well','also','then','maybe','really','just','about','into','from','than',"that's","it's","i'm","we're","you're"]);
 
 // EXACT mirror of the inline predicate.
