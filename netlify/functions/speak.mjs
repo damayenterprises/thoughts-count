@@ -20,13 +20,36 @@ import { requireUser } from "./_supabase.mjs";
 
 const MODEL = "gpt-4o-mini-tts";
 const VOICE = "nova";
-// ONE unconditional delivery spec, applied identically to EVERY clip. Sentences are spoken as
-// separate clips streamed one at a time; a conditional clause (e.g. "when you ask a question…")
-// would steer question/menu clips to a different prosody than statement clips, so clip N and
-// clip N+1 in the SAME reply would drift in pace/energy. This single steady spec keeps her
-// sounding like the same present, engaged person from her first sentence to her last. Keep it
-// constant — never derive tone from the text; never accept a per-clip style/speed from the client.
-const INSTRUCTIONS = "Speak in a warm, present, gently engaged tone — soft, caring and reassuring, like a kind friend who genuinely cares and is glad to be here. Natural and human, never robotic or flat. Keep a steady, even energy and an unhurried, natural conversational pace throughout: the same warmth and the same measured, relaxed rhythm on every line, whether it is a statement, a question, or an invitation. Do not rush, do not speed up or slow down, and never sound transactional or like a menu prompt — always warm, personal and softly engaged.";
+
+// TC-122 — Della's emotional REGISTERS (Design Lead spec). She feels the moment WITH you: one
+// register chosen per REPLY (server-side, from the moment's valence/occasion) and applied to every
+// clip of that reply — so she's expressive ACROSS moments yet steady WITHIN a reply (honors TC-120,
+// which pinned pace steady so clips don't drift). Registers differ ONLY in energy / warmth /
+// brightness / tenderness — NEVER in pace (no speed/tempo/pause language anywhere). The register is
+// pre-decided by converse.mjs and passed in as `register`; speak.mjs NEVER infers mood from the text
+// and NEVER accepts a free-form style from the client (whitelist below → default warm).
+//
+// One-voice floor (feedback_tc_one_voice): the OPEN and TAIL are byte-identical across all four —
+// only the middle mood clause changes — so every register is unmistakably the SAME person. If the
+// open/tail is ever edited, it must change in all four together.
+const REG_OPEN = "Speak as Della — warm, present and human, soft and caring, like a wise friend who genuinely cares and is glad to be here. Never robotic, never flat, never transactional.";
+const REG_TAIL = "Keep a steady, even rhythm and the same energy from your first word to your last — never rush, never drag, never shift pace or volume mid-thought.";
+const REG_MOODS = {
+  // default — the Della of today
+  warm:   "Hold an even, gently engaged warmth — settled and reassuring, simply glad to be here with them.",
+  // celebration — quiet delight FOR them
+  bright: "Let a genuine, quiet delight lift your warmth — a real smile in the voice, bright-eyed and happy for them, glowing but grounded. Warmer and lighter than usual, never giddy, loud, or bubbly.",
+  // hard time / grief — hushed, holding space
+  tender: "Soften into a hushed, tender gentleness — quiet, close, and full of care, holding space with them in something heavy. Lower and softer than usual, unhurried and kind. Never bright, never cheerful.",
+  // gratitude / light short reactions — easy warmth WITH them
+  fond:   "Let an easy, affectionate lightness come through — a warm smile between old friends, a touch of playfulness, unforced and glad. Light and fond, never solemn, never over-eager.",
+};
+const REGISTERS = Object.fromEntries(Object.entries(REG_MOODS).map(([k, mood]) => [k, `${REG_OPEN} ${mood} ${REG_TAIL}`]));
+// Whitelist at the boundary: any missing/unknown register → warm (never guess toward an extreme).
+function instructionsFor(register) {
+  const key = typeof register === "string" && REGISTERS[register] ? register : "warm";
+  return REGISTERS[key];
+}
 const MAX_CHARS = 400; // a readback is ~100 chars; hard cap so cost/latency stay bounded
 
 // Light abuse guard: an open endpoint calling a paid service can't be milked. Generous for
@@ -67,12 +90,13 @@ export default async (req) => {
   let text = String(body?.text || "").trim();
   if (!text) return new Response("no text", { status: 400 });
   if (text.length > MAX_CHARS) text = text.slice(0, MAX_CHARS);
+  const instructions = instructionsFor(body?.register); // TC-122: whitelisted register → delivery
 
   try {
     const res = await fetch("https://api.openai.com/v1/audio/speech", {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model: MODEL, voice: VOICE, input: text, instructions: INSTRUCTIONS, response_format: "mp3" }),
+      body: JSON.stringify({ model: MODEL, voice: VOICE, input: text, instructions, response_format: "mp3" }),
     });
     if (!res.ok) {
       const detail = await res.text().catch(() => "");

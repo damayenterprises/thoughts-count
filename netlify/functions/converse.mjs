@@ -20,6 +20,7 @@ import { MODEL, humanizeText } from "./generate-background.mjs";
 export { MODEL };
 import { requireUser, serviceClient, supabaseConfigured } from "./_supabase.mjs";
 import { rosterForPrompt, resolveNameShaped, resolve, writeFactsToPerson, seedReminders, noteToParsed, recognizableDetail, statedRemindersFromMessages } from "./_capture.mjs";
+import { classifyValence, classifyOccasion } from "./_analytics.mjs";
 
 const MAX_TOKENS = 600;
 const MAX_TURNS = 40;        // hard cap on history length (safety, not a product limit)
@@ -913,6 +914,31 @@ const STREAM_IDLE_MS = 20000;  // no SSE bytes for this long → end cleanly (se
 
 function ndjson(obj) { return JSON.stringify(obj) + "\n"; }
 
+// TC-122 — choose Della's emotional REGISTER for this reply (Design Lead spec). One register per
+// reply, decided server-side from the moment's tenor (the same valence/occasion buckets analytics
+// already computes), passed to the client so every /api/speak clip of the reply shares it. The moment
+// text = the user's turns joined + any focused-person context. Mapping: hard_time → tender,
+// celebration → bright, gratitude → fond, else warm. GRIEF OVERRIDE runs last: a bereavement /
+// illness / job-loss / breakup occasion forces tender even if valence slipped elsewhere — the single
+// load-bearing guardrail (never bright on a loss). Default warm on any ambiguity. Pure + testable.
+const GRIEF_OCCASIONS = new Set(["bereavement", "illness_diagnosis", "job_loss", "breakup_divorce"]);
+const VALID_REGISTERS = new Set(["warm", "bright", "tender", "fond"]);
+export function registerForReply(messages, ctx = {}) {
+  const userText = (Array.isArray(messages) ? messages : [])
+    .filter((m) => m && m.role === "user")
+    .map((m) => String(m.content || ""))
+    .join(" ");
+  const momentText = [userText, ctx && ctx.moment ? String(ctx.moment) : ""].filter(Boolean).join(" ");
+  if (!momentText.trim()) return "warm";
+  const occasion = classifyOccasion(momentText);
+  if (GRIEF_OCCASIONS.has(occasion)) return "tender"; // grief override — never bright on a loss
+  const valence = classifyValence(momentText);
+  if (valence === "hard_time") return "tender";
+  if (valence === "celebration") return "bright";
+  if (valence === "gratitude") return "fond";
+  return "warm";
+}
+
 function streamTurn(body, auth = { userId: null, roster: [] }) {
   const built = buildTurn(body, auth);
   if (built.error) return built.error; // a guard failure → normal JSON error, no stream
@@ -931,6 +957,10 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
         send({ t: "reply_done" });
         return end();
       }
+
+      // TC-122: emit the reply's emotional register FIRST — before any `say` — so the client has it in
+      // hand when the first sentence's /api/speak fires. One register for the whole reply (all clips).
+      send({ t: "register", key: registerForReply(payload.messages, ctx) });
 
       const ac = new AbortController();
       const idle = { timer: null };

@@ -2798,6 +2798,7 @@ async function cvStreamReply(ctx, force){
   const gen = ++__cvStreamGen;
   const sp = cvNewSpeak(gen);
   __cvSpeak = sp;
+  __cvRegister = 'warm'; // TC-122: reset per turn; the stream's {t:"register"} sets the real mood
   const ctrl = new AbortController();
   __cvStreamCtrl = ctrl;
   let timer = null;
@@ -2854,6 +2855,10 @@ async function cvStreamReply(ctx, force){
           // 'reply' action carries only a spoken line (nothing to render).
           gotAny = true;
           if (evt.action && evt.action !== 'reply'){ try { cvHandleCapture(evt); } catch(e){ console.error(e); } }
+        } else if (evt.t === 'register'){
+          // TC-122: this reply's emotional register, sent before any sentence → set it so the first
+          // (and every) clip's fetchClip delivers in the right mood. Whitelisted client-side too.
+          if (evt.key && /^(warm|bright|tender|fond)$/.test(evt.key)) __cvRegister = evt.key;
         } else if (evt.t === 'reply_done'){
           sp.replyDone = true;
           cvPumpSpeak(sp); // if the queue already drained, this opens the mic
@@ -3853,8 +3858,36 @@ const END_OF_TURN_SILENCE_MS = 1700;       // continuous silence AFTER speech th
 // 2000 clipped only ONCE and only on a DELIBERATE slow-play he didn't mind. So his real pauses sit
 // below 1700 → 1700 is the middle ground: 0.3s faster than 2000 every turn, while only ever risking
 // a clip on intentional slow-play (which she handles gracefully). This is a STOPGAP. The proper fix
-// is transcript-aware end-of-turn (TC-143): end fast when the last phrase sounds finished, stay
-// patient when it trails off — speed with zero cut-offs, making this flat knob obsolete.
+// is transcript-aware end-of-turn (TC-143, BELOW): END_OF_TURN_SILENCE_MS is now the FALLBACK the
+// predicate returns when the transcript is ambiguous or not yet in — a flat knob no longer decides alone.
+//
+// TC-143 — transcript-aware end-of-turn. Instead of one flat wait, read the SHAPE of what they've
+// said so far (from the speculative transcript already in flight) and pick how long to keep waiting:
+//   • ends on terminal punctuation (. ! ?)      → they clearly finished     → end fast (EOT_FINISHED)
+//   • ends on a hanging/open word ("and", "my")  → they're still forming it   → stay patient (EOT_OPEN)
+//   • content word, no punctuation (ambiguous)   → the neutral default (END_OF_TURN_SILENCE_MS)
+//   • no transcript yet                          → the neutral default
+// It only ever SPEEDS UP on the high-confidence punctuation signal (gpt transcription punctuates
+// reliably), so it can't reintroduce the cut-off; when unsure it stays at today's safe 1700, and it
+// only ever slows DOWN on a clear hanging word. Pure + band-clamped → unit-testable (mirror kept in
+// test/tc143-eot-predicate.test.mjs).
+const EOT_FINISHED_MS = 1400; // a clear sentence end → respond promptly (but leave margin for a
+                              // "finished a sentence, then added more" pause — David's slow-play style;
+                              // UX flagged 1200 as riskier for that. Still 0.3s under the 1700 default.)
+const EOT_OPEN_MS = 2200;     // trailing off on a hanging word → give them room to keep going
+// Words that, as the LAST thing said, mean the thought isn't done — conjunctions, articles,
+// prepositions, pronouns, auxiliaries, and spoken fillers. Lowercase, no punctuation.
+const EOT_OPEN_ENDERS = new Set(['and','but','so','or','because','cause','if','when','while','though','although','to','of','for','with','at','in','on','as','the','a','an','my','your','our','their','his','her','its','i','we','you','they','it','that','this','is','are','was','were','am','be','been','being','like','um','uh','er','hmm','well','also','then','maybe','really','just','about','into','from','than',"that's","it's","i'm","we're","you're"]);
+function endOfTurnMs(tail){
+  const t = String(tail == null ? '' : tail).trim();
+  if (!t) return END_OF_TURN_SILENCE_MS;                  // nothing to judge → neutral default
+  if (/[.!?]["')\]]*$/.test(t)) return EOT_FINISHED_MS;    // finished sentence → snappy
+  const words = t.toLowerCase().replace(/[^a-z'\s]/g, ' ').split(/\s+/).filter(Boolean);
+  const last = words[words.length - 1] || '';
+  if (EOT_OPEN_ENDERS.has(last)) return EOT_OPEN_MS;       // trailing on a hanging word → patient
+  return END_OF_TURN_SILENCE_MS;                           // ambiguous → neutral default (safe)
+}
+if (typeof window !== 'undefined') window.__tcEndOfTurnMs = endOfTurnMs; // test/debug hook
 const CREC_MIN_SPEECH_MS = 400;            // grace: ignore silence until they've spoken this long,
                                            // so a beat right after they start doesn't end the turn
 const CREC_MAX_MS = 30000;                 // backstop hard cap so the mic can never hang
@@ -3876,7 +3909,8 @@ const __crec = { mr: null, chunks: [], active: false, stream: null, timer: null,
   gen: 0,            // bumped every begin/abort; a late speculative from an old gen no-ops
   specFired: false,  // fired a speculative for the CURRENT silence window? (re-armed on resume)
   specPromise: null, // Promise<string> of the latest speculative transcript ('' on any failure)
-  specCtrl: null     // AbortController for the in-flight speculative fetch (superseded on resume)
+  specCtrl: null,    // AbortController for the in-flight speculative fetch (superseded on resume)
+  specText: ''       // TC-143: the resolved speculative transcript, read by endOfTurnMs each frame
 };
 // Pure predicate (extracted for testing): should we fire a speculative transcribe THIS frame?
 // True once the user has clearly spoken (grace passed) and a settled silence has lasted the soft-
@@ -3923,7 +3957,12 @@ function crecFireSpeculative(gen){
   let blob;
   try { blob = new Blob(__crec.chunks.slice(), { type: (__crec.mr && __crec.mr.mimeType) || 'audio/webm' }); }
   catch(e){ __crec.specPromise = null; return; } // couldn't assemble → confirm uses the fallback
-  __crec.specPromise = crecTranscribeBlob(blob, ctrl && ctrl.signal);
+  const p = crecTranscribeBlob(blob, ctrl && ctrl.signal);
+  __crec.specPromise = p;
+  // TC-143: when it resolves, stash the text so the VAD loop's endOfTurnMs can read the SHAPE of what
+  // they said (finished vs trailing off). Guarded on gen so a stale resolution from an old window/turn
+  // never overwrites the live one. Failure → leave specText as-is (endOfTurnMs falls back to default).
+  p.then((txt) => { if (gen === __crec.gen) __crec.specText = String(txt || ''); }).catch(() => {});
 }
 function abortConfirmRecording(){
   __crec.aborted = true; __crec.active = false;
@@ -3951,7 +3990,7 @@ async function beginConfirmRecording(onText){
   if (!__confirmActive){ return false; }
   __crec.stream = stream; __crec.chunks = []; __crec.active = true; __crec.spoke = false; __crec.spokeAt = 0; __crec.silenceStart = 0; __crec.aborted = false;
   // TC-88 speculative-transcribe state: fresh generation, no speculative yet.
-  const gen = ++__crec.gen; __crec.specFired = false; __crec.specPromise = null; __crec.specCtrl = null;
+  const gen = ++__crec.gen; __crec.specFired = false; __crec.specPromise = null; __crec.specCtrl = null; __crec.specText = '';
   // VAD: watch mic loudness; end shortly after speech stops.
   // TC-90: read the ONE shared session analyser (built once, never closed). If it's unavailable the
   // catch/else path leaves the hard cap (CREC_MAX_MS) as the sole turn-ender — same as before.
@@ -3968,6 +4007,7 @@ async function beginConfirmRecording(onText){
       if (rms > CREC_SPEECH_RMS){
         __crec.spoke = true; if (!__crec.spokeAt) __crec.spokeAt = now; __crec.silenceStart = 0;
         __crec.specFired = false; // speech resumed → re-arm; next soft-pause fires a fresh (longer) speculative
+        __crec.specText = '';     // TC-143: last window's transcript is stale now → don't judge the new pause by it
       }
       // Only start counting end-of-turn silence once they've been speaking a beat (grace), so a
       // brief pause right after they start doesn't end the turn. End only after a settled silence.
@@ -3977,7 +4017,10 @@ async function beginConfirmRecording(onText){
           // TC-88: at the short soft-pause (well before end-of-turn), speculatively transcribe the
           // audio so far in the background so the transcript is ready when the 2s confirms.
           if (crecShouldSpeculate(__crec, now)) crecFireSpeculative(gen);
-          if (now - __crec.silenceStart > END_OF_TURN_SILENCE_MS){ stopConfirmRecording(); return; }
+          // TC-143: how long to wait is transcript-aware — snappy on a finished sentence, patient on a
+          // hanging word, the safe default otherwise. Re-read each frame so a late speculative can end
+          // (or extend) the wait the instant it lands.
+          if (now - __crec.silenceStart > endOfTurnMs(__crec.specText)){ stopConfirmRecording(); return; }
         }
       }
       __crec.raf = requestAnimationFrame(loop);
@@ -4110,6 +4153,10 @@ function unlockSpeech(){
 }
 
 let __ttsCtrl = null; // AbortController for the in-flight /api/speak requests
+// TC-122: the emotional register for the CURRENT reply (warm | bright | tender | fond). Set from the
+// stream's {t:"register"} event at the top of each reply; reset to 'warm' when a turn begins so a
+// prior reply's mood never bleeds into the next. Read by fetchClip on every clip of the reply.
+let __cvRegister = 'warm';
 let __ttsUrls = [];   // object URLs of the current utterance's chunks, revoked on cleanup
 function revokeTtsUrls(){ __ttsUrls.forEach(u => { try { URL.revokeObjectURL(u); } catch(e){} }); __ttsUrls = []; }
 function cancelSpeech(){
@@ -4165,7 +4212,9 @@ if (typeof window !== 'undefined') window.__tcSplitSentenceForSpeech = splitSent
 function fetchClip(text, signal){
   const headers = { 'content-type': 'application/json' };
   try { const tk = window.TCCompanion && window.TCCompanion.authToken && window.TCCompanion.authToken(); if (tk) headers['Authorization'] = 'Bearer ' + tk; } catch(e){}
-  return fetch('/api/speak', { method: 'POST', headers, body: JSON.stringify({ text }), signal })
+  // TC-122: carry the current reply's emotional register so /api/speak delivers this clip in the right
+  // mood (warm/bright/tender/fond). Server whitelists it; defaults to 'warm' for any non-conversation clip.
+  return fetch('/api/speak', { method: 'POST', headers, body: JSON.stringify({ text, register: __cvRegister }), signal })
     .then(r => { if (!r.ok) throw new Error('speak ' + r.status); return r.blob(); })
     .then(b => URL.createObjectURL(b));
 }
