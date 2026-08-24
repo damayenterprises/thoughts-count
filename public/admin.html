@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="robots" content="noindex, nofollow" />
+<title>Thoughts Count — Live Dashboard</title>
+<style>
+  :root { --blue:#118ab9; --deep:#0a5876; --red:#ef4136; --ink:#23262b; --soft:#6b7178; --line:#e6e2d9; --bg:#f4f6f8; --card:#ffffff; }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif; background:var(--bg); color:var(--ink); }
+  header { background:linear-gradient(120deg,#0a5876,#118ab9); color:#fff; padding:18px 22px; display:flex; align-items:center; justify-content:space-between; flex-wrap:wrap; gap:10px; }
+  header h1 { margin:0; font-size:18px; font-weight:700; letter-spacing:.2px; }
+  header .meta { font-size:12.5px; opacity:.85; }
+  header .tools { display:flex; gap:8px; align-items:center; }
+  header button, header label { font-size:12.5px; }
+  header button { background:rgba(255,255,255,.18); color:#fff; border:1px solid rgba(255,255,255,.3); border-radius:8px; padding:6px 12px; cursor:pointer; }
+  header button:hover { background:rgba(255,255,255,.28); }
+  .wrap { max-width:1100px; margin:0 auto; padding:22px; }
+  .gate { max-width:380px; margin:12vh auto; background:var(--card); border:1px solid var(--line); border-radius:16px; padding:26px; text-align:center; box-shadow:0 8px 30px rgba(0,0,0,.06); }
+  .gate h2 { margin:0 0 6px; font-size:18px; color:var(--deep); }
+  .gate p { color:var(--soft); font-size:13.5px; margin:0 0 16px; }
+  .gate input { width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-size:15px; margin-bottom:10px; }
+  .gate button { width:100%; background:var(--blue); color:#fff; border:none; border-radius:999px; padding:12px; font-weight:700; font-size:15px; cursor:pointer; }
+  .gate .err { color:var(--red); font-size:13px; min-height:18px; }
+  .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:8px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
+  .card .n { font-size:30px; font-weight:800; color:var(--deep); line-height:1.1; }
+  .card .l { font-size:12.5px; color:var(--soft); margin-top:4px; }
+  .card .sub { font-size:11.5px; color:var(--soft); margin-top:2px; }
+  section { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:18px 20px; margin-top:16px; }
+  section h3 { margin:0 0 12px; font-size:14px; color:var(--deep); text-transform:uppercase; letter-spacing:.5px; }
+  .funnel-row { display:flex; align-items:center; gap:12px; padding:7px 0; border-bottom:1px dashed var(--line); }
+  .funnel-row:last-child { border-bottom:none; }
+  .funnel-row .step { flex:1; font-size:14px; }
+  .funnel-row .val { font-weight:700; font-size:16px; color:var(--ink); min-width:60px; text-align:right; }
+  .funnel-row .pct { font-size:12px; color:var(--blue); min-width:64px; text-align:right; font-weight:700; }
+  .bar { height:8px; border-radius:6px; background:linear-gradient(90deg,#118ab9,#0a5876); margin-top:5px; }
+  .grid2 { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  @media (max-width:700px){ .grid2 { grid-template-columns:1fr; } }
+  table { width:100%; border-collapse:collapse; font-size:13.5px; }
+  td { padding:5px 2px; border-bottom:1px solid #f0ede6; }
+  td.k { color:var(--ink); } td.v { text-align:right; font-weight:700; color:var(--deep); }
+  .muted { color:var(--soft); font-size:12.5px; }
+  .spark { display:flex; align-items:flex-end; gap:3px; height:60px; margin-top:6px; }
+  .spark .b { flex:1; background:#a9d4e6; border-radius:3px 3px 0 0; min-height:2px; }
+  .spark .b.today { background:var(--blue); }
+</style>
+</head>
+<body>
+<div id="gate" class="gate" style="display:none">
+  <h2>Live Dashboard</h2>
+  <p>Enter the admin token to view traffic and users.</p>
+  <input id="tok" type="password" placeholder="Admin token" autocomplete="off" />
+  <div class="err" id="gateErr"></div>
+  <button id="gateGo">View</button>
+</div>
+
+<div id="app" style="display:none">
+  <header>
+    <div>
+      <h1>Thoughts Count · Live Dashboard</h1>
+      <div class="meta" id="genAt"></div>
+    </div>
+    <div class="tools">
+      <label style="color:#fff;display:flex;align-items:center;gap:5px;cursor:pointer;"><input type="checkbox" id="incTest" /> include test/insider</label>
+      <button id="refresh">Refresh</button>
+      <button id="signout">Sign out</button>
+    </div>
+  </header>
+  <div class="wrap" id="body"></div>
+</div>
+
+<script>
+  const $ = (id) => document.getElementById(id);
+  const KEY = "tc_admin_token";
+  let token = "";
+
+  function getUrlToken() {
+    try {
+      const u = new URLSearchParams(location.search);
+      const t = u.get("token");
+      if (t) { history.replaceState(null, "", location.pathname); return t; } // don't let it linger in the URL
+    } catch (e) {}
+    return "";
+  }
+
+  async function load() {
+    const inc = $("incTest") && $("incTest").checked ? "&includeTest=1" : "";
+    let res, data;
+    try {
+      res = await fetch("/api/analytics?token=" + encodeURIComponent(token) + inc, { cache: "no-store" });
+      data = await res.json();
+    } catch (e) { showGate("Could not reach the server. Try again."); return; }
+    if (res.status === 401) { showGate("That token didn't work."); return; }
+    if (!res.ok) { showGate(data && data.error ? data.error : "Something went wrong."); return; }
+    try { localStorage.setItem(KEY, token); } catch (e) {}
+    render(data);
+  }
+
+  function showGate(msg) {
+    $("app").style.display = "none";
+    $("gate").style.display = "block";
+    $("gateErr").textContent = msg || "";
+    if ($("tok")) $("tok").focus();
+  }
+
+  const num = (n) => (n == null ? "0" : Number(n).toLocaleString());
+  const pct = (p) => (p == null ? "—" : p + "%");
+  const esc = (s) => String(s == null ? "" : s).replace(/[&<>]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;" }[c]));
+
+  function rows(obj, limit) {
+    const entries = Object.entries(obj || {});
+    if (!entries.length) return '<tr><td class="muted">No data yet</td><td></td></tr>';
+    return entries.slice(0, limit || 12).map(([k, v]) => `<tr><td class="k">${esc(k)}</td><td class="v">${num(v)}</td></tr>`).join("");
+  }
+
+  function render(d) {
+    $("gate").style.display = "none";
+    $("app").style.display = "block";
+    $("genAt").textContent = "As of " + new Date(d.generated_at).toLocaleString() + (d.excluded_noise_events ? "  ·  " + num(d.excluded_noise_events) + " bot/test events filtered" : "");
+    const f = d.funnel || {}, c = d.conversion || {}, t = d.traffic || {}, w = d.what_people_need || {};
+
+    // today's activity from the per-day event tally (YYYYMMDD keys)
+    const now = new Date();
+    const todayKey = "" + now.getFullYear() + String(now.getMonth()+1).padStart(2,"0") + String(now.getDate()).padStart(2,"0");
+    const byDay = d.by_day || {};
+    const todayEvents = byDay[todayKey] || 0;
+    const dayKeys = Object.keys(byDay).sort().slice(-14);
+    const maxDay = Math.max(1, ...dayKeys.map(k => byDay[k]));
+    const spark = dayKeys.map(k => `<div class="b ${k===todayKey?'today':''}" style="height:${Math.round((byDay[k]/maxDay)*100)}%" title="${k}: ${byDay[k]}"></div>`).join("");
+
+    const cards = [
+      { n: f.visitors, l: "Unique visitors", sub: "all-time distinct sessions" },
+      { n: f.plans_generated, l: "Plans generated" },
+      { n: f.unique_emails, l: "Unique emails (growth)", sub: f.team_emails ? num(f.team_emails)+" team, excluded" : "" },
+      { n: f.plans_viewed, l: "Plans viewed" },
+      { n: f.emails_submitted, l: "Plans emailed" },
+      { n: f.reminders_sent, l: "Reminders sent" },
+    ].map(x => `<div class="card"><div class="n">${num(x.n)}</div><div class="l">${x.l}</div>${x.sub?`<div class="sub">${x.sub}</div>`:""}</div>`).join("");
+
+    const funnel = [
+      ["Visitors", f.visitors, null],
+      ["Started a plan", f.intake_starts, c.landed_to_started_pct],
+      ["Plan generated", f.plans_generated, c.started_to_plan_pct],
+      ["Emailed the plan", f.emails_submitted, c.plan_to_email_pct],
+    ];
+    const base = Math.max(1, f.visitors || 1);
+    const funnelHtml = funnel.map(([step, val, p]) => `
+      <div class="funnel-row">
+        <div class="step">${step}<div class="bar" style="width:${Math.max(3, Math.round(((val||0)/base)*100))}%"></div></div>
+        <div class="val">${num(val)}</div>
+        <div class="pct">${p==null?"":pct(p)}</div>
+      </div>`).join("");
+
+    $("body").innerHTML = `
+      <div class="cards">${cards}</div>
+      <section>
+        <h3>Activity (last 14 days · total events/day)</h3>
+        <div class="spark">${spark || '<span class="muted">No data yet</span>'}</div>
+        <div class="muted" style="margin-top:8px;">Today: <b>${num(todayEvents)}</b> events · ${num(f.page_views)} page views all-time</div>
+      </section>
+      <section>
+        <h3>Funnel</h3>
+        ${funnelHtml}
+      </section>
+      <div class="grid2">
+        <section>
+          <h3>Top traffic sources</h3>
+          <table>${rows(t.top_sources)}</table>
+          <h3 style="margin-top:16px;">By channel</h3>
+          <table>${rows(t.by_channel)}</table>
+        </section>
+        <section>
+          <h3>What people need</h3>
+          <table>${rows(w.occasion)}</table>
+          <div class="muted" style="margin-top:10px;">Gift fit ${w.gift_fit_rate_pct==null?"—":w.gift_fit_rate_pct+"%"} · wanted local ${num(w.wanted_local_ideas)}</div>
+        </section>
+      </div>
+      <div class="grid2">
+        <section>
+          <h3>Relationship</h3>
+          <table>${rows(w.relationship)}</table>
+        </section>
+        <section>
+          <h3>Landing pages</h3>
+          <table>${rows(t.landing_pages)}</table>
+        </section>
+      </div>
+      ${(d.helpfulness && d.helpfulness.responses) ? `<section><h3>Plan helpfulness</h3><div class="muted">${num(d.helpfulness.helpful_yes)} yes · ${num(d.helpfulness.helpful_no)} no · ${d.helpfulness.helpful_rate_pct==null?"—":d.helpfulness.helpful_rate_pct+"% helpful"} (${num(d.helpfulness.responses)} responses)</div></section>` : ""}
+    `;
+  }
+
+  // wire up
+  $("gateGo").onclick = () => { token = ($("tok").value || "").trim(); if (token) load(); };
+  $("tok").addEventListener("keydown", (e) => { if (e.key === "Enter") $("gateGo").click(); });
+  $("refresh").onclick = load;
+  $("incTest").onchange = load;
+  $("signout").onclick = () => { try { localStorage.removeItem(KEY); } catch(e){} token=""; $("tok").value=""; showGate(""); };
+
+  // boot: URL token > saved token > gate
+  token = getUrlToken() || (function(){ try { return localStorage.getItem(KEY) || ""; } catch(e){ return ""; } })();
+  if (token) load(); else showGate("");
+</script>
+</body>
+</html>
