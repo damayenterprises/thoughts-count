@@ -56,6 +56,7 @@ export async function logClaudeUsage({ fn, model, usage, userId = null, meta = n
     await serviceClient()
       .from("claude_usage")
       .insert({
+        app: "thoughts-count",
         fn,
         model: model || null,
         ...cols,
