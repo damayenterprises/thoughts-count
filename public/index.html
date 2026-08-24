@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="utf-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <script>
   // Canonical domain: forward the old Netlify URL to the live domain, keeping any
   // path + auth-token hash so magic-link sign-ins complete on thoughtscount.com.
@@ -483,7 +483,10 @@ alt="" /></noscript>
   .quote-band .concept-tag { font-size: 12px; color: var(--tc-ink-mute); margin-top: 6px; }
 
   /* ---------- modal ---------- */
-  .scrim { position: fixed; inset: 0; background: rgba(44,42,38,.46); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; padding: 30px 16px; overflow-y: auto; z-index: 50; }
+  /* padding respects the iOS safe area (viewport-fit=cover) so the modal's close (X) never renders
+     up under the Dynamic Island / status bar — the "X is hard to tap" bug — and the bottom controls
+     clear the home indicator. Falls back to 30px on non-notched devices. */
+  .scrim { position: fixed; inset: 0; background: rgba(44,42,38,.46); backdrop-filter: blur(4px); display: none; align-items: flex-start; justify-content: center; padding: max(30px, calc(env(safe-area-inset-top, 0px) + 16px)) 16px max(30px, calc(env(safe-area-inset-bottom, 0px) + 16px)); overflow-y: auto; z-index: 50; }
   .scrim.open { display: flex; }
   /* The intake/voice overlay (#scrim) must sit ABOVE the companion "People" modal
      (also .scrim, added to the DOM later) so a voice note tapped from inside People
