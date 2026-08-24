@@ -12,6 +12,7 @@
 
 import { requireUser, json } from "./_supabase.mjs";
 import { getEnv } from "./_email.mjs";
+import { logClaudeUsage } from "./_usage.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -191,6 +192,7 @@ async function proposeMapping(ambiguous) {
     return null;
   }
   const data = await res.json();
+  await logClaudeUsage({ fn: "import-analyze", model: MODEL, usage: data.usage });
   const toolUse = (data.content || []).find((b) => b.type === "tool_use");
   return Array.isArray(toolUse?.input?.mappings) ? toolUse.input.mappings : null;
 }

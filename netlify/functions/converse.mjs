@@ -22,6 +22,7 @@ import { requireUser, serviceClient, supabaseConfigured } from "./_supabase.mjs"
 import { rosterForPrompt, resolveNameShaped, resolve, writeFactsToPerson, seedReminders, noteToParsed, recognizableDetail, statedRemindersFromMessages } from "./_capture.mjs";
 import { classifyValence, classifyOccasion } from "./_analytics.mjs";
 import { guardPaid, envInt, env } from "./_ratelimit.mjs";
+import { logClaudeUsage } from "./_usage.mjs";
 
 const MAX_TOKENS = 600;
 const MAX_TURNS = 40;        // hard cap on history length (safety, not a product limit)
@@ -1023,6 +1024,9 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
         let sayEmitted = "";     // the portion of `say` already sent as sentences (reply only)
         let emittedAnySay = false;
         let firstChunkDone = false; // TC-140: has the reply's first spoken chunk gone out yet?
+        // Token accounting — message_start carries input/cache, message_delta the cumulative output.
+        // Stored in the raw Anthropic shape so _usage.mjs normalizes it identically to the buffered paths.
+        const usage = { input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 };
 
         // reply AND note_and_remind both carry a `say` we speak live, sentence-by-sentence.
         const speaksSay = () => toolName === "reply" || toolName === "note_and_remind";
@@ -1055,6 +1059,13 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
 
         const handleEvent = (evt) => {
           const type = evt?.type;
+          const eu = evt?.message?.usage || evt?.usage;
+          if (eu) {
+            if (eu.input_tokens != null) usage.input_tokens = eu.input_tokens;
+            if (eu.output_tokens != null) usage.output_tokens = eu.output_tokens;
+            if (eu.cache_creation_input_tokens != null) usage.cache_creation_input_tokens = eu.cache_creation_input_tokens;
+            if (eu.cache_read_input_tokens != null) usage.cache_read_input_tokens = eu.cache_read_input_tokens;
+          }
           if (type === "content_block_start") {
             const b = evt.content_block;
             if (b?.type === "tool_use") { toolName = b.name || ""; toolId = b.id || ""; partial = ""; sayEmitted = ""; }
@@ -1094,6 +1105,7 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
           if (!(e && e.name === "AbortError")) console.error("converse stream read error", e);
         } finally {
           if (idle.timer) clearTimeout(idle.timer);
+          await logClaudeUsage({ fn: "converse-voice", model: VOICE_MODEL, usage, userId, meta: toolName ? { tool: toolName } : null });
         }
 
         if (toolName === "reply") {
@@ -1196,7 +1208,9 @@ async function anthropicCall(apiKey, { ctx, messages, tools, tool_choice }) {
     body: JSON.stringify({ model: VOICE_MODEL, max_tokens: MAX_TOKENS, system: systemForCache(ctx), tools, tool_choice, messages }),
   });
   if (!res.ok) { const detail = await res.text().catch(() => ""); const err = new Error("anthropic_error"); err.status = res.status; err.detail = detail; throw err; }
-  return res.json();
+  const data = await res.json();
+  await logClaudeUsage({ fn: "converse-typed", model: VOICE_MODEL, usage: data.usage });
+  return data;
 }
 
 // Turn a reply/ready tool_use into the client JSON response (byte-identical to the pre-TC-93 shape).

@@ -14,6 +14,7 @@ import { logEvent, bucketOf } from "./_analytics.mjs";
 import { getExemplars, buildExemplarBlock } from "./_exemplars.mjs";
 import { herIdentity, HER_CHARACTER } from "./_persona.mjs";
 import { guardPaid, envInt } from "./_ratelimit.mjs";
+import { logClaudeUsage } from "./_usage.mjs";
 
 export const MODEL = "claude-sonnet-4-6";
 export const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
@@ -175,6 +176,7 @@ export default async (req) => {
     }
 
     const data = await res.json();
+    await logClaudeUsage({ fn: "generate-background", model: MODEL, usage: data.usage });
     const toolUse = (data.content || []).find((b) => b.type === "tool_use");
     if (!toolUse) {
       await store.setJSON(jobId, { status: "error", error: "We couldn't generate a plan right now. Please try again." });

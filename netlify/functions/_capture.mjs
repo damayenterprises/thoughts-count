@@ -29,6 +29,7 @@ import { insertFact } from "./_memory.mjs";
 // at call time. Contract: seedSituation(supa, userId, fact, { reminders:[{lead_days,phrase?,label?}] })
 //   → { keyDateId, reminderIds }. Idempotent per (fact, lead_days), like the rest of the seed layer.
 import * as _memory from "./_memory.mjs";
+import { logClaudeUsage } from "./_usage.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -227,6 +228,7 @@ export async function extract(rawText, { lockedPersonId = null } = {}) {
     throw new Error("We couldn't read that just now. Please try again.");
   }
   const data = await res.json();
+  await logClaudeUsage({ fn: "capture-extract", model: MODEL, usage: data.usage });
   const toolUse = (data.content || []).find((b) => b.type === "tool_use");
   const input = toolUse?.input || {};
   return normalizeParsed(input, lockedPersonId);

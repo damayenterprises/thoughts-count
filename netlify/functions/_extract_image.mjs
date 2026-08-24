@@ -19,6 +19,7 @@
 
 import { getEnv } from "./_email.mjs";
 import { BDAY_SENTINEL_YEAR } from "./_capture.mjs";
+import { logClaudeUsage } from "./_usage.mjs";
 
 const MODEL = "claude-sonnet-4-6";
 
@@ -187,6 +188,7 @@ export async function extractPersonFromImage(base64, mime, { rosterNames = [] } 
     throw new Error("We couldn't read that image just now. Please try again.");
   }
   const body = await res.json();
+  await logClaudeUsage({ fn: "extract-image", model: MODEL, usage: body.usage });
   const toolUse = (body.content || []).find((b) => b.type === "tool_use");
   return normalizeExtracted(toolUse?.input || {});
 }
