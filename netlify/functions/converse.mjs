@@ -21,11 +21,18 @@ export { MODEL };
 import { requireUser, serviceClient, supabaseConfigured } from "./_supabase.mjs";
 import { rosterForPrompt, resolveNameShaped, resolve, writeFactsToPerson, seedReminders, noteToParsed, recognizableDetail, statedRemindersFromMessages } from "./_capture.mjs";
 import { classifyValence, classifyOccasion } from "./_analytics.mjs";
-import { guardPaid, envInt } from "./_ratelimit.mjs";
+import { guardPaid, envInt, env } from "./_ratelimit.mjs";
 
 const MAX_TOKENS = 600;
 const MAX_TURNS = 40;        // hard cap on history length (safety, not a product limit)
 const MAX_CHARS = 4000;      // per-message clamp
+
+// TC-140 — the VOICE conversation model is env-overridable so a faster tier (e.g.
+// claude-haiku-4-5) can be A/B'd for lower turn latency WITHOUT a code change. Defaults to the
+// plan model (Sonnet) so there is zero behavior change until VOICE_MODEL is set. Della's voice
+// quality is the tradeoff, so flipping this is a deliberate, measurable feel-test (watch the
+// per-leg converse_ms on the /admin dashboard). The PLAN generator stays on Sonnet regardless.
+const VOICE_MODEL = env("VOICE_MODEL") || MODEL;
 
 // The plan inputs she distills the conversation into — the SAME shape generate-background's
 // buildUserMessage() consumes. She fills what she genuinely learned; optional fields stay
@@ -633,7 +640,7 @@ function buildTurn(body, auth = { userId: null, roster: [] }) {
 
   const tools = toolsFor({ signedIn });
   const payload = {
-    model: MODEL,
+    model: VOICE_MODEL,
     max_tokens: MAX_TOKENS,
     system: systemForCache(ctx),
     tools,
@@ -1139,7 +1146,7 @@ function streamTurn(body, auth = { userId: null, roster: [] }) {
         const result = await runResolvePerson(userId, verdict.tool.input);
         const followMessages = [...payload.messages, assistantToolUseBlock(verdict.tool), toolResultBlock(verdict.tool.id, result)];
         verdict = await consumeStream({
-          model: MODEL, max_tokens: MAX_TOKENS, system: systemForCache(ctx),
+          model: VOICE_MODEL, max_tokens: MAX_TOKENS, system: systemForCache(ctx),
           tools: toolsFor({ signedIn: true, onlyReplyReady: true }),
           tool_choice: force ? { type: "tool", name: "ready" } : { type: "any" },
           messages: followMessages, stream: true,
@@ -1184,7 +1191,7 @@ async function anthropicCall(apiKey, { ctx, messages, tools, tool_choice }) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: { "content-type": "application/json", "x-api-key": apiKey, "anthropic-version": "2023-06-01" },
-    body: JSON.stringify({ model: MODEL, max_tokens: MAX_TOKENS, system: systemForCache(ctx), tools, tool_choice, messages }),
+    body: JSON.stringify({ model: VOICE_MODEL, max_tokens: MAX_TOKENS, system: systemForCache(ctx), tools, tool_choice, messages }),
   });
   if (!res.ok) { const detail = await res.text().catch(() => ""); const err = new Error("anthropic_error"); err.status = res.status; err.detail = detail; throw err; }
   return res.json();
