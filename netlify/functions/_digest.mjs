@@ -77,6 +77,20 @@ function trafficBlock(traffic) {
 function digestHtml({ allSum, weekSum, rangeLabel, seo }) {
   const wf = weekSum.funnel, af = allSum.funnel;
 
+  // Since-launch headline — real outside traffic since ads + social began. The honest post-launch
+  // number; the all-time figure below is dragged by pre-launch build/QA/insider visits.
+  const sl = allSum.since_launch || {};
+  const slDate = sl.since ? `${MONTHS[+sl.since.slice(4, 6) - 1]} ${+sl.since.slice(6, 8)}, ${sl.since.slice(0, 4)}` : "";
+  const sinceBanner = sl.since ? `
+    <div style="margin:0 6px 4px;padding:14px 16px;background:linear-gradient(120deg,#0a5876,#118ab9);border-radius:14px;color:#fff;">
+      <div style="font-size:11.5px;text-transform:uppercase;letter-spacing:.05em;opacity:.85;">Real visitors since launch · ${slDate}</div>
+      <div style="margin-top:6px;font-size:14px;line-height:1.5;">
+        <b style="font-size:26px;font-family:Georgia,serif;">${sl.visitors || 0}</b> real visitors
+        · <b>${sl.engaged_visitors || 0}</b> engaged · <b>${sl.plans_generated || 0}</b> plans
+        <span style="opacity:.8;">(${sl.page_views || 0} views · excl. bots/agents/you+JC)</span>
+      </div>
+    </div>` : "";
+
   const stat = (label, value, sub) => `
     <td style="padding:6px;width:33%;vertical-align:top;">
       <div style="background:${C.paper};border:1px solid ${C.line};border-radius:14px;padding:14px 12px;text-align:center;">
@@ -140,7 +154,8 @@ function digestHtml({ allSum, weekSum, rangeLabel, seo }) {
     </div>
 
     <div style="padding:20px 22px;">
-      <div style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:${C.soft};margin:2px 0 8px 6px;">This week</div>
+      ${sinceBanner}
+      <div style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:${C.soft};margin:12px 0 8px 6px;">This week</div>
       <table style="width:100%;border-collapse:collapse;"><tr>
         ${stat("Visitors", wf.visitors, wf.page_views > wf.visitors ? `${wf.page_views} views` : "")}
         ${stat("Engaged", wf.engaged_visitors)}

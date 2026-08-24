@@ -170,7 +170,24 @@
         <div class="pct">${p==null?"":pct(p)}</div>
       </div>`).join("");
 
+    // Since-launch headline — the real, outside traffic since ads + social began (Aug 24).
+    // This is the number to watch; the all-time cards are dragged by pre-launch build/QA visits.
+    const sl = d.since_launch || {};
+    const slDate = sl.since ? new Date(sl.since.slice(0,4), (+sl.since.slice(4,6))-1, +sl.since.slice(6,8)).toLocaleDateString(undefined,{month:"short",day:"numeric",year:"numeric"}) : "";
+    const sinceBanner = sl.since ? `
+      <section style="background:linear-gradient(120deg,#0a5876,#118ab9);color:#fff;border:none;">
+        <h3 style="color:#fff;opacity:.85;">Real visitors since launch · ${slDate}</h3>
+        <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-end;">
+          <div><div style="font-size:38px;font-weight:800;line-height:1;">${num(sl.visitors)}</div><div style="font-size:12.5px;opacity:.85;margin-top:3px;">real visitors <span style="opacity:.7;">(excl. bots/agents/you+JC)</span></div></div>
+          <div><div style="font-size:38px;font-weight:800;line-height:1;">${num(sl.engaged_visitors)}</div><div style="font-size:12.5px;opacity:.85;margin-top:3px;">engaged (started a plan)</div></div>
+          <div><div style="font-size:38px;font-weight:800;line-height:1;">${num(sl.plans_generated)}</div><div style="font-size:12.5px;opacity:.85;margin-top:3px;">plans generated</div></div>
+          <div style="opacity:.8;"><div style="font-size:20px;font-weight:700;line-height:1;margin-top:14px;">${num(sl.page_views)} views · ${num(sl.emails_submitted)} emailed</div></div>
+        </div>
+      </section>` : "";
+
     $("body").innerHTML = `
+      ${sinceBanner}
+      <div style="font-size:12.5px;color:var(--soft);margin:14px 2px 4px;">All-time (includes pre-launch build/QA/insider visits — history can't be cleaned)</div>
       <div class="cards">${cards}</div>
       <section>
         <h3>Activity (last 14 days · total events/day)</h3>

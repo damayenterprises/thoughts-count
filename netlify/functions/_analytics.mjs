@@ -22,6 +22,27 @@ export const TEST_EMAILS = new Set([
 
 const STORE = "analytics";
 
+// Launch baseline — Thoughts Count's ads + social push began 2026-08-24. Before this there
+// was essentially no outside traffic (just build/QA/insider visits), so a "real visitors since
+// launch" count is the honest headline for post-launch traction, uncontaminated by the muddy
+// pre-launch history we can't retroactively de-insider. Bump this if the baseline should move.
+export const REAL_BASELINE_YMD = "20260824";
+
+// Distinct real, outside sessions for a set of events: excludes any session tied to an insider
+// (you/JC). Reused for all-time and the since-launch window so the two never drift.
+function realVisitorStats(evts) {
+  const insiderSids = new Set(evts.filter((e) => e.insider).map((e) => e.sid).filter(Boolean));
+  const ok = (sid) => sid && !insiderSids.has(sid);
+  return {
+    visitors: new Set(evts.map((e) => e.sid).filter(ok)).size,
+    engaged_visitors: new Set(
+      evts.filter((e) => e.event === "intake_start" || e.event === "plan_generated")
+        .map((e) => e.sid).filter(ok)
+    ).size,
+    insider_sessions_excluded: insiderSids.size,
+  };
+}
+
 // ---- write one event ----------------------------------------------------
 export async function logEvent(event, props = {}, opts = {}) {
   try {
@@ -77,19 +98,15 @@ export async function loadAllEvents(store) {
 // (unique external emails) exclude insiders; insider activity is surfaced separately.
 export function computeSummary(events) {
   const byEvent = tally(events.map((e) => e.event));
-  // Any session ever tied to an insider identity (you/JC) — via an insider email submit or a
-  // signed-in insider marker — is pulled out of the real-visitor counts even if that browser
-  // wasn't pre-flagged as a test session. Belt-and-suspenders with the client-side test flag,
-  // so the headline is truly "real, outside people," not you + JC + agents.
-  const insiderSids = new Set(events.filter((e) => e.insider).map((e) => e.sid).filter(Boolean));
-  const notInsider = (sid) => sid && !insiderSids.has(sid);
-  const uniqueVisitors = new Set(events.map((e) => e.sid).filter(notInsider)).size;
-  // Engaged = distinct sessions that did more than land — started the conversation or got a
-  // plan. A truer read of real interest than raw visitors (which counts anyone who loaded).
-  const engagedVisitors = new Set(
-    events.filter((e) => e.event === "intake_start" || e.event === "plan_generated")
-      .map((e) => e.sid).filter(notInsider)
-  ).size;
+  // Real, outside visitors: any session tied to an insider (you/JC) is pulled out, even if the
+  // browser wasn't pre-flagged as test. Computed all-time AND for the since-launch window, which
+  // is the honest post-ads headline (pre-launch history is mostly build/QA/insider traffic).
+  const allStats = realVisitorStats(events);
+  const uniqueVisitors = allStats.visitors;
+  const engagedVisitors = allStats.engaged_visitors;
+  const sinceEvents = events.filter((e) => String(e.ymd || "") >= REAL_BASELINE_YMD);
+  const sinceStats = realVisitorStats(sinceEvents);
+  const sinceByEvent = tally(sinceEvents.map((e) => e.event));
   const emailEvents = events.filter((e) => e.event === "email_submitted");
   const externalEmails = new Set(
     emailEvents.filter((e) => !e.insider).map((e) => e.emailHash).filter(Boolean)
@@ -188,7 +205,7 @@ export function computeSummary(events) {
   const funnel = {
     visitors: uniqueVisitors,               // distinct sessions (real, outside people — insiders/agents excluded)
     engaged_visitors: engagedVisitors,      // distinct sessions that started a plan (truer interest signal)
-    insider_sessions_excluded: insiderSids.size, // you/JC sessions removed from the count, for transparency
+    insider_sessions_excluded: allStats.insider_sessions_excluded, // you/JC sessions removed, for transparency
     page_views: byEvent.page_view || 0,     // total loads (a reload counts again)
     intake_starts: byEvent.intake_start || 0,
     plans_generated: byEvent.plan_generated || 0,
@@ -202,6 +219,16 @@ export function computeSummary(events) {
   return {
     total_events: events.length,
     unique_visitors: uniqueVisitors,
+    // Post-launch headline: real outside traffic from the day ads + social began. The number to
+    // watch — the all-time figure is dragged by pre-launch build/QA/insider visits we can't clean.
+    since_launch: {
+      since: REAL_BASELINE_YMD,
+      visitors: sinceStats.visitors,
+      engaged_visitors: sinceStats.engaged_visitors,
+      plans_generated: sinceByEvent.plan_generated || 0,
+      emails_submitted: sinceByEvent.email_submitted || 0,
+      page_views: sinceByEvent.page_view || 0,
+    },
     funnel,
     conversion: {
       landed_to_started_pct: rate(funnel.intake_starts, funnel.visitors),
