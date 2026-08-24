@@ -10,6 +10,7 @@ import { getStore } from "@netlify/blobs";
 import { getEnv } from "./_email.mjs";
 import { requireAdmin } from "./_supabase.mjs";
 import { loadAllEvents, computeSummary } from "./_analytics.mjs";
+import { getTcAdSpend } from "./_adspend.mjs";
 
 export default async (req) => {
   const url = new URL(req.url);
@@ -45,10 +46,14 @@ export default async (req) => {
     return json(200, { generated_at: new Date().toISOString(), count: turns.length, turns });
   }
 
+  // Live Meta ad spend for the paid campaign (fail-safe: null → the dashboard omits the card).
+  const ad_spend = await getTcAdSpend();
+
   return json(200, {
     generated_at: new Date().toISOString(),
     excluded_noise_events: includeTest ? 0 : events.length - real.length,
     ...computeSummary(real),
+    ad_spend,
   });
 };
 
