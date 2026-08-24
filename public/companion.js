@@ -456,6 +456,9 @@ function ensureModal() {
         <button class="close" id="tcModalClose" aria-label="Close">${xSvg(18)}</button>
       </div>
       <div id="tcModalBody"></div>
+      <div class="panel-foot" style="padding:10px 20px 14px;text-align:center;font-size:12.5px;color:var(--ink-soft,#6b6f76);border-top:1px solid rgba(0,0,0,.06);">
+        Need help? Email <a href="mailto:care@thoughtscount.com" style="color:var(--tc-blue,#118ab9);font-weight:600;">care@thoughtscount.com</a>
+      </div>
     </div>`;
   document.body.appendChild(m);
   m.addEventListener("click", (e) => { if (e.target === m) closeModal(); });
