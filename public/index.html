@@ -496,7 +496,10 @@ alt="" /></noscript>
            width: 100%; max-width: 660px; border-radius: 26px; box-shadow: var(--tc-shadow-lg); overflow: hidden; margin: auto 0; }
   .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--tc-line); background: transparent; }
   .panel-head .brand { font-size: 19px; }
-  .close { background: none; border: none; font-size: 22px; color: var(--ink-soft); cursor: pointer; line-height: 1; padding: 4px 9px; border-radius: 10px; }
+  /* TC: robust close hit target — fill the whole box (so the tap area isn't just the 18px icon),
+     sit above the animated orb/halo so nothing intercepts, and disable iOS double-tap-zoom delay
+     that made the first tap feel dead (the "have to click a few times" bug). */
+  .close { background: none; border: none; font-size: 22px; color: var(--ink-soft); cursor: pointer; line-height: 1; padding: 4px 9px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; position: relative; z-index: 20; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
   .close:hover { background: var(--paper-2); }
   .progress { height: 4px; background: var(--line); }
   .progress .fill { height: 100%; background: var(--sage); width: 0%; transition: width .35s ease; }
