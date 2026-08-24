@@ -457,12 +457,19 @@ function ensureModal() {
       </div>
       <div id="tcModalBody"></div>
       <div class="panel-foot" style="padding:10px 20px 14px;text-align:center;font-size:12.5px;color:var(--ink-soft,#6b6f76);border-top:1px solid rgba(0,0,0,.06);">
-        Need help? Email <a href="mailto:care@thoughtscount.com" style="color:var(--tc-blue,#118ab9);font-weight:600;">care@thoughtscount.com</a>
+        Need help? <a href="mailto:care@thoughtscount.com" id="tcModalContact" style="color:var(--tc-blue,#118ab9);font-weight:600;">Contact us</a>
       </div>
     </div>`;
   document.body.appendChild(m);
   m.addEventListener("click", (e) => { if (e.target === m) closeModal(); });
   m.querySelector("#tcModalClose").onclick = closeModal;
+  // Open the shared contact form (prefilled with the signed-in email) instead of a bare mailto,
+  // so help reaches us even without a desktop mail app. Falls back to the mailto href if the
+  // global isn't available for any reason.
+  const mc = m.querySelector("#tcModalContact");
+  if (mc) mc.addEventListener("click", (e) => {
+    if (typeof window.tcOpenContact === "function") { e.preventDefault(); window.tcOpenContact((user && user.email) || "", "account"); }
+  });
 }
 function openModal() { ensureModal(); document.getElementById("tcModal").classList.add("open"); document.body.style.overflow = "hidden"; }
 function closeModal() { const m = document.getElementById("tcModal"); if (m) m.classList.remove("open"); document.body.style.overflow = ""; }

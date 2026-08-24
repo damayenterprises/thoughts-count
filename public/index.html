@@ -1175,10 +1175,63 @@ alt="" /></noscript>
     Thoughts Count
     <span class="sep">·</span><a href="/privacy.html">Privacy</a>
     <span class="sep">·</span><a href="/terms.html">Terms</a>
-    <span class="sep">·</span><a href="mailto:care@thoughtscount.com">Contact</a>
+    <span class="sep">·</span><a href="mailto:care@thoughtscount.com" id="tcFooterContact">Contact us</a>
     <span class="copyright">&copy; 2026 Damay Enterprises</span>
   </div>
 </footer>
+
+<!-- Contact / Help form. A short message emailed to care@thoughtscount.com (POST /api/contact,
+     reply-to the sender) so help reaches us even on a desktop with no mail app. Exposed as a global
+     so every surface can open it: the footer here, the account modal (companion.js), and a plan
+     error. Falls back to the mailto href if JS is unavailable. -->
+<script>
+  window.tcOpenContact = function(prefillEmail, context){
+    if (document.getElementById('tcContact')) return;
+    var ov = document.createElement('div');
+    ov.id = 'tcContact';
+    ov.style.cssText = 'position:fixed;inset:0;z-index:10000;display:flex;align-items:center;justify-content:center;background:rgba(16,36,50,.55);padding:20px;';
+    var safeEmail = prefillEmail ? String(prefillEmail).replace(/"/g,'&quot;') : '';
+    ov.innerHTML =
+      '<div style="background:#fdfbf7;border-radius:20px;max-width:440px;width:100%;box-shadow:0 24px 64px rgba(0,0,0,.32);overflow:hidden;font-family:inherit;">' +
+        '<div style="display:flex;align-items:center;justify-content:space-between;padding:16px 20px;border-bottom:1px solid rgba(0,0,0,.07);">' +
+          '<b style="color:var(--tc-blue-deep,#0a5876);font-size:16px;">How can we help?</b>' +
+          '<button id="tcContactX" aria-label="Close" style="background:none;border:none;font-size:22px;line-height:1;cursor:pointer;color:#6b6f76;">&times;</button>' +
+        '</div>' +
+        '<div style="padding:18px 20px;">' +
+          '<p style="margin:0 0 14px;font-size:14px;color:var(--ink-soft,#5a554c);">Tell us what you need and we\'ll get back to you personally.</p>' +
+          '<input id="tcContactEmail" type="email" placeholder="you@email.com" value="' + safeEmail + '" style="width:100%;box-sizing:border-box;border:1.5px solid #d8d2c6;border-radius:12px;padding:12px 14px;font-size:15px;font-family:inherit;margin-bottom:10px;" />' +
+          '<textarea id="tcContactMsg" rows="4" placeholder="How can we help?" style="width:100%;box-sizing:border-box;border:1.5px solid #d8d2c6;border-radius:12px;padding:12px 14px;font-size:15px;font-family:inherit;resize:vertical;"></textarea>' +
+          '<div id="tcContactNote" style="min-height:18px;font-size:13px;margin:8px 0 0;"></div>' +
+          '<button id="tcContactSend" style="width:100%;margin-top:6px;background:var(--tc-blue,#118ab9);color:#fff;border:none;border-radius:999px;padding:13px;font-size:15px;font-weight:700;cursor:pointer;font-family:inherit;">Send</button>' +
+          '<p style="margin:12px 0 0;text-align:center;font-size:12px;color:#8a8377;">Or email care@thoughtscount.com</p>' +
+        '</div>' +
+      '</div>';
+    document.body.appendChild(ov);
+    var close = function(){ ov.remove(); };
+    ov.addEventListener('click', function(e){ if (e.target === ov) close(); });
+    ov.querySelector('#tcContactX').onclick = close;
+    var send = ov.querySelector('#tcContactSend');
+    var note = ov.querySelector('#tcContactNote');
+    setTimeout(function(){ (safeEmail ? ov.querySelector('#tcContactMsg') : ov.querySelector('#tcContactEmail')).focus(); }, 30);
+    send.onclick = async function(){
+      var email = ov.querySelector('#tcContactEmail').value.trim();
+      var message = ov.querySelector('#tcContactMsg').value.trim();
+      if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { note.style.color = '#c0392b'; note.textContent = 'Please enter a valid email so we can reply.'; return; }
+      if (message.length < 2) { note.style.color = '#c0392b'; note.textContent = 'Please add a short message.'; return; }
+      send.disabled = true; note.style.color = ''; note.textContent = 'Sending...';
+      try {
+        var r = await fetch('/api/contact', { method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify({ email: email, message: message, context: context || location.pathname }) });
+        var d = await r.json();
+        if (r.ok && d.ok) { note.style.color = '#1a7f4b'; note.textContent = 'Thank you. We\'ll get back to you soon.'; send.textContent = 'Sent'; setTimeout(close, 1600); }
+        else { send.disabled = false; note.style.color = '#c0392b'; note.textContent = d.error || 'Could not send. Please email care@thoughtscount.com.'; }
+      } catch (e) { console.warn('contact send failed', e); send.disabled = false; note.style.color = '#c0392b'; note.textContent = 'Could not send. Please email care@thoughtscount.com.'; }
+    };
+  };
+  (function(){
+    var f = document.getElementById('tcFooterContact');
+    if (f) f.addEventListener('click', function(e){ e.preventDefault(); tcOpenContact('', 'footer'); });
+  })();
+</script>
 
 <!-- Advisor conversation (TC-82 Phase 1, typed) styles -->
 <style>

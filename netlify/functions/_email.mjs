@@ -16,24 +16,28 @@ const BRAND = "Thoughts Count";
 const herSignoff = () =>
   `<div style="margin-top:18px;color:#5a554c;">Thinking of you,<br><span style="font-family:Georgia,serif;color:#0a5876;">${esc(HER_NAME)}</span></div>`;
 
-export async function sendEmail({ to, subject, html, text }) {
+export async function sendEmail({ to, subject, html, text, replyTo }) {
   const key = getEnv("SENDGRID_API_KEY");
   const from = getEnv("FROM_EMAIL") || "care@thoughtscount.com";
   const fromName = getEnv("FROM_NAME") || BRAND;
   if (!key) return { ok: false, error: "Email isn't configured (missing SENDGRID_API_KEY)." };
 
+  const payload = {
+    personalizations: [{ to: [{ email: to }] }],
+    from: { email: from, name: fromName },
+    subject,
+    content: [
+      { type: "text/plain", value: text || stripHtml(html) },
+      { type: "text/html", value: html },
+    ],
+  };
+  // Optional reply-to (e.g. a contact form) so a reply reaches the person who wrote in.
+  if (replyTo && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(replyTo)) payload.reply_to = { email: replyTo };
+
   const res = await fetch("https://api.sendgrid.com/v3/mail/send", {
     method: "POST",
     headers: { authorization: "Bearer " + key, "content-type": "application/json" },
-    body: JSON.stringify({
-      personalizations: [{ to: [{ email: to }] }],
-      from: { email: from, name: fromName },
-      subject,
-      content: [
-        { type: "text/plain", value: text || stripHtml(html) },
-        { type: "text/html", value: html },
-      ],
-    }),
+    body: JSON.stringify(payload),
   });
   if (res.status >= 200 && res.status < 300) return { ok: true };
   const detail = await safeText(res);
