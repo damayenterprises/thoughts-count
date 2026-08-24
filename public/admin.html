@@ -185,8 +185,27 @@
         </div>
       </section>` : "";
 
+    // Acquisition learn-loop — where launch-window sessions came from and where they dropped.
+    const acq = d.acquisition_since_launch || {};
+    const acqRows = (rows) => (!rows || !rows.length)
+      ? '<tr><td class="muted">No data yet</td><td></td><td></td><td></td></tr>'
+      : rows.map(r => {
+          const col = r.engaged_pct == null ? "var(--soft)" : (r.engaged_pct >= 8 ? "#0a5876" : (r.engaged_pct > 0 ? "#b9770e" : "#c0392b"));
+          return `<tr><td class="k">${esc(r.key)}</td><td class="v">${num(r.sessions)}</td><td class="v">${num(r.engaged)}</td><td class="v">${num(r.plans)}</td><td class="v" style="color:${col}">${r.engaged_pct == null ? "—" : r.engaged_pct + "%"}</td></tr>`;
+        }).join("");
+    const acqHead = `<thead><tr><td class="k"><b>${'{K}'}</b></td><td class="v"><b>Sessions</b></td><td class="v"><b>Engaged</b></td><td class="v"><b>Plans</b></td><td class="v"><b>Rate</b></td></tr></thead>`;
+    const acqHtml = `
+      <section>
+        <h3>Acquisition since launch — where clicks land &amp; drop</h3>
+        <div class="muted" style="margin-bottom:8px;">Sessions → engaged (started a plan). A source with many sessions but a low/zero rate is dead spend.</div>
+        <table>${acqHead.replace('{K}','Channel')}${acqRows(acq.by_channel)}</table>
+        ${(acq.paid_sources && acq.paid_sources.length) ? `<h3 style="margin-top:16px;">Paid — by source / placement</h3><table>${acqHead.replace('{K}','Source')}${acqRows(acq.paid_sources)}</table>` : ""}
+        ${(acq.paid_landing_pages && acq.paid_landing_pages.length) ? `<h3 style="margin-top:16px;">Paid — landing pages</h3><table>${acqHead.replace('{K}','Page')}${acqRows(acq.paid_landing_pages)}</table>` : ""}
+      </section>`;
+
     $("body").innerHTML = `
       ${sinceBanner}
+      ${acqHtml}
       <div style="font-size:12.5px;color:var(--soft);margin:14px 2px 4px;">All-time (includes pre-launch build/QA/insider visits — history can't be cleaned)</div>
       <div class="cards">${cards}</div>
       <section>

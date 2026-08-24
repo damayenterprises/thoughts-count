@@ -93,6 +93,41 @@ export async function loadAllEvents(store) {
   return events;
 }
 
+// Per-session acquisition funnel: for each real (non-insider) session, take its channel /
+// source / landing page from the FIRST page_view, then whether it engaged (started a plan) or
+// finished one. Rolls up by channel, and — for Paid — by source and landing page, each with an
+// engaged rate. This is the "where are ad clicks landing and dropping" learn-loop: a source
+// with lots of sessions but ~0% engaged (e.g. Audience Network misclicks) is dead spend.
+function acquisitionBreakdown(evts) {
+  const insiderSids = new Set(evts.filter((e) => e.insider).map((e) => e.sid).filter(Boolean));
+  const bySid = new Map();
+  for (const e of evts) {
+    if (!e.sid || insiderSids.has(e.sid)) continue;
+    let g = bySid.get(e.sid);
+    if (!g) { g = { channel: null, source: null, landing: null, engaged: false, plan: false }; bySid.set(e.sid, g); }
+    if (e.event === "page_view" && g.channel === null) {
+      g.channel = e.channel || "Direct"; g.source = e.source || "direct"; g.landing = e.page || "/";
+    }
+    if (e.event === "intake_start" || e.event === "plan_generated") g.engaged = true;
+    if (e.event === "plan_generated") g.plan = true;
+  }
+  const chan = {}, paidLanding = {}, paidSource = {};
+  const bump = (bucket, key, g) => {
+    const b = bucket[key] || (bucket[key] = { sessions: 0, engaged: 0, plans: 0 });
+    b.sessions += 1; if (g.engaged) b.engaged += 1; if (g.plan) b.plans += 1;
+  };
+  for (const g of bySid.values()) {
+    const ch = g.channel || "Direct";
+    bump(chan, ch, g);
+    if (ch === "Paid") { bump(paidLanding, g.landing || "/", g); bump(paidSource, g.source || "unknown", g); }
+  }
+  const rate = (a, b) => (b ? +((a / b) * 100).toFixed(1) : null);
+  const rows = (obj) => Object.entries(obj)
+    .map(([k, v]) => ({ key: k, sessions: v.sessions, engaged: v.engaged, plans: v.plans, engaged_pct: rate(v.engaged, v.sessions) }))
+    .sort((a, b) => b.sessions - a.sessions);
+  return { by_channel: rows(chan), paid_sources: rows(paidSource), paid_landing_pages: rows(paidLanding) };
+}
+
 // Aggregate a list of (already test-filtered) events into the report shape.
 // Utilization counts include everyone real (you + JC = insiders). "Growth" numbers
 // (unique external emails) exclude insiders; insider activity is surfaced separately.
@@ -229,6 +264,8 @@ export function computeSummary(events) {
       emails_submitted: sinceByEvent.email_submitted || 0,
       page_views: sinceByEvent.page_view || 0,
     },
+    // Where the launch-window sessions came from and where they dropped — the learn loop.
+    acquisition_since_launch: acquisitionBreakdown(sinceEvents),
     funnel,
     conversion: {
       landed_to_started_pct: rate(funnel.intake_starts, funnel.visitors),
