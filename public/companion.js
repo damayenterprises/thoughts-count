@@ -35,6 +35,46 @@ function voiceAllowed() {
 const esc = (s) => String(s == null ? "" : s).replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 const firstName = (n) => String(n || "").trim().split(/\s+/)[0] || "them";
 
+// The name the user has offered for Della to call THEM (opt-in, never extracted). localStorage is
+// the source the greeting reads (public/index.html · tcUserName); for signed-in users we also mirror
+// it to Supabase user metadata so it follows them across devices (hydrated back on session load).
+const getCallMe = () => { try { return (localStorage.getItem("tc_user_name") || "").trim(); } catch (e) { return ""; } };
+async function setCallMe(n) {
+  n = String(n || "").trim().replace(/\s+/g, " ").slice(0, 40);
+  try { if (n) localStorage.setItem("tc_user_name", n); else localStorage.removeItem("tc_user_name"); } catch (e) {}
+  try { if (user) await sb.auth.updateUser({ data: { call_me_name: n } }); } catch (e) {}
+  return n;
+}
+// Server → device: if signed in and the account has a remembered name, mirror it locally so the
+// greeting knows it on a fresh device. Server wins for signed-in users.
+function hydrateCallMe() {
+  try { const cmn = user && user.user_metadata && user.user_metadata.call_me_name;
+    if (cmn) localStorage.setItem("tc_user_name", String(cmn).slice(0, 40)); } catch (e) {}
+}
+// The "what Della calls you" line in the account area — the always-available way to set or change
+// the opt-in name (so "you can tell me anytime" is real, not just a promise).
+function wireCallMeRow(root) {
+  const row = root && root.querySelector(".tc-callme-row");
+  if (!row) return;
+  const render = () => {
+    const n = getCallMe();
+    row.innerHTML = n
+      ? `Della calls you <b>${esc(n)}</b>. <button class="link-btn tc-callme-edit">Change</button>`
+      : `<button class="link-btn tc-callme-edit">Tell Della what to call you</button>`;
+    const edit = row.querySelector(".tc-callme-edit");
+    if (edit) edit.onclick = () => {
+      row.innerHTML = `<input type="text" class="tc-callme-in" maxlength="40" placeholder="First name" value="${esc(getCallMe())}" style="border:1.5px solid var(--tc-line-strong);border-radius:12px;padding:7px 10px;font:inherit;max-width:180px;"> <button class="link-btn tc-callme-ok">Save</button> <button class="link-btn tc-callme-cancel">Cancel</button>`;
+      const inp = row.querySelector(".tc-callme-in");
+      try { inp.focus(); inp.select(); } catch (e) {}
+      const done = async () => { await setCallMe(inp.value); render(); };
+      row.querySelector(".tc-callme-ok").onclick = done;
+      inp.addEventListener("keydown", (e) => { if (e.key === "Enter") { e.preventDefault(); done(); } });
+      row.querySelector(".tc-callme-cancel").onclick = render;
+    };
+  };
+  render();
+}
+
 /* ============================================================================
  * TC-117 — Della circles back "how did that go?" (client selector + helpers)
  * ============================================================================
@@ -349,10 +389,12 @@ async function boot() {
   const { data } = await sb.auth.getSession();
   user = data?.session?.user || null;
   accessToken = data?.session?.access_token || null;
+  hydrateCallMe(); // bring a remembered "call me" name onto this device
 
   sb.auth.onAuthStateChange((evt, session) => {
     user = session?.user || null;
     accessToken = session?.access_token || null;
+    if (evt === "SIGNED_IN") hydrateCallMe();
     renderAuthBtn();
     // TC-81: any sign-out (button, expiry, other tab) clears the device-local recovered plan.
     if (evt === "SIGNED_OUT") {
@@ -378,6 +420,8 @@ async function boot() {
 
   window.TCCompanion = {
     isSignedIn: () => !!user, mountSaveToPerson, openHome, openSignIn, refreshAuthBtn: renderAuthBtn,
+    // Mirror the opt-in "call me" name to the signed-in account (index.html writes it on save).
+    saveCallMeName: (n) => setCallMe(n),
     voiceAllowed, voiceAudience: () => voiceAudience, authToken: () => accessToken,
     // TC-62: anon "remember" → safekeeping sign-in that holds the spoken request
     // across the magic-link round-trip.
@@ -943,6 +987,7 @@ function renderHome(people, opts = {}) {
         <span class="tc-promise-txt">We'll <b>gently nudge you before every date that matters</b>: birthdays, anniversaries, hard days, so you're always ready to show up.</span>
       </div>
       <p class="tc-account">Signed in as ${email} · <button class="link-btn tc-export">Export my data</button> · <button class="link-btn tc-signout">Sign out</button><span class="tc-admin-link" style="display:none"> · <a href="/admin" class="link-btn" style="text-decoration:none;">Admin dashboard</a></span></p>
+      <p class="tc-account tc-callme-row" style="margin-top:-6px;"></p>
       <div style="height:14px"></div>
       ${comingUp}
       ${captureStripHtml(people)}
@@ -1087,6 +1132,7 @@ function renderHome(people, opts = {}) {
     try { await exportUserData(sb, user); } catch (e) { console.error("export failed", e); }
     exportBtn.disabled = false; exportBtn.textContent = prev;
   };
+  wireCallMeRow(modalBody());
   const searchEl = modalBody().querySelector("#tcSearch");
   if (searchEl) searchEl.oninput = () => { query = searchEl.value; renderList(); };
   const sortEl = modalBody().querySelector("#tcSort");

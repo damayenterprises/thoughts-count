@@ -496,13 +496,23 @@ alt="" /></noscript>
      as the home hero, NOT a clinical white card. A soft warm-paper→blue-tint ambient wash
      carries Della's world in with her; the panel-head brand is quiet. */
   .panel { background: linear-gradient(168deg, var(--tc-surface) 0%, var(--tc-paper) 46%, var(--tc-blue-tint-2) 100%);
-           width: 100%; max-width: 660px; border-radius: 26px; box-shadow: var(--tc-shadow-lg); overflow: hidden; margin: auto 0; }
-  .panel-head { display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--tc-line); background: transparent; }
+           width: 100%; max-width: 660px; border-radius: 26px; box-shadow: var(--tc-shadow-lg);
+           /* TC: the PANEL scrolls internally (not the scrim) so the header — and the ✕ — stay pinned
+              and always reachable on a long plan/conversation. Was overflow:hidden, which let a tall
+              plan carry the close button off the top of the screen (David's "have to tap a few times"
+              to close). dvh so mobile browser chrome is accounted for. */
+           overflow: hidden auto; max-height: calc(100dvh - 40px); overscroll-behavior: contain; margin: auto 0; }
+  /* Sticky header so the ✕ is a fixed top-right target like the reference drawer — opaque bg (matches
+     the panel gradient's top stop) so scrolling content doesn't bleed through behind it. */
+  .panel-head { position: sticky; top: 0; z-index: 30; display: flex; align-items: center; justify-content: space-between; padding: 20px 26px; border-bottom: 1px solid var(--tc-line); background: var(--tc-surface); }
   .panel-head .brand { font-size: 19px; }
   /* TC: robust close hit target — fill the whole box (so the tap area isn't just the 18px icon),
      sit above the animated orb/halo so nothing intercepts, and disable iOS double-tap-zoom delay
      that made the first tap feel dead (the "have to click a few times" bug). */
-  .close { background: none; border: none; font-size: 22px; color: var(--ink-soft); cursor: pointer; line-height: 1; padding: 4px 9px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; position: relative; z-index: 20; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  .close { background: none; border: none; font-size: 22px; color: var(--ink-soft); cursor: pointer; line-height: 1; padding: 0; width: 40px; height: 40px; border-radius: 10px; display: inline-flex; align-items: center; justify-content: center; position: relative; z-index: 20; touch-action: manipulation; -webkit-tap-highlight-color: transparent; }
+  /* The whole button box is the hit target — the icon never intercepts, so a single tap anywhere
+     inside closes (no dead zones between the ✕ strokes). */
+  .close svg { pointer-events: none; }
   .close:hover { background: var(--paper-2); }
   .progress { height: 4px; background: var(--line); }
   .progress .fill { height: 100%; background: var(--sage); width: 0%; transition: width .35s ease; }
@@ -1303,6 +1313,12 @@ alt="" /></noscript>
   .tc-typing i:nth-child(2){ animation-delay:.18s } .tc-typing i:nth-child(3){ animation-delay:.36s }
   @keyframes tc-blink { 0%,80%,100%{opacity:.25} 40%{opacity:1} }
   @media (prefers-reduced-motion: reduce){ .tc-typing i{ animation:none } }
+  /* Optional "what should I call you?" field under the name offer — quiet, self-start row in the log. */
+  .tc-name-offer { align-self:stretch; display:flex; gap:8px; align-items:center; margin:2px 0 4px 2px; }
+  .tc-name-in { flex:1; min-width:0; border:1.5px solid var(--tc-line-strong); border-radius:14px; padding:9px 12px; font-family:inherit; font-size:15px; background:var(--tc-surface); color:var(--tc-ink); }
+  .tc-name-in:focus { outline:none; border-color:var(--tc-blue); box-shadow:var(--tc-focus); }
+  .tc-name-save { flex:none; border:1px solid var(--tc-blue); background:var(--tc-blue); color:#fff; border-radius:14px; padding:9px 16px; font-family:inherit; font-size:14.5px; font-weight:600; cursor:pointer; transition:filter .18s ease; }
+  .tc-name-save:hover, .tc-name-save:focus-visible { filter:brightness(1.05); outline:none; }
   .tc-chat-inputrow { display:flex; gap:10px; align-items:flex-end; margin-top:14px; }
   .tc-chat-input { flex:1; resize:none; border:1.5px solid var(--tc-line-strong); border-radius:16px; padding:12px 14px; font-family:inherit; font-size:15.5px; line-height:1.45; max-height:120px; background:var(--tc-surface); color:var(--tc-ink); }
   .tc-chat-input:focus { outline:none; border-color: var(--tc-blue); box-shadow: var(--tc-focus); }
@@ -1500,6 +1516,9 @@ let flowPerson = null; // set when the flow was launched from a saved person
 let genTimer = null;   // drives the gentle progress + rotating lines while a plan generates
 function firstName(n){ return String(n||'').trim().split(/\s+/)[0] || 'them'; }
 const scrim = document.getElementById('scrim');
+// The panel is now the internal scroller (sticky header). Reset ITS scrollTop on step/plan
+// transitions alongside the legacy scrim reset (which is a harmless no-op now the panel fits).
+const panel = scrim ? scrim.querySelector('.panel') : null;
 const stage = document.getElementById('stage');
 const fill = document.getElementById('progressFill');
 
@@ -1518,8 +1537,8 @@ if (scrim) scrim.addEventListener('focusin', (e) => {
         const keyboardTop = vv.offsetTop + vv.height; // bottom of the usable area
         const margin = 16;
         if (r.bottom > keyboardTop - margin) {
-          const panel = el.closest('.scrim') || scrim;
-          panel.scrollBy({ top: r.bottom - (keyboardTop - margin), behavior: 'smooth' });
+          const sc = el.closest('.panel') || panel || scrim;
+          sc.scrollBy({ top: r.bottom - (keyboardTop - margin), behavior: 'smooth' });
           return;
         }
       }
@@ -1667,7 +1686,7 @@ function renderStep(){
   // Advancing/going back re-renders into the same scrollable overlay — reset it to
   // the top so the user always lands on the new question, never mid-page or on the
   // footer below the panel (a real problem on mobile).
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   const ta = document.getElementById('freetext');
   ta.focus({ preventScroll: true });
   // TC-132: tint the primary CTA calm-blue when THIS is a grief/hard-time moment (red for
@@ -2051,7 +2070,7 @@ async function tcVoicePickPerson(){
   __voicePerson = null; __voiceRememberOnSaved = null;
   scrim.classList.add('open'); document.body.style.overflow = 'hidden'; setProgress(0);
   stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment...</p></div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   try {
     __voicePickCache = (window.TCCompanion && window.TCCompanion.listPeopleForVoice) ? await window.TCCompanion.listPeopleForVoice() : [];
   } catch(e){ __voicePickCache = []; }
@@ -2096,7 +2115,7 @@ function renderPersonPicker(people, filter){
       </div>
       <div style="margin-top:16px;"><button type="button" class="link-btn" id="vpCancel">Cancel</button></div>
     </div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   const filterEl = document.getElementById('vpFilter');
   if (filterEl){
     filterEl.oninput = () => renderPersonPickerKeepFocus(people, filterEl.value);
@@ -2132,7 +2151,7 @@ async function onSpokenName(text){
   const t = String(text || '').trim();
   if ((t.match(/[\p{L}\p{N}]/gu) || []).length < 1){ renderHomeError("I didn't quite catch that name."); return; }
   stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Finding them...</p></div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   let res = null;
   try { res = await window.TCCompanion.resolveName(t); } catch(e){ res = { kind: 'none' }; }
   if (res && res.kind === 'match' && res.person){
@@ -2171,7 +2190,7 @@ function renderSpokenNameConfirm(spoken, person){
       </div>
       <div style="margin-top:14px;"><button type="button" class="link-btn" id="snConfirmCancel">Cancel</button></div>
     </div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   // Right person → NOW lock and run the existing locked note flow.
   document.getElementById('snYes').onclick = () => tcVoiceNote(person.id, person.name, __voiceRememberOnSaved);
   // Wrong person → back to the picker so they can find/see the right human (never silently attach).
@@ -2198,7 +2217,7 @@ function renderSpokenNamePick(spoken, candidates){
       </div>
       <div style="margin-top:14px;"><button type="button" class="link-btn" id="snCancel">Cancel</button></div>
     </div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   stage.querySelectorAll('.sn-pick').forEach(b => b.onclick = () => { const c = candidates[Number(b.dataset.i)]; tcVoiceNote(c.id, c.name, __voiceRememberOnSaved); });
   const snNew = stage.querySelector('.sn-new');
   if (snNew) snNew.onclick = () => tcVoiceRemember(__voiceRememberOnSaved);
@@ -2216,7 +2235,7 @@ function renderSpokenNameNoMatch(spoken){
         <button type="button" class="link-btn" id="snClose">Cancel</button>
       </div>
     </div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   // "Add new" → the fresh remember flow (they speak the note; the add card carries the name).
   document.getElementById('snAdd').onclick = () => tcVoiceRemember(__voiceRememberOnSaved);
   document.getElementById('snBack').onclick = () => renderPersonPicker(__voicePickCache || [], '');
@@ -2244,7 +2263,7 @@ function renderHomeListening(){
       ${(tcSignedIn() && !__voicePerson) ? `<div style="margin-top:12px;"><button type="button" class="link-btn" id="homeAboutKnown">...or add to someone you already know</button></div>` : ''}
       ${ttsAvailable() ? `<div><label class="tc-readaloud"><input type="checkbox" id="homeReadAloud" class="tc-switch-input"${readAloudEnabled() ? ' checked' : ''}><span class="tc-switch" aria-hidden="true"></span><span>Read my replies aloud (hands-free)</span></label></div>` : ''}
     </div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   document.getElementById('homeDoneBtn').onclick = () => { unlockSpeech(); toProcessing(); stopHomeRecording(); };
   document.getElementById('homeCancelBtn').onclick = () => { cancelHomeRecording(); closeFlow(); };
   // TC-89 (Part 3): jump to targeting an existing person — stop the fresh recording, open the picker.
@@ -2355,7 +2374,7 @@ function renderHomeReflect(text){
       </div>
       <div class="re-listen-cue" id="reListenCue" hidden></div>
     </div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   // Named so voice and tap fire the SAME actions; each stops any active readback/listen first.
   const doPlan = () => { stopConfirmListen(); startPlanFromText(t); };
   const doRemember = () => {
@@ -2482,21 +2501,104 @@ const CV_OPENER = "Tell me who's on your mind, and what's happening for them. I'
 // Phase 3a: when launched about a saved person, greet by name so the "she remembers" moment
 // lands from the very first line. The server MEMORY block does the real knowing; this is just
 // a warm, plain-punctuation door in. Anonymous → the unchanged Phase 1 opener.
+// Conversation-open counter (per device) so she can recognize a returning visitor. Counts
+// actual conversation opens (bumped in cvBuild), not page loads.
+function cvVisits(){ try { return parseInt(localStorage.getItem('tc_cv_visits') || '0', 10) || 0; } catch(e){ return 0; } }
+function cvBumpVisits(){ try { localStorage.setItem('tc_cv_visits', String(cvVisits() + 1)); } catch(e){} }
+function cvPick(a){ return a[Math.floor(Math.random() * a.length)]; }
+// The name the USER has OFFERED for Della to call them. Opt-in only — never extracted, never
+// asked for on the first meeting. Persisted per device (localStorage); if signed in it also
+// mirrors to the account so it follows them. [[feedback_della_optin_never_extractive]]
+function tcUserName(){ try { return (localStorage.getItem('tc_user_name') || '').trim(); } catch(e){ return ''; } }
+function tcSetUserName(n){ n = String(n || '').trim().replace(/\s+/g,' ').slice(0, 40); try { if (n) localStorage.setItem('tc_user_name', n); } catch(e){}
+  try { if (n && typeof window.TCCompanion === 'object' && window.TCCompanion.saveCallMeName) window.TCCompanion.saveCallMeName(n); } catch(e){} return n; }
+function tcNameOffered(){ try { return localStorage.getItem('tc_name_offered') === '1'; } catch(e){ return false; } }
+function tcMarkNameOffered(){ try { localStorage.setItem('tc_name_offered', '1'); } catch(e){} }
 function cvOpener(){
+  // She already knows this person (opened from a saved someone) — greet by their name, lightly varied
+  // so it isn't the identical line every time.
   if (flowPerson && flowPerson.name){
-    return firstName(flowPerson.name) + "'s on your mind. Tell me what's going on.";
+    const fn = firstName(flowPerson.name);
+    return cvPick([
+      fn + "'s on your mind. Tell me what's going on.",
+      "Let's think about " + fn + ". What's happening for them?",
+      "Tell me what's going on with " + fn + ".",
+    ]);
   }
   // First-ever meeting on this device: she introduces herself ONCE (never again). She knows
   // her name when asked; this is the single time she offers it unprompted — a person saying
-  // hello. Uses HER_NAME from public-config; if it hasn't loaded, degrade to the plain opener
-  // (no hardcoded name). Returning visitors get the unchanged opener — she doesn't reintroduce.
+  // hello. Uses HER_NAME from public-config; if it hasn't loaded, degrade to the plain opener.
   var met = false; try { met = localStorage.getItem('tc_met_her') === '1'; } catch(e){}
   var her = window.__HER_NAME || '';
   if (!met && her){
     try { localStorage.setItem('tc_met_her','1'); } catch(e){}
     return "Hi, I'm " + her + ". " + CV_OPENER;
   }
-  return CV_OPENER;
+  // Returning visitor: vary the door in so she doesn't read the exact same message every single
+  // time, and — once she's clearly seen you before (or you're signed in) — SOMETIMES welcome you
+  // back, so it feels like the same person who remembers you, not a reset. Not every time (that
+  // would just be a new formula). She never uses YOUR name here: she only knows one if you've
+  // offered it, and today we don't capture one (opt-in only, never extracted). Punctuation stays
+  // plain (no em-dash / ellipsis) — this is her own voice on screen and spoken aloud.
+  const nm = tcUserName();
+  const neutral = [
+    CV_OPENER,
+    "Who's on your mind? Tell me what's happening for them, and I'll help you show up.",
+    "Tell me who you're thinking about and what's going on. We'll find a good way to show up.",
+    "Who are we showing up for today? Tell me a little about what's happening.",
+  ];
+  const back = nm ? [
+    "Good to have you back, " + nm + ". Who's on your mind today?",
+    "Welcome back, " + nm + ". Who are we thinking about this time?",
+    "Good to see you again, " + nm + ". Who's on your heart, and what's going on for them?",
+    "Hey " + nm + ". Tell me who you're showing up for today.",
+  ] : [
+    "Good to have you back. Who's on your mind today?",
+    "Welcome back. Who are we thinking about this time?",
+    "Good to see you again. Who's on your heart, and what's going on for them?",
+    "Back again. Tell me who you're showing up for today.",
+  ];
+  var known = false; try { known = (typeof tcSignedIn === 'function' && tcSignedIn()); } catch(e){}
+  if ((cvVisits() >= 2 || known) && Math.random() < 0.6) return cvPick(back);
+  // We know her name but didn't land on a welcome-back line — still use it sometimes, warmly.
+  if (nm && Math.random() < 0.4) return cvPick([
+    nm + ", who's on your mind? Tell me what's happening for them.",
+    "Who's on your mind today, " + nm + "?",
+  ]);
+  return cvPick(neutral);
+}
+
+// The small, optional "what should I call you?" field that rides under the name offer. Explicit
+// opt-in (no parsing of their messages), skippable (ignore it and just talk), and it disappears
+// the moment they save OR send their first message. On save she gives one warm acknowledgement.
+function cvRenderNameOffer(){
+  const log = document.getElementById('cvLog'); if (!log) return;
+  const row = document.createElement('div');
+  row.className = 'tc-name-offer';
+  const input = document.createElement('input');
+  input.type = 'text'; input.className = 'tc-name-in'; input.maxLength = 40;
+  input.setAttribute('autocomplete', 'given-name');
+  input.setAttribute('aria-label', 'What should I call you');
+  input.placeholder = 'What should I call you? (optional)';
+  const save = document.createElement('button');
+  save.type = 'button'; save.className = 'tc-name-save'; save.textContent = 'Save';
+  const commit = () => {
+    const n = tcSetUserName(input.value);
+    if (!n){ try { input.focus(); } catch(e){} return; }
+    try { row.remove(); } catch(e){}
+    window.__tcNameOfferRow = null;
+    cvAppend('her', cvPick([
+      "Lovely. I'll remember you, " + n + ".",
+      "Got it, " + n + ". Good to know you.",
+      "Thank you, " + n + ". I'll remember that.",
+    ]));
+  };
+  save.onclick = commit;
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter'){ e.preventDefault(); commit(); } });
+  row.appendChild(input); row.appendChild(save);
+  log.appendChild(row); log.scrollTop = log.scrollHeight;
+  // If they choose to just start talking, quietly remove the offer on their first send (cvSend).
+  window.__tcNameOfferRow = row;
 }
 
 // TC-66 Phase 3a: a compact, token-bounded digest of what she's suggested for this person
@@ -2595,6 +2697,23 @@ function renderConverse(){
     </div>`;
   const opener = cvOpener();
   cvAppend('her', opener);
+  cvBumpVisits(); // count this conversation open so she can recognize you next time
+  // Opt-in name offer: ONCE, only after she's a familiar (2nd+ open or signed in), never on the
+  // first meeting, never if we already have a name. Purely optional — they can skip by just
+  // starting to talk (cvSend removes the field), and she never asks again. She reassures them
+  // they can tell her anytime. Spoken too in voice mode. [[feedback_della_optin_never_extractive]]
+  let spokenOpener = opener;
+  try {
+    var _known = (typeof tcSignedIn === 'function' && tcSignedIn());
+    if (!flowPerson && !tcUserName() && !tcNameOffered() && (cvVisits() >= 2 || _known)) {
+      tcMarkNameOffered();
+      const offerLine = "Before we start, would you like me to remember you by name? Tell me what to call you, or just start telling me who's on your mind. You can always tell me later, too.";
+      cvAppend('her', offerLine);
+      cvRenderNameOffer();
+      spokenOpener = opener + ' ' + offerLine;
+    }
+  } catch(e){}
+
   const input = document.getElementById('cvInput');
   const send = document.getElementById('cvSend');
   // TC-89 (rework): the "…add to someone you know" door is now on the PRIMARY voice screen (the
@@ -2616,7 +2735,7 @@ function renderConverse(){
     // when her playback fully ends, open the mic (the feedback-loop guard).
     cvRenderVoiceCue();
     __cvVoiceActive = true;
-    cvSpeakThenListen(opener, /* isOpener */ true);
+    cvSpeakThenListen(spokenOpener, /* isOpener */ true);
   } else {
     setTimeout(() => { try { input.focus(); } catch(e){} }, 120);
   }
@@ -2727,6 +2846,8 @@ async function cvSend(){
   const input = document.getElementById('cvInput');
   const text = (input && input.value || '').trim();
   if (!text) return;
+  // They chose to just start talking — quietly retire the optional "what should I call you?" field.
+  if (window.__tcNameOfferRow){ try { window.__tcNameOfferRow.remove(); } catch(e){} window.__tcNameOfferRow = null; }
   // TC-82 Phase 2: typing a turn takes over from the spoken loop — abort any in-flight TTS + mic
   // cleanly so there's no overlapping audio or hung mic, then send this turn as text (stays typed
   // from here; she won't speak back after a typed turn — a calm, predictable mode switch).
@@ -3595,7 +3716,7 @@ async function rememberFromText(text){
   const t = String(text || '').trim();
   __voiceTranscript = t;
   stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment...</p><p class="lines">Figuring out who this is about.</p></div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   try {
     const res = await window.TCCompanion.capturePreview(t);
     const caps = (res && res.captures) || [];
@@ -3661,7 +3782,7 @@ function renderRememberCard(cap){
     stage.querySelectorAll('.re-pick').forEach(b => b.onclick = () => { const c = cap.candidates[Number(b.dataset.i)]; confirmRemember(cap, { personId: c.id }); });
     stage.querySelector('.re-new').onclick = () => confirmRemember(cap, { newPersonName: cap.personHint });
     document.getElementById('reCancel').onclick = () => nextOrClose();
-    scrim.scrollTop = 0; return;
+    scrim.scrollTop = 0; if (panel) panel.scrollTop = 0; return;
   }
   // TC-89 (Part 2): the person name on an add/update card is now the load-bearing correctable
   // field. It renders as tappable text with a pencil affordance; fixing the spelling here is how
@@ -3724,7 +3845,7 @@ function renderRememberCard(cap){
       ? (ft ? `I'll add this to ${name}: ${ft}. Sound right? Say yes, or tap.` : `I'll add this to ${name}. Sound right? Say yes, or tap.`)
       : (ft ? `I'll remember ${name} and note: ${ft}. Sound right? Say yes, or tap.` : `I'll remember ${name}. Sound right? Say yes, or tap.`);
     startConfirmListen({ onYes: doConfirm, onNo: doCancel, speak: spoken });
-    scrim.scrollTop = 0;
+    scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   }
 
   // The tappable name pill (icon, not emoji — polish bar). Kept inline so it flows in the sentence.
@@ -3805,7 +3926,7 @@ function renderRememberCard(cap){
     });
     stage.querySelector('.re-keepnew').onclick = () => { choice = { newPersonName: edited, name: edited }; renderConfirm(); };
     document.getElementById('reRematchBack').onclick = () => renderConfirm();
-    scrim.scrollTop = 0;
+    scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   }
 
   // TC-89 FIX #2: the update card's "No — someone else" people picker. Unlike the home say-a-name
@@ -3817,7 +3938,7 @@ function renderRememberCard(cap){
     const spokenName = choice.name || 'them';
     if (!Array.isArray(__voicePickCache)){
       stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">Loading your people...</p></div>`;
-      scrim.scrollTop = 0;
+      scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
       try { __voicePickCache = (window.TCCompanion && window.TCCompanion.listPeopleForVoice) ? await window.TCCompanion.listPeopleForVoice() : []; }
       catch(e){ __voicePickCache = []; }
     }
@@ -3850,7 +3971,7 @@ function renderRememberCard(cap){
         </div>
         <div style="margin-top:16px;"><button type="button" class="link-btn" id="rpBack">Back</button></div>
       </div>`;
-    scrim.scrollTop = 0;
+    scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
     const filterEl = document.getElementById('rpFilter');
     if (filterEl){
       filterEl.oninput = () => { renderRememberPersonPicker(filterEl.value); };
@@ -3900,7 +4021,7 @@ function renderRememberDone(){
     </div>`;
   document.getElementById('reDonePlan').onclick = () => startPlanFromText(__voiceTranscript);
   document.getElementById('reDoneClose').onclick = closeFlow;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
 }
 
 // Voice note spoken on a known person's card — confirm, then save to that person.
@@ -3909,7 +4030,7 @@ async function onLockedText(text){
   if ((t.match(/[\p{L}\p{N}]/gu) || []).length < 2){ renderHomeError("I didn't quite catch that."); return; }
   if (!__voicePerson){ renderHomeReflect(t); return; }
   stage.innerHTML = `<div class="panel-body" style="text-align:center;padding:40px 24px;"><p class="big">One moment...</p></div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   try {
     const res = await window.TCCompanion.capturePreviewLocked(__voicePerson.id, t);
     const cap = ((res && res.captures) || [])[0];
@@ -3946,7 +4067,7 @@ function renderLockedConfirm(cap){
       </div>
       <div class="re-listen-cue" id="reListenCue" hidden></div>
     </div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   // Same save whether confirmed by tap or by a spoken "yes" (TC-63); a tap stops the listen.
   const doConfirm = async () => {
     stopConfirmListen();
@@ -4586,7 +4707,7 @@ async function generate(){
       <p class="big">Thinking it through...</p>
       <p class="lines" id="genLine" style="transition:opacity .25s ease;">Taking a moment to weigh what would truly help. This usually takes about a minute.</p>
     </div>`;
-  scrim.scrollTop = 0;
+  scrim.scrollTop = 0; if (panel) panel.scrollTop = 0;
   startGenProgress();
   const jobId = (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
   try {
