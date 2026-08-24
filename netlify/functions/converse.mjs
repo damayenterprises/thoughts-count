@@ -21,6 +21,7 @@ export { MODEL };
 import { requireUser, serviceClient, supabaseConfigured } from "./_supabase.mjs";
 import { rosterForPrompt, resolveNameShaped, resolve, writeFactsToPerson, seedReminders, noteToParsed, recognizableDetail, statedRemindersFromMessages } from "./_capture.mjs";
 import { classifyValence, classifyOccasion } from "./_analytics.mjs";
+import { guardPaid, envInt } from "./_ratelimit.mjs";
 
 const MAX_TOKENS = 600;
 const MAX_TURNS = 40;        // hard cap on history length (safety, not a product limit)
@@ -1206,6 +1207,34 @@ export default async (req) => {
 
   let body;
   try { body = await req.json(); } catch { return j({ error: "bad_json" }, 400); }
+
+  // Cost/abuse guard: every turn is an Anthropic call and this endpoint is anonymous by design.
+  // Cap it before priming auth (avoids the Supabase hit under a flood) and before any paid call.
+  // A block degrades to a warm spoken/typed line so the conversation never hard-breaks.
+  const guard = await guardPaid(req, {
+    ipStore: "converse-ratelimit",
+    capStore: "converse-dailycap",
+    killFlag: "CONVERSE_DISABLED",
+    ipLimit: envInt("TC_CONV_IP_LIMIT", 100),
+    dailyCap: envInt("TC_CONV_DAILY_CAP", 15000),
+  });
+  if (!guard.ok) {
+    const say = humanizeText(guard.reason === "disabled"
+      ? "I need to step away for just a moment. Please try again in a little bit."
+      : "A lot of people are here with me right now. Give me a moment, then say that again.");
+    if (body?.stream === true) {
+      const encoder = new TextEncoder();
+      const stream = new ReadableStream({
+        start(controller) {
+          controller.enqueue(encoder.encode(ndjson({ t: "say", text: say })));
+          controller.enqueue(encoder.encode(ndjson({ t: "reply_done" })));
+          controller.close();
+        },
+      });
+      return new Response(stream, { status: 200, headers: { "content-type": "application/x-ndjson; charset=utf-8" } });
+    }
+    return j({ action: "reply", say }, 200);
+  }
 
   // TC-93: OPTIONAL sign-in → prime the roster (fails open to anon). Done for BOTH paths so the
   // person-aware conversation fires on the natural voice path even when no person is in focus.

@@ -5,6 +5,23 @@
 [functions]
   node_bundler = "esbuild"
 
+# Security headers (applied to every served path). Defense-in-depth for a public app that
+# renders user-authored notes and runs third-party marketing pixels. The CSP locks the
+# genuinely dangerous directives (object/base/frame-ancestors/form-action) while staying
+# permissive where launch-week breakage risk is real: inline scripts (this is a single-file
+# inline app), img-src https: (Etsy/Places/pixel images), and — critically — it never blocks
+# the microphone (the voice front door). Origins allow-listed: Google Fonts, esm.sh (supabase-js
+# / papaparse / xlsx), Supabase (+ realtime wss), and the Meta/GA4/Pinterest pixels.
+[[headers]]
+  for = "/*"
+  [headers.values]
+    X-Content-Type-Options = "nosniff"
+    X-Frame-Options = "DENY"
+    Referrer-Policy = "strict-origin-when-cross-origin"
+    Strict-Transport-Security = "max-age=31536000; includeSubDomains"
+    Permissions-Policy = "microphone=(self), camera=(), geolocation=()"
+    Content-Security-Policy = "default-src 'self'; script-src 'self' 'unsafe-inline' https://connect.facebook.net https://www.googletagmanager.com https://s.pinimg.com https://esm.sh https://www.google-analytics.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com data:; img-src 'self' data: blob: https:; media-src 'self' blob: data:; connect-src 'self' https://*.supabase.co wss://*.supabase.co https://esm.sh https://*.google-analytics.com https://*.analytics.google.com https://connect.facebook.net https://www.facebook.com https://ct.pinterest.com https://s.pinimg.com; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'"
+
 # Kick off generation (background function, no timeout ceiling)
 [[redirects]]
   from = "/api/generate"

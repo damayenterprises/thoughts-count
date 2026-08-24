@@ -13,6 +13,7 @@ import { getStore } from "@netlify/blobs";
 import { logEvent, bucketOf } from "./_analytics.mjs";
 import { getExemplars, buildExemplarBlock } from "./_exemplars.mjs";
 import { herIdentity, HER_CHARACTER } from "./_persona.mjs";
+import { guardPaid, envInt } from "./_ratelimit.mjs";
 
 export const MODEL = "claude-sonnet-4-6";
 export const MAX_OUTPUT_TOKENS = 1800; // cost + latency guard
@@ -107,6 +108,24 @@ export default async (req) => {
     const body = await req.json();
     jobId = body?.jobId;
     if (!jobId) return new Response("missing jobId", { status: 400 });
+
+    // Cost/abuse guard: this path calls Anthropic + Google Places (real $, shared Google
+    // account) and is anonymous by design. Cap it before any paid work. A block writes a
+    // friendly status to the plan Blob so the poller shows it instead of an infinite spinner.
+    const guard = await guardPaid(req, {
+      ipStore: "generate-ratelimit",
+      capStore: "generate-dailycap",
+      killFlag: "PLANS_DISABLED",
+      ipLimit: envInt("TC_GEN_IP_LIMIT", 20),
+      dailyCap: envInt("TC_GEN_DAILY_CAP", 2500),
+    });
+    if (!guard.ok) {
+      const msg = guard.reason === "disabled"
+        ? "Plans are paused for a moment while we catch our breath. Please check back shortly."
+        : "We're getting a lot of visitors right now. Please try again in a few minutes.";
+      await store.setJSON(jobId, { status: "error", error: msg });
+      return new Response("ok", { status: 202 });
+    }
 
     const userMessage = buildUserMessage(body?.answers || {});
     if (!userMessage) {

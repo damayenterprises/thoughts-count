@@ -5,6 +5,7 @@
 import { getStore } from "@netlify/blobs";
 import { sendEmail, planEmailHtml } from "./_email.mjs";
 import { logEvent, hashEmail, isTestEmail } from "./_analytics.mjs";
+import { guardPaid, envInt } from "./_ratelimit.mjs";
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -19,6 +20,18 @@ export default async (req) => {
   const wantReminders = !!body?.wantReminders;
   if (!EMAIL_RE.test(email)) return json(400, { error: "Please enter a valid email address." });
   if (!plan || !plan.headline) return json(400, { error: "No plan to send." });
+
+  // Abuse guard: this endpoint sends branded email from our authenticated domain to any
+  // address in the body. Cap it per-IP + site-wide so it can't be milked as a spam cannon
+  // (protects our SendGrid sender reputation). Fails open on limiter error.
+  const guard = await guardPaid(req, {
+    ipStore: "sendplan-ratelimit",
+    capStore: "sendplan-dailycap",
+    killFlag: "SEND_DISABLED",
+    ipLimit: envInt("TC_SEND_IP_LIMIT", 10),
+    dailyCap: envInt("TC_SEND_DAILY_CAP", 500),
+  });
+  if (!guard.ok) return json(429, { error: "Please wait a moment before sending again." });
 
   // 1) Email the plan now.
   const label = (plan.plan_title || "").trim();

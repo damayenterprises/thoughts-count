@@ -504,7 +504,7 @@ function openSignIn() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = "k-msg bad"; msg.textContent = "Please enter a valid email address."; return; }
     btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Sending your link...";
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
-    if (error) { btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = error.message || "Could not send the link. Please try again."; return; }
+    if (error) { console.warn("signInWithOtp", error.message); btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = "Could not send the link. Please try again in a moment."; return; }
     renderCheckInbox(email);
   };
   modalBody().querySelector("#tcSendLink").onclick = send;
@@ -559,7 +559,7 @@ function renderCheckInbox(email, opts = {}) {
     btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Signing you in...";
     // type:"email" verifies BOTH a returning-user sign-in OTP and a new-user signup OTP.
     const { error } = await sb.auth.verifyOtp({ email, token, type: "email" });
-    if (error) { btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = error.message || "That code didn't work. Check it and try again, or request a new one."; return; }
+    if (error) { console.warn("verifyOtp", error.message); btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = "That code didn't work. Check it and try again, or request a new one."; return; }
     // Signed in IN THIS CONTEXT (no Safari hop). onAuthStateChange won't route this (no URL tokens),
     // so run the shared routing explicitly — identical to the magic-link path.
     try { window.tcTrack && window.tcTrack("signin_code_verified"); } catch (e) {}
@@ -602,7 +602,7 @@ function promptSignInToRemember(transcript) {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = "k-msg bad"; msg.textContent = "Please enter a valid email address."; return; }
     btn.disabled = true; msg.className = "k-msg"; msg.textContent = "Sending your link...";
     const { error } = await sb.auth.signInWithOtp({ email, options: { emailRedirectTo: location.origin } });
-    if (error) { btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = error.message || "Could not send the link. Please try again."; return; }
+    if (error) { console.warn("signInWithOtp", error.message); btn.disabled = false; msg.className = "k-msg bad"; msg.textContent = "Could not send the link. Please try again in a moment."; return; }
     // Hold the request on THIS device so the magic-link return resumes it (Option 1).
     stashPendingVoice({ intent: "remember", transcript: t });
     try { window.tcTrack && window.tcTrack("voice_remember_signin_sent"); } catch (e) {}
@@ -1087,7 +1087,7 @@ function renderHome(people, opts = {}) {
       const person = await addPerson({ name, relationship: modalBody().querySelector("#np_rel").value.trim() || null });
       if (firstNote) { try { await createNote(sb, person.id, firstNote); } catch (e) { console.error("first note failed", e); } }
       renderHome(await loadPeople());
-    } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }
+    } catch (e) { console.warn("add person failed", e); msg.className = "k-msg bad"; msg.textContent = "Could not save. Please try again."; }
   };
 
   // ── TC-98/TC-100/TC-101: import doors (screenshot/photo, .vcf, paste). Each returns previews that
@@ -1215,14 +1215,23 @@ function renderHome(people, opts = {}) {
     for (const pv of previews) renderImportConfirm(importOut, sb, pv, { contactKind: "personal", onConfirmed, onDismiss: () => setImportMsg("") });
   };
 
+  // The extract/transcribe calls can hang under a slow network or a stuck server; without a ceiling
+  // the full-screen working overlay would cover the add-doors forever with no escape. Race every
+  // import call against a timeout so a hang tears the overlay down with a warm retry message.
+  const IMPORT_TIMEOUT_MS = 30000;
+  const withTimeout = (promise, ms = IMPORT_TIMEOUT_MS) => Promise.race([
+    promise,
+    new Promise((_, reject) => setTimeout(() => reject(new Error("timeout")), ms)),
+  ]);
+
   // TC-113: route an image (from the file picker OR a clipboard/drag-drop paste) through the SAME
   // image extractor + confirm card. Clears any prior un-confirmed card first (TC-114).
   const importImageFile = async (file, busyEl) => {
     if (!file) return;
     showImportWorking();
     if (busyEl) busyEl.disabled = true;
-    try { renderPreviews(await captureFromFile(sb, file)); }
-    catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that file.", true); }
+    try { renderPreviews(await withTimeout(captureFromFile(sb, file))); }
+    catch (e) { console.warn("import image failed", e); clearImportCards(); setImportMsg("We couldn't read that file. Please try again.", true); }
     if (busyEl) busyEl.disabled = false;
   };
 
@@ -1255,7 +1264,7 @@ function renderHome(people, opts = {}) {
   // door and the voice-memo door share identical extract → resolve → confirm wiring (no parallel
   // path). source_kind only tags provenance on the preview; the pipeline is the same.
   const renderTextPreviews = async (text, { sourceKind }) => {
-    const result = await captureExtract(sb, { rawText: text, source: "typed", preview: true });
+    const result = await withTimeout(captureExtract(sb, { rawText: text, source: "typed", preview: true }));
     const previews = (result.captures || []).map((c) => ({ ...c, personHint: c.personHint || c.personName || "", relationshipHint: "", source_kind: sourceKind }));
     if (!previews.length) { clearImportCards(); setImportMsg(result.message || "Nothing to add there yet.", false); return false; }
     clearImportCards(); // tear down the working overlay before the confirm card(s) render in its place
@@ -1273,10 +1282,10 @@ function renderHome(people, opts = {}) {
     showImportWorking("Listening to your memo...");
     if (busyEl) busyEl.disabled = true;
     try {
-      const text = await transcribeAudioFile(sb, file);
+      const text = await withTimeout(transcribeAudioFile(sb, file));
       if (!text) { clearImportCards(); setImportMsg("We couldn't catch anything in that memo. Try again, or type it.", false); }
       else { await renderTextPreviews(text, { sourceKind: "voice_memo" }); }
-    } catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that recording.", true); }
+    } catch (e) { console.warn("import audio failed", e); clearImportCards(); setImportMsg("We couldn't read that recording. Please try again.", true); }
     if (busyEl) busyEl.disabled = false;
   };
 
@@ -1328,7 +1337,7 @@ function renderHome(people, opts = {}) {
         // paste and a transcribed voice memo travel the identical extract → resolve → confirm path.
         const shown = await renderTextPreviews(text, { sourceKind: "text_thread" });
         if (shown) pasteEl.value = "";
-      } catch (e) { clearImportCards(); setImportMsg(e.message || "We couldn't read that.", true); }
+      } catch (e) { console.warn("import paste failed", e); clearImportCards(); setImportMsg("We couldn't read that. Please try again.", true); }
       pasteGo.disabled = false;
     };
   }

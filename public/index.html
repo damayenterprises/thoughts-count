@@ -883,6 +883,28 @@ alt="" /></noscript>
         if (navigator.sendBeacon) navigator.sendBeacon('/api/track', new Blob([payload], {type:'application/json'}));
         else fetch('/api/track', { method:'POST', keepalive:true, headers:{'content-type':'application/json'}, body:payload });
       } catch(e){}
+      // Mirror the conversion-relevant funnel steps to the marketing pixels so the Aug 28 paid
+      // campaign can optimize toward the real funnel (Meta/GA4/Pinterest). Non-overlapping signals:
+      // InitiateCheckout (started) -> Lead (got a plan, the aha) -> CompleteRegistration (emailed it).
+      // Skipped for test/agent sessions so ad optimization isn't polluted. Every call is guarded.
+      if (isTest) return;
+      try {
+        var p = props || {};
+        if (event === 'intake_start') {
+          if (window.fbq) fbq('track', 'InitiateCheckout');
+          if (window.gtag) gtag('event', 'plan_started', { label: p.label || '' });
+          if (window.pintrk) pintrk('track', 'custom', { event_name: 'plan_started' });
+        } else if (event === 'plan_viewed') {
+          if (window.fbq) fbq('track', 'Lead');
+          if (window.gtag) gtag('event', 'generate_lead');
+          if (window.pintrk) pintrk('track', 'lead');
+        } else if (event === 'plan_send') {
+          var ch = p.channel || 'unknown';
+          if (window.fbq) fbq('trackCustom', 'PlanShared', { channel: ch });
+          if (window.gtag) gtag('event', 'share', { method: ch });
+          if (window.pintrk) pintrk('track', 'custom', { event_name: 'plan_shared' });
+        }
+      } catch(e){}
     };
     // Plan-quality feedback (Loop 2 / TC-58). Sends only the anonymized bucket the
     // server handed back with the plan — never any story text. `event` is
@@ -5001,10 +5023,15 @@ function renderPlan(p){
       const r = await fetch('/api/send-plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, plan: p, wantReminders, test: window.__tcTest }) });
       const d = await r.json();
       if (r.ok && d.ok) {
-        // TC-133: fire marketing conversion events on a successful "email me my plan"
-        // — the site's primary conversion. Guarded so ad-blockers never break the flow.
-        try { if (window.fbq) fbq('track', 'Lead'); } catch (e) {}
-        try { if (window.pintrk) pintrk('track', 'lead'); } catch (e) {}
+        // TC-133: emailing the plan to yourself is the DEEPEST conversion (Lead already fired at
+        // plan_viewed). Fire it as CompleteRegistration/sign_up so the campaign has a distinct,
+        // stronger signal to optimize toward. Guarded + test-gated so ad-blockers/agents never
+        // break the flow or pollute optimization.
+        if (!window.__tcTest) {
+          try { if (window.fbq) fbq('track', 'CompleteRegistration'); } catch (e) {}
+          try { if (window.gtag) gtag('event', 'sign_up', { method: 'email' }); } catch (e) {}
+          try { if (window.pintrk) pintrk('track', 'signup'); } catch (e) {}
+        }
         __planSaved = true; // TC-81: emailed → this plan is kept → no nudge on close
         msg.className = 'k-msg ok';
         msg.textContent = (wantReminders && d.scheduled)
