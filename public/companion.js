@@ -878,6 +878,25 @@ function personCard(p) {
     </div>`;
 }
 
+// Cached admin check — asked once per signed-in session. null = not yet asked.
+let _isAdmin = null;
+async function maybeShowAdminLink() {
+  const reveal = () => {
+    const span = modalBody() && modalBody().querySelector(".tc-admin-link");
+    if (span && _isAdmin) span.style.display = "";
+  };
+  if (_isAdmin !== null) { reveal(); return; }
+  try {
+    const res = await fetch("/api/whoami", {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : {},
+      cache: "no-store",
+    });
+    const data = await res.json();
+    _isAdmin = !!(data && data.admin);
+  } catch { _isAdmin = false; }
+  reveal();
+}
+
 function renderHome(people, opts = {}) {
   const email = esc(user.email || "");
   let sortBy = "next", query = "";
@@ -917,7 +936,7 @@ function renderHome(people, opts = {}) {
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg>
         <span class="tc-promise-txt">We'll <b>gently nudge you before every date that matters</b>: birthdays, anniversaries, hard days, so you're always ready to show up.</span>
       </div>
-      <p class="tc-account">Signed in as ${email} · <button class="link-btn tc-export">Export my data</button> · <button class="link-btn tc-signout">Sign out</button></p>
+      <p class="tc-account">Signed in as ${email} · <button class="link-btn tc-export">Export my data</button> · <button class="link-btn tc-signout">Sign out</button><span class="tc-admin-link" style="display:none"> · <a href="/admin" class="link-btn" style="text-decoration:none;">Admin dashboard</a></span></p>
       <div style="height:14px"></div>
       ${comingUp}
       ${captureStripHtml(people)}
@@ -1052,6 +1071,10 @@ function renderHome(people, opts = {}) {
     try { window.tcClearLastPlan && window.tcClearLastPlan(); window.tcRefreshLastPlanAffordance && window.tcRefreshLastPlanAffordance(); } catch (e) {}
     closeModal();
   };
+  // Admin-only: reveal the in-app "Admin dashboard" link if the server says this account is
+  // an admin. The email allowlist lives server-side (/api/whoami), so nothing here leaks who
+  // that is; the link is a convenience — the dashboard itself re-checks the same gate.
+  maybeShowAdminLink();
   const exportBtn = modalBody().querySelector(".tc-export");
   if (exportBtn) exportBtn.onclick = async () => {
     exportBtn.disabled = true; const prev = exportBtn.textContent; exportBtn.textContent = "Preparing...";

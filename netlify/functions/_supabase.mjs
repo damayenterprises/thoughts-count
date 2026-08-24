@@ -56,6 +56,33 @@ export async function requireUser(req) {
   return { userId: data.user.id };
 }
 
+// Who may see the internal analytics dashboard. Matched against the email inside the
+// verified JWT (never a client-supplied value). Env TC_ADMIN_EMAILS (comma-separated)
+// overrides; falls back to David's known sign-in addresses so it works out of the box.
+// Kept server-side ONLY so these personal addresses never ship in the public client JS.
+export function isAdminEmail(email) {
+  const fromEnv = (getEnv("TC_ADMIN_EMAILS") || "")
+    .split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+  const allow = fromEnv.length
+    ? new Set(fromEnv)
+    : new Set(["dmay3@cox.net", "dmay3232@gmail.com", "david@damayenterprises.com"]);
+  return allow.has(String(email || "").trim().toLowerCase());
+}
+
+// Verify the JWT AND that the caller is an admin. { userId, email } or { error, status }.
+export async function requireAdmin(req) {
+  const url = getEnv("SUPABASE_URL");
+  const anon = getEnv("SUPABASE_ANON_KEY");
+  if (!url || !anon) return { error: "Sign-in isn't configured.", status: 503 };
+  const token = bearer(req);
+  if (!token) return { error: "unauthorized", status: 401 };
+  const client = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
+  const { data, error } = await client.auth.getUser(token);
+  const email = data?.user?.email || "";
+  if (error || !data?.user?.id || !isAdminEmail(email)) return { error: "unauthorized", status: 401 };
+  return { userId: data.user.id, email };
+}
+
 // Small JSON Response helper, matching the shape used across the other functions.
 export function json(status, obj) {
   return new Response(JSON.stringify(obj), {

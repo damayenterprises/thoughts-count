@@ -72,6 +72,13 @@
   to = "/.netlify/functions/public-config"
   status = 200
 
+# Authenticated "am I an admin?" check — the companion UI uses it to decide whether to
+# show the in-app Admin dashboard link (the allowlist stays server-side).
+[[redirects]]
+  from = "/api/whoami"
+  to = "/.netlify/functions/whoami"
+  status = 200
+
 # TC-138: today's approved daily reflection for the on-site "daily thought"
 [[redirects]]
   from = "/api/daily-reflection"

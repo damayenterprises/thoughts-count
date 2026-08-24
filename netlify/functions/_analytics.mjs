@@ -45,19 +45,30 @@ export async function logEvent(event, props = {}, opts = {}) {
 }
 
 // ---- read + aggregate (shared by the summary endpoint and weekly digest) ----
+// TC-151: fetch the blobs in parallel batches, not one at a time. Each event is its own
+// blob, so a serial get-loop was ~1 round-trip per event (~20s at 1.1k events → 502 on a
+// cold start, and it grew linearly with traffic). Batching the reads keeps it ~constant
+// and well under the function timeout. CONCURRENCY caps in-flight requests so we never
+// hammer Blobs.
 export async function loadAllEvents(store) {
-  const events = [];
+  const keys = [];
   let cursor;
   do {
     const page = await store.list({ cursor });
     cursor = page.cursor;
-    for (const b of page.blobs || []) {
-      try {
-        const rec = await store.get(b.key, { type: "json" });
-        if (rec) events.push(rec);
-      } catch { /* skip unreadable */ }
-    }
+    for (const b of page.blobs || []) keys.push(b.key);
   } while (cursor);
+
+  const events = [];
+  const CONCURRENCY = 40;
+  for (let i = 0; i < keys.length; i += CONCURRENCY) {
+    const recs = await Promise.all(
+      keys.slice(i, i + CONCURRENCY).map(async (key) => {
+        try { return await store.get(key, { type: "json" }); } catch { return null; }
+      })
+    );
+    for (const rec of recs) if (rec) events.push(rec);
+  }
   return events;
 }
 

@@ -23,6 +23,7 @@
   .gate input { width:100%; padding:12px 14px; border:1.5px solid var(--line); border-radius:10px; font-size:15px; margin-bottom:10px; }
   .gate button { width:100%; background:var(--blue); color:#fff; border:none; border-radius:999px; padding:12px; font-weight:700; font-size:15px; cursor:pointer; }
   .gate .err { color:var(--red); font-size:13px; min-height:18px; }
+  .gate .gatebtn { display:inline-block; text-decoration:none; background:var(--blue); color:#fff; border-radius:999px; padding:12px 22px; font-weight:700; font-size:15px; }
   .cards { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:14px; margin-bottom:8px; }
   .card { background:var(--card); border:1px solid var(--line); border-radius:14px; padding:16px 18px; }
   .card .n { font-size:30px; font-weight:800; color:var(--deep); line-height:1.1; }
@@ -49,11 +50,9 @@
 </head>
 <body>
 <div id="gate" class="gate" style="display:none">
-  <h2>Live Dashboard</h2>
-  <p>Enter the admin token to view traffic and users.</p>
-  <input id="tok" type="password" placeholder="Admin token" autocomplete="off" />
-  <div class="err" id="gateErr"></div>
-  <button id="gateGo">View</button>
+  <h2>Admin dashboard</h2>
+  <p id="gateMsg">Sign in with your admin account to view traffic and users.</p>
+  <a href="/" class="gatebtn">Go to the app to sign in</a>
 </div>
 
 <div id="app" style="display:none">
@@ -71,38 +70,56 @@
   <div class="wrap" id="body"></div>
 </div>
 
-<script>
+<script type="module">
+  import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
   const $ = (id) => document.getElementById(id);
-  const KEY = "tc_admin_token";
-  let token = "";
 
-  function getUrlToken() {
+  // Auth model (matches MAP/MIQ): gated by your signed-in account, not a pasted token.
+  // We read your existing Supabase session (same origin as the app) and send its JWT to
+  // /api/analytics, which enforces the admin allowlist server-side. A ?token= in the URL
+  // still works as a headless/testing fallback and is stripped from the address bar.
+  let sb = null, accessToken = "";
+  const urlToken = (() => {
     try {
       const u = new URLSearchParams(location.search);
       const t = u.get("token");
-      if (t) { history.replaceState(null, "", location.pathname); return t; } // don't let it linger in the URL
+      if (t) { history.replaceState(null, "", location.pathname); return t; }
     } catch (e) {}
     return "";
+  })();
+
+  async function initSession() {
+    try {
+      const cfg = await (await fetch("/api/public-config", { cache: "no-store" })).json();
+      if (cfg && cfg.enabled) {
+        sb = createClient(cfg.supabaseUrl, cfg.supabaseAnonKey, { auth: { persistSession: true, autoRefreshToken: true } });
+        const { data } = await sb.auth.getSession();
+        accessToken = data?.session?.access_token || "";
+      }
+    } catch (e) {}
   }
 
   async function load() {
-    const inc = $("incTest") && $("incTest").checked ? "&includeTest=1" : "";
+    const params = new URLSearchParams();
+    if (urlToken) params.set("token", urlToken);
+    if ($("incTest") && $("incTest").checked) params.set("includeTest", "1");
+    const headers = {};
+    if (!urlToken && accessToken) headers.Authorization = "Bearer " + accessToken;
+    const qs = params.toString();
     let res, data;
     try {
-      res = await fetch("/api/analytics?token=" + encodeURIComponent(token) + inc, { cache: "no-store" });
+      res = await fetch("/api/analytics" + (qs ? "?" + qs : ""), { headers, cache: "no-store" });
       data = await res.json();
     } catch (e) { showGate("Could not reach the server. Try again."); return; }
-    if (res.status === 401) { showGate("That token didn't work."); return; }
+    if (res.status === 401) { showGate(accessToken ? "This account isn't an admin. Sign in with your admin account." : ""); return; }
     if (!res.ok) { showGate(data && data.error ? data.error : "Something went wrong."); return; }
-    try { localStorage.setItem(KEY, token); } catch (e) {}
     render(data);
   }
 
   function showGate(msg) {
     $("app").style.display = "none";
     $("gate").style.display = "block";
-    $("gateErr").textContent = msg || "";
-    if ($("tok")) $("tok").focus();
+    if (msg) $("gateMsg").textContent = msg;
   }
 
   const num = (n) => (n == null ? "0" : Number(n).toLocaleString());
@@ -192,15 +209,16 @@
   }
 
   // wire up
-  $("gateGo").onclick = () => { token = ($("tok").value || "").trim(); if (token) load(); };
-  $("tok").addEventListener("keydown", (e) => { if (e.key === "Enter") $("gateGo").click(); });
   $("refresh").onclick = load;
   $("incTest").onchange = load;
-  $("signout").onclick = () => { try { localStorage.removeItem(KEY); } catch(e){} token=""; $("tok").value=""; showGate(""); };
+  $("signout").onclick = async () => { try { if (sb) await sb.auth.signOut(); } catch (e) {} location.href = "/"; };
 
-  // boot: URL token > saved token > gate
-  token = getUrlToken() || (function(){ try { return localStorage.getItem(KEY) || ""; } catch(e){ return ""; } })();
-  if (token) load(); else showGate("");
+  // boot: read the signed-in session (or a URL token), then load — else show the sign-in gate.
+  (async () => {
+    await initSession();
+    if (urlToken || accessToken) load();
+    else showGate("");
+  })();
 </script>
 </body>
 </html>

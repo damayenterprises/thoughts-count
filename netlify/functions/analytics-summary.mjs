@@ -8,13 +8,21 @@
 
 import { getStore } from "@netlify/blobs";
 import { getEnv } from "./_email.mjs";
+import { requireAdmin } from "./_supabase.mjs";
 import { loadAllEvents, computeSummary } from "./_analytics.mjs";
 
 export default async (req) => {
   const url = new URL(req.url);
+  // Two ways in, same data: (1) a signed-in admin session (the in-app dashboard sends the
+  // Supabase JWT as a Bearer token — the primary path); (2) the ANALYTICS_TOKEN, kept as a
+  // headless/testing fallback and for the weekly digest tooling. Either one is sufficient.
   const token = req.headers.get("x-analytics-token") || url.searchParams.get("token") || "";
   const expected = getEnv("ANALYTICS_TOKEN");
-  if (!expected || token !== expected) return json(401, { error: "unauthorized" });
+  const tokenOk = !!expected && token === expected;
+  if (!tokenOk) {
+    const admin = await requireAdmin(req);
+    if (admin.error) return json(401, { error: "unauthorized" });
+  }
 
   const includeTest = url.searchParams.get("includeTest") === "1";
   const store = getStore("analytics");
