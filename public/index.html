@@ -903,7 +903,13 @@ alt="" /></noscript>
     try {
       if (new URLSearchParams(location.search).get('test') === '1') localStorage.setItem('tc_test','1');
     } catch(e){}
-    var isTest = false; try { isTest = localStorage.getItem('tc_test') === '1'; } catch(e){}
+    // Automated browsers (Selenium/Playwright/headless, and agent driving) set navigator.webdriver
+    // — never a real human, so always excluded. Combined with the tc_test flag and the insider
+    // auto-flag (companion sets tc_test when a signed-in insider is detected), this keeps the
+    // real-visitor count free of agents + you/JC going forward.
+    var isTest = false;
+    try { isTest = localStorage.getItem('tc_test') === '1'; } catch(e){}
+    try { if (navigator.webdriver === true) isTest = true; } catch(e){}
     window.__tcSid = sid; window.__tcTest = isTest;
     window.tcTrack = function(event, props){
       try {
@@ -5138,7 +5144,7 @@ function renderPlan(p){
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { msg.className = 'k-msg bad'; msg.textContent = 'Please enter a valid email address.'; return; }
     emailBtn.disabled = true; msg.className = 'k-msg'; msg.textContent = 'Sending...';
     try {
-      const r = await fetch('/api/send-plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, plan: p, wantReminders, test: window.__tcTest }) });
+      const r = await fetch('/api/send-plan', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, plan: p, wantReminders, test: window.__tcTest, sid: window.__tcSid }) });
       const d = await r.json();
       if (r.ok && d.ok) {
         // TC-133: emailing the plan to yourself is the DEEPEST conversion (Lead already fired at

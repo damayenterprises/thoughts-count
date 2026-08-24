@@ -1,15 +1,19 @@
 // Thoughts Count — tiny authenticated "who am I" check for the browser.
-// Given the caller's Supabase JWT (Authorization: Bearer <token>), returns whether
-// they're an admin. Used by the companion UI to decide whether to show the in-app
-// "Admin dashboard" link — the admin email allowlist stays server-side (never in the
-// public client JS). The dashboard endpoint enforces the same gate independently, so
-// this is a UI hint only, not the security boundary.
+// Given the caller's Supabase JWT (Authorization: Bearer <token>), returns two flags:
+//   admin   — may see the internal analytics dashboard (shows the in-app link).
+//   insider — you or JC. The client uses this to self-mark the browser as a test
+//             session so insider traffic drops out of the real-visitor counts.
+// The email allowlists stay server-side (never in the public client JS). The dashboard
+// endpoint re-checks admin independently, so this is a UI hint, not the security boundary.
 
-import { requireAdmin, json } from "./_supabase.mjs";
+import { requireUser, isAdminEmail, json } from "./_supabase.mjs";
+import { isTestEmail } from "./_analytics.mjs";
 
 export default async (req) => {
-  const admin = await requireAdmin(req);
-  // Non-admins (and signed-out callers) simply aren't admins — never an error the UI has
-  // to handle. A real misconfig (503) still reports admin:false so the link stays hidden.
-  return json(200, { admin: !admin.error });
+  const u = await requireUser(req);
+  // Signed-out / invalid token → neither. Never an error the UI has to handle.
+  if (u.error) return json(200, { admin: false, insider: false });
+  const admin = isAdminEmail(u.email);
+  const insider = admin || isTestEmail(u.email); // admins are insiders too
+  return json(200, { admin, insider });
 };

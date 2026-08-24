@@ -148,12 +148,12 @@
     const spark = dayKeys.map(k => `<div class="b ${k===todayKey?'today':''}" style="height:${Math.round((byDay[k]/maxDay)*100)}%" title="${k}: ${byDay[k]}"></div>`).join("");
 
     const cards = [
-      { n: f.visitors, l: "Unique visitors", sub: "all-time distinct sessions" },
+      { n: f.visitors, l: "Real visitors", sub: (f.insider_sessions_excluded ? num(f.insider_sessions_excluded)+" insider + bots/agents excluded" : "excl. bots/agents/you+JC") },
+      { n: f.engaged_visitors, l: "Engaged visitors", sub: "started a plan" },
       { n: f.plans_generated, l: "Plans generated" },
       { n: f.unique_emails, l: "Unique emails (growth)", sub: f.team_emails ? num(f.team_emails)+" team, excluded" : "" },
       { n: f.plans_viewed, l: "Plans viewed" },
       { n: f.emails_submitted, l: "Plans emailed" },
-      { n: f.reminders_sent, l: "Reminders sent" },
     ].map(x => `<div class="card"><div class="n">${num(x.n)}</div><div class="l">${x.l}</div>${x.sub?`<div class="sub">${x.sub}</div>`:""}</div>`).join("");
 
     const funnel = [

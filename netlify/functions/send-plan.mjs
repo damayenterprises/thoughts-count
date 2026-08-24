@@ -76,6 +76,8 @@ export default async (req) => {
     await logEvent("email_submitted", {
       emailHash: await hashEmail(email),
       insider: isTestEmail(email), // you + JC: counts as utilization, excluded from growth
+      sid: (body?.sid ? String(body.sid).slice(0, 40) : undefined), // ties this session to an
+      //   identity so an insider's whole session drops out of the real-visitor count (TC-152)
       wantReminders,
       scheduled,
     }, { test: !!body?.test });

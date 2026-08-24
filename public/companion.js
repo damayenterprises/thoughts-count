@@ -893,6 +893,12 @@ async function maybeShowAdminLink() {
     });
     const data = await res.json();
     _isAdmin = !!(data && data.admin);
+    // Insider (you / JC): self-flag this browser as a test session so insider traffic drops
+    // out of the real-visitor counts from here on — no manual ?test=1 needed. Persists locally.
+    if (data && data.insider) {
+      try { localStorage.setItem("tc_test", "1"); } catch (e) {}
+      try { window.__tcTest = true; } catch (e) {}
+    }
   } catch { _isAdmin = false; }
   reveal();
 }

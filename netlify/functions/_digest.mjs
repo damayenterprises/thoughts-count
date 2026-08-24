@@ -143,12 +143,12 @@ function digestHtml({ allSum, weekSum, rangeLabel, seo }) {
       <div style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:${C.soft};margin:2px 0 8px 6px;">This week</div>
       <table style="width:100%;border-collapse:collapse;"><tr>
         ${stat("Visitors", wf.visitors, wf.page_views > wf.visitors ? `${wf.page_views} views` : "")}
+        ${stat("Engaged", wf.engaged_visitors)}
         ${stat("Plans created", wf.plans_generated)}
-        ${stat("Plans emailed", wf.emails_submitted)}
       </tr></table>
 
       <div style="font-size:13px;color:${C.ink};margin:14px 6px 0;line-height:1.6;">
-        Of ${wf.page_views || 0} visitor${wf.page_views === 1 ? "" : "s"}, ${wf.intake_starts || 0} started the conversation and
+        Of ${wf.visitors || 0} visitor${wf.visitors === 1 ? "" : "s"}${wf.page_views > wf.visitors ? ` (${wf.page_views} views)` : ""}, ${wf.engaged_visitors || 0} engaged and
         ${wf.plans_generated || 0} received a plan. ${wf.emails_submitted || 0} had it emailed to them.
       </div>
 
@@ -171,7 +171,7 @@ function digestHtml({ allSum, weekSum, rangeLabel, seo }) {
     <div style="padding:4px 22px 20px;">
       <div style="font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:${C.soft};margin:2px 0 8px 6px;">All time</div>
       <table style="width:100%;border-collapse:collapse;"><tr>
-        ${stat("Total visitors", af.page_views)}
+        ${stat("Total visitors", af.visitors, af.page_views > af.visitors ? `${af.page_views} views` : "")}
         ${stat("Total plans", af.plans_generated)}
         ${stat("Outside emails", af.unique_emails, "excl. team")}
       </tr></table>
@@ -194,11 +194,11 @@ function digestHtml({ allSum, weekSum, rangeLabel, seo }) {
 
     <div style="padding:14px 28px;border-top:1px solid ${C.line};font-size:11.5px;color:${C.soft};line-height:1.7;">
       <b style="color:${C.ink};">What the numbers mean</b><br/>
-      <b>Visitors</b> — distinct people (by session), not raw page-loads. <b>Plans created</b> — finished the conversation and got a plan.
-      <b>Plans emailed</b> — had a plan sent to their inbox (includes you &amp; JC).
+      <b>Visitors</b> — distinct real, outside people (by session), not raw page-loads. <b>Engaged</b> — of those, how many started the conversation or got a plan (the real interest signal).
+      <b>Plans created</b> — finished the conversation and got a plan.
       <b>Growth / Outside emails</b> — distinct email addresses from people who <i>aren't</i> you or JC (the real traction number).
       <b>Team</b> — your &amp; JC's own usage, shown so you can see it working.<br/><br/>
-      Anonymized, aggregate data only — no names or personal details. QA/test sessions and bots/crawlers excluded.
+      Anonymized, aggregate data only — no names or personal details. <b>Excluded from Visitors:</b> bots/crawlers, QA/test sessions, browser automation, and you &amp; JC (whenever a session is tied to an insider sign-in or email).
       Data starts 26 Jul 2026 (when tracking went live).<br/>
       Thoughts Count · sent every Monday to you &amp; JC
     </div>

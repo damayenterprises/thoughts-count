@@ -53,7 +53,7 @@ export async function requireUser(req) {
   const client = createClient(url, anon, { auth: { persistSession: false, autoRefreshToken: false } });
   const { data, error } = await client.auth.getUser(token);
   if (error || !data?.user?.id) return { error: "Please sign in.", status: 401 };
-  return { userId: data.user.id };
+  return { userId: data.user.id, email: data.user.email || "" };
 }
 
 // Who may see the internal analytics dashboard. Matched against the email inside the

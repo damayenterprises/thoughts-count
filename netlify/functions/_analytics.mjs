@@ -77,7 +77,19 @@ export async function loadAllEvents(store) {
 // (unique external emails) exclude insiders; insider activity is surfaced separately.
 export function computeSummary(events) {
   const byEvent = tally(events.map((e) => e.event));
-  const uniqueVisitors = new Set(events.map((e) => e.sid).filter(Boolean)).size;
+  // Any session ever tied to an insider identity (you/JC) — via an insider email submit or a
+  // signed-in insider marker — is pulled out of the real-visitor counts even if that browser
+  // wasn't pre-flagged as a test session. Belt-and-suspenders with the client-side test flag,
+  // so the headline is truly "real, outside people," not you + JC + agents.
+  const insiderSids = new Set(events.filter((e) => e.insider).map((e) => e.sid).filter(Boolean));
+  const notInsider = (sid) => sid && !insiderSids.has(sid);
+  const uniqueVisitors = new Set(events.map((e) => e.sid).filter(notInsider)).size;
+  // Engaged = distinct sessions that did more than land — started the conversation or got a
+  // plan. A truer read of real interest than raw visitors (which counts anyone who loaded).
+  const engagedVisitors = new Set(
+    events.filter((e) => e.event === "intake_start" || e.event === "plan_generated")
+      .map((e) => e.sid).filter(notInsider)
+  ).size;
   const emailEvents = events.filter((e) => e.event === "email_submitted");
   const externalEmails = new Set(
     emailEvents.filter((e) => !e.insider).map((e) => e.emailHash).filter(Boolean)
@@ -174,7 +186,9 @@ export function computeSummary(events) {
   };
 
   const funnel = {
-    visitors: uniqueVisitors,               // distinct sessions (real people)
+    visitors: uniqueVisitors,               // distinct sessions (real, outside people — insiders/agents excluded)
+    engaged_visitors: engagedVisitors,      // distinct sessions that started a plan (truer interest signal)
+    insider_sessions_excluded: insiderSids.size, // you/JC sessions removed from the count, for transparency
     page_views: byEvent.page_view || 0,     // total loads (a reload counts again)
     intake_starts: byEvent.intake_start || 0,
     plans_generated: byEvent.plan_generated || 0,
