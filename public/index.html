@@ -953,7 +953,7 @@ alt="" /></noscript>
       } catch(e){}
     };
     var ref = ''; try { ref = (document.referrer||'').split('/')[2] || ''; } catch(e){}
-    var qp = {}; try { var u = new URLSearchParams(location.search); qp = { utm_source:u.get('utm_source'), utm_medium:u.get('utm_medium'), utm_campaign:u.get('utm_campaign') }; } catch(e){}
+    var qp = {}; try { var u = new URLSearchParams(location.search); qp = { utm_source:u.get('utm_source'), utm_medium:u.get('utm_medium'), utm_campaign:u.get('utm_campaign'), utm_content:u.get('utm_content') }; } catch(e){}
     window.tcTrack('page_view', Object.assign({ page: location.pathname, ref: ref }, qp));
   })();
 </script>

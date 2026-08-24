@@ -200,6 +200,7 @@
         <div class="muted" style="margin-bottom:8px;">Sessions → engaged (started a plan). A source with many sessions but a low/zero rate is dead spend.</div>
         <table>${acqHead.replace('{K}','Channel')}${acqRows(acq.by_channel)}</table>
         ${(acq.paid_sources && acq.paid_sources.length) ? `<h3 style="margin-top:16px;">Paid — by source / placement</h3><table>${acqHead.replace('{K}','Source')}${acqRows(acq.paid_sources)}</table>` : ""}
+        ${(acq.paid_creatives && acq.paid_creatives.length) ? `<h3 style="margin-top:16px;">Paid — by ad creative (utm_content)</h3><table>${acqHead.replace('{K}','Creative')}${acqRows(acq.paid_creatives)}</table>` : ""}
         ${(acq.paid_landing_pages && acq.paid_landing_pages.length) ? `<h3 style="margin-top:16px;">Paid — landing pages</h3><table>${acqHead.replace('{K}','Page')}${acqRows(acq.paid_landing_pages)}</table>` : ""}
       </section>`;
 

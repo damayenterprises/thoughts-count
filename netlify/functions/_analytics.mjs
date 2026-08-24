@@ -104,14 +104,14 @@ function acquisitionBreakdown(evts) {
   for (const e of evts) {
     if (!e.sid || insiderSids.has(e.sid)) continue;
     let g = bySid.get(e.sid);
-    if (!g) { g = { channel: null, source: null, landing: null, engaged: false, plan: false }; bySid.set(e.sid, g); }
+    if (!g) { g = { channel: null, source: null, landing: null, content: null, engaged: false, plan: false }; bySid.set(e.sid, g); }
     if (e.event === "page_view" && g.channel === null) {
-      g.channel = e.channel || "Direct"; g.source = e.source || "direct"; g.landing = e.page || "/";
+      g.channel = e.channel || "Direct"; g.source = e.source || "direct"; g.landing = e.page || "/"; g.content = e.content || null;
     }
     if (e.event === "intake_start" || e.event === "plan_generated") g.engaged = true;
     if (e.event === "plan_generated") g.plan = true;
   }
-  const chan = {}, paidLanding = {}, paidSource = {};
+  const chan = {}, paidLanding = {}, paidSource = {}, paidCreative = {};
   const bump = (bucket, key, g) => {
     const b = bucket[key] || (bucket[key] = { sessions: 0, engaged: 0, plans: 0 });
     b.sessions += 1; if (g.engaged) b.engaged += 1; if (g.plan) b.plans += 1;
@@ -119,13 +119,17 @@ function acquisitionBreakdown(evts) {
   for (const g of bySid.values()) {
     const ch = g.channel || "Direct";
     bump(chan, ch, g);
-    if (ch === "Paid") { bump(paidLanding, g.landing || "/", g); bump(paidSource, g.source || "unknown", g); }
+    if (ch === "Paid") {
+      bump(paidLanding, g.landing || "/", g);
+      bump(paidSource, g.source || "unknown", g);
+      bump(paidCreative, g.content || "untagged", g); // per-ad creative (utm_content), once ads carry url_tags
+    }
   }
   const rate = (a, b) => (b ? +((a / b) * 100).toFixed(1) : null);
   const rows = (obj) => Object.entries(obj)
     .map(([k, v]) => ({ key: k, sessions: v.sessions, engaged: v.engaged, plans: v.plans, engaged_pct: rate(v.engaged, v.sessions) }))
     .sort((a, b) => b.sessions - a.sessions);
-  return { by_channel: rows(chan), paid_sources: rows(paidSource), paid_landing_pages: rows(paidLanding) };
+  return { by_channel: rows(chan), paid_sources: rows(paidSource), paid_creatives: rows(paidCreative), paid_landing_pages: rows(paidLanding) };
 }
 
 // Aggregate a list of (already test-filtered) events into the report shape.

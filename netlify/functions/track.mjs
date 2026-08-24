@@ -45,6 +45,7 @@ export default async (req) => {
     channel,
     source: safe(source, 60),
     campaign: safe(body?.utm_campaign, 60),
+    content: safe(body?.utm_content, 60), // which ad creative (e.g. with_cta / no_cta) — per-creative learning
     label: safe(body?.label, 60), // e.g. which quick-start chip
   };
 
