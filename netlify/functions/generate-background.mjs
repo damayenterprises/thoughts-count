@@ -210,7 +210,11 @@ export default async (req) => {
     // The plan's non-identifying bucket (occasion/valence/relationship/budget) — computed
     // above for craft-exemplar retrieval (TC-59) — is stored with the plan so the browser
     // can echo it back with feedback (TC-58) without ever re-sending raw story text.
-    await store.setJSON(jobId, { status: "done", plan: toolUse.input, bucket });
+    // createdAt stamps the plan so a LEAKED jobId link stops working after the TTL (plan.mjs
+    // enforces expiry on read) — a plan holds personal relationship detail, so it shouldn't be
+    // readable forever by anyone who obtains the URL. The client polls within seconds, so expiry
+    // never affects normal use; it only closes off stale re-access.
+    await store.setJSON(jobId, { status: "done", plan: toolUse.input, bucket, createdAt: Date.now() });
 
     // Anonymized "what people need" signal — buckets only, never raw text/names.
     try {

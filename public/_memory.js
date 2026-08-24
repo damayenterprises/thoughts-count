@@ -275,7 +275,7 @@ export function mountPersonDelete(container, sb, person, { onDeleted } = {}) {
         const msg = container.querySelector(".tc-person-del-msg");
         msg.className = "k-msg tc-person-del-msg"; msg.textContent = "Removing...";
         try { await memoryPost(sb, { op: "delete_person", personId: person.id }); if (typeof onDeleted === "function") onDeleted(); }
-        catch (e) { msg.className = "k-msg tc-person-del-msg bad"; msg.textContent = e.message; render(); }
+        catch (e) { console.warn("person delete failed", e); msg.className = "k-msg tc-person-del-msg bad"; msg.textContent = "Could not remove them just now. Please try again."; render(); }
       };
     };
   };

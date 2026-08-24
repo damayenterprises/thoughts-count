@@ -1420,7 +1420,7 @@ function startGuidedAdd(container, { onConfirmed, onClose } = {}) {
         birthday: bday,
       });
     } catch (e) {
-      if (msg) { msg.className = "k-msg bad"; msg.textContent = e.message || "Something went wrong. Please try again."; }
+      if (msg) { console.warn("save failed", e); msg.className = "k-msg bad"; msg.textContent = "Something went wrong. Please try again."; }
     }
   };
 
@@ -1572,7 +1572,7 @@ function openAddDate(personId) {
       }
       renderHome(await loadPeople());
     }
-    catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save."; }
+    catch (e) { console.warn("save failed", e); msg.className = "k-msg bad"; msg.textContent = "Could not save. Please try again."; }
   };
 }
 
@@ -1657,7 +1657,7 @@ async function mountSaveToPerson(stageEl, plan) {
       card.querySelector("#tcSavePlan").innerHTML = `${checkSvg(16, "currentColor")}<span>Saved</span>`;
       card.querySelector("#tcSavePlan").style.cssText += ";display:inline-flex;align-items:center;gap:8px;justify-content:center;";
       card.querySelector("#tcSavePlan").disabled = true;
-    } catch (e) { msg.className = "k-msg bad"; msg.textContent = e.message || "Could not save. Please try again."; }
+    } catch (e) { console.warn("save plan failed", e); msg.className = "k-msg bad"; msg.textContent = "Could not save. Please try again."; }
   };
 }
 // TC-71: prefer to place the save-to-person block INSIDE the unified card's mount point

@@ -536,6 +536,6 @@ async function resolve(candidateId, action) {
     if (!remaining.length) setTimeout(() => renderReview([]), 350);
   } catch (e) {
     card.querySelectorAll("button").forEach((b) => (b.disabled = false));
-    if (m) { m.className = "k-msg bad"; m.textContent = e.message || "Please try again."; }
+    if (m) { console.warn("import failed", e); m.className = "k-msg bad"; m.textContent = "Something went wrong. Please try again."; }
   }
 }

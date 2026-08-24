@@ -697,6 +697,11 @@ alt="" /></noscript>
                           cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; outline: none; }
   .hero-orb-wrap .stage:focus-visible { box-shadow: 0 0 0 3px rgba(255,255,255,.9), 0 0 0 6px rgba(255,255,255,.4); }
   .hero-orb-wrap .orb { position: relative; width: 200px; height: 200px; border-radius: 50%; will-change: transform; }
+  /* Small phones (~320px): shrink the orb + its stage so the halo doesn't crowd the screen edges. */
+  @media (max-width: 360px) {
+    .hero-orb-wrap .stage { width: 200px; height: 200px; }
+    .hero-orb-wrap .orb { width: 168px; height: 168px; }
+  }
   .hero-orb-wrap .orbIW { overflow: visible; }
   .hero-orb-wrap .orbIW canvas { position: absolute; inset: 0; width: 100%; height: 100%; border-radius: 50%; display: block;
                                  box-shadow: 0 14px 40px rgba(10,50,70,.28); }
@@ -4473,7 +4478,7 @@ async function generate(){
       renderError(msg); return;
     }
     const started = Date.now();
-    while (Date.now() - started < 90000) {
+    while (Date.now() - started < 120000) { // ~2 min: a plan is quoted at ~60s but a cold start / model latency can run longer; don't discard a slow-but-valid plan
       await new Promise(r => setTimeout(r, 2000));
       let d;
       try { const r = await fetch('/api/plan?jobId=' + encodeURIComponent(jobId), { cache: 'no-store' }); d = await r.json(); } catch { continue; }
