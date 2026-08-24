@@ -19,6 +19,7 @@
 
 import { createClient } from "@supabase/supabase-js";
 import { getEnv, sendEmail, peopleNudgeEmailHtml } from "./_email.mjs";
+import { recordSend } from "./_sendlog.mjs";
 
 export const config = { schedule: "15 13 * * *" }; // ~8:15am CT daily
 
@@ -47,7 +48,7 @@ export async function runNudges(supabase, {
   siteUrl = getEnv("URL") || "https://thoughts-count.netlify.app",
   send = sendEmail,
 } = {}) {
-  let checked = 0, sent = 0;
+  let checked = 0, sent = 0, failed = 0;
 
   const { data: dates, error } = await supabase
     .from("key_dates")
@@ -134,11 +135,13 @@ export async function runNudges(supabase, {
       if (res.ok) {
         await supabase.from("nudge_log").insert({ key_date_id: kd.id, occurrence: occStr, reminder_id: fire.reminderId });
         sent++;
+      } else {
+        failed++;
       }
     }
   }
 
-  return { checked, sent, today: ymd(today) };
+  return { checked, sent, failed, today: ymd(today) };
 }
 
 export default async () => {
@@ -151,9 +154,12 @@ export default async () => {
   const supabase = createClient(url, serviceKey, { auth: { persistSession: false } });
   try {
     const out = await runNudges(supabase);
+    // TC-139: a row EVERY run (even 0 due) so the watchdog knows the job fired.
+    await recordSend({ job: "nudges-cron", status: out.failed ? "partial" : "ok", audience: out.sent + out.failed, delivered: out.sent, failed: out.failed, meta: { checked: out.checked, today: out.today } });
     return json(out);
   } catch (err) {
     console.error("nudges-cron error", err);
+    await recordSend({ job: "nudges-cron", status: "error", meta: { error: String(err?.message || err).slice(0, 200) } });
     return json({ checked: 0, sent: 0, error: err.message || "failed" });
   }
 };
