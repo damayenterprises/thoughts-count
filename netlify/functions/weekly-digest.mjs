@@ -1,12 +1,17 @@
-// Thoughts Count — weekly report scheduler.
-// Runs every Monday at 13:00 UTC (~8am Central) and emails the usage/SEO/analytics
-// digest to the report recipients. The heavy lifting lives in _digest.mjs so the
-// same report can be sent on demand via send-digest.
+// Thoughts Count — weekly report handler.
+// Emails the usage/SEO/analytics digest to the report recipients. The heavy lifting
+// lives in _digest.mjs so the same report can be sent on demand via send-digest.
+//
+// TRIGGER: NOT the native Netlify schedule anymore. The native `schedule` proved
+// unreliable — it silently did NOT fire on 2026-08-24 (no send_log row at all), the
+// same Netlify native-cron flakiness the portfolio standard replaced with QStash.
+// The Monday send is now driven by QStash -> POST /api/send-digest (which recordSend()s
+// as job "weekly-digest"). This handler is kept as a manual/internal entry point but
+// is NO LONGER scheduled, so it can never double-fire against the QStash trigger.
+// See reference_scheduler_standard_qstash + reference_netlify_scheduled_fn_403.
 
 import { runDigest } from "./_digest.mjs";
 import { recordSend } from "./_sendlog.mjs";
-
-export const config = { schedule: "0 13 * * 1" }; // Mondays 13:00 UTC (~8am CT)
 
 export default async () => {
   try {
