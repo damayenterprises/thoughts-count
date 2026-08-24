@@ -3,8 +3,19 @@
 <head>
 <!-- TC-133 marketing analytics: Meta Pixel + Google Analytics (GA4) + Pinterest tag.
      Public client IDs (safe in the browser, not secrets). -->
+<!-- TC-135: honor Global Privacy Control + the "Do Not Sell or Share" opt-out (same as the app). -->
+<script>
+  window.tcTrackingAllowed = function(){
+    try {
+      if (navigator.globalPrivacyControl === true) return false;
+      if (localStorage.getItem('tc_no_sell') === '1') return false;
+    } catch(e){}
+    return true;
+  };
+</script>
 <!-- Meta Pixel -->
 <script>
+if (tcTrackingAllowed()) {
 !function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -15,6 +26,7 @@ s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '1056603483422469');
 fbq('track', 'PageView');
+}
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://www.facebook.com/tr?id=1056603483422469&ev=PageView&noscript=1"
@@ -26,11 +38,12 @@ alt="" /></noscript>
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
-gtag('config', 'G-8WM0S308TV');
+if (tcTrackingAllowed()) { gtag('config', 'G-8WM0S308TV'); }
 </script>
 <!-- End Google Analytics -->
 <!-- Pinterest Tag -->
 <script>
+if (tcTrackingAllowed()) {
 !function(e){if(!window.pintrk){window.pintrk=function(){window.pintrk.queue.push(
 Array.prototype.slice.call(arguments))};var n=window.pintrk;n.queue=[],n.version="3.0";
 var t=document.createElement("script");t.async=!0,t.src=e;var r=
@@ -38,6 +51,7 @@ document.getElementsByTagName("script")[0];r.parentNode.insertBefore(t,r)}}
 ("https://s.pinimg.com/ct/core.js");
 pintrk('load', '2612849670075');
 pintrk('page');
+}
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://ct.pinterest.com/v3/?event=init&tid=2612849670075&noscript=1"

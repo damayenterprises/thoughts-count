@@ -3,8 +3,19 @@
 <head>
 <!-- TC-133 marketing analytics: Meta Pixel + Google Analytics (GA4) + Pinterest tag.
      Public client IDs (safe in the browser, not secrets). -->
+<!-- TC-135: honor Global Privacy Control + the "Do Not Sell or Share" opt-out (same as the app). -->
+<script>
+  window.tcTrackingAllowed = function(){
+    try {
+      if (navigator.globalPrivacyControl === true) return false;
+      if (localStorage.getItem('tc_no_sell') === '1') return false;
+    } catch(e){}
+    return true;
+  };
+</script>
 <!-- Meta Pixel -->
 <script>
+if (tcTrackingAllowed()) {
 !function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -15,6 +26,7 @@ s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '1056603483422469');
 fbq('track', 'PageView');
+}
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://www.facebook.com/tr?id=1056603483422469&ev=PageView&noscript=1"
@@ -26,11 +38,12 @@ alt="" /></noscript>
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
-gtag('config', 'G-8WM0S308TV');
+if (tcTrackingAllowed()) { gtag('config', 'G-8WM0S308TV'); }
 </script>
 <!-- End Google Analytics -->
 <!-- Pinterest Tag -->
 <script>
+if (tcTrackingAllowed()) {
 !function(e){if(!window.pintrk){window.pintrk=function(){window.pintrk.queue.push(
 Array.prototype.slice.call(arguments))};var n=window.pintrk;n.queue=[],n.version="3.0";
 var t=document.createElement("script");t.async=!0,t.src=e;var r=
@@ -38,6 +51,7 @@ document.getElementsByTagName("script")[0];r.parentNode.insertBefore(t,r)}}
 ("https://s.pinimg.com/ct/core.js");
 pintrk('load', '2612849670075');
 pintrk('page');
+}
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://ct.pinterest.com/v3/?event=init&tid=2612849670075&noscript=1"
@@ -119,6 +133,7 @@ alt="" /></noscript>
       <li><strong>Pinterest Tag</strong> (Pinterest, Inc.) — measures visits and conversions from Pinterest and helps us understand and improve advertising there.</li>
     </ul>
     <p>We use these tools to measure traffic and conversions and to make our advertising more relevant and effective. We do not sell your personal information. You can limit this collection by using your browser's privacy controls, a tracking-blocker extension, or your device and ad-platform settings; the site works normally if these tools are blocked.</p>
+    <p><strong>Your opt-out (Do Not Sell or Share):</strong> To the extent the technologies above constitute a "sale" or "sharing" of personal information under California law (CCPA/CPRA) or similar laws, you can opt out at any time. We <strong>honor the Global Privacy Control (GPC)</strong> signal automatically: if your browser or a browser extension sends a GPC signal, we will not load these advertising and analytics technologies. You can also use the <strong>"Do Not Sell or Share My Info"</strong> link in our footer, which turns them off for you on this device. Either choice leaves the site fully functional.</p>
 
     <h2>5. Data Security</h2>
     <p>All data is transmitted over HTTPS with TLS encryption and stored with our hosting and database providers under access controls. No method of transmission or storage is perfectly secure, but we take reasonable measures to protect your information.</p>
@@ -131,6 +146,7 @@ alt="" /></noscript>
       <li>Access, correct, or delete the information you've saved</li>
       <li>Turn off email reminders at any time (each reminder email includes an opt-out, and you can ask us to stop)</li>
       <li>Request a copy of your data or ask us to delete it</li>
+      <li>Opt out of any "sale" or "sharing" for advertising — via the <strong>Global Privacy Control (GPC)</strong> signal (which we honor automatically) or the <strong>"Do Not Sell or Share My Info"</strong> link in our footer</li>
     </ul>
     <p>To exercise any of these, email <a href="mailto:care@thoughtscount.com">care@thoughtscount.com</a>.</p>
 

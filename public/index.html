@@ -13,8 +13,22 @@
 <!-- TC-133 marketing analytics: Meta Pixel + Google Analytics (GA4) + Pinterest tag.
      Public client IDs (safe in the browser, not secrets). Placed after the canonical
      redirect above so magic-link sign-ins on the netlify subdomain forward first. -->
+<!-- TC-135: honor Global Privacy Control + a "Do Not Sell or Share" opt-out. The advertising/
+     analytics pixels below only initialize when tracking is allowed (no GPC browser signal, no
+     stored opt-out). The first-party, cookieless funnel (/api/track) always runs — it is
+     anonymized and never sold or shared, so it is out of CCPA "sale/share" scope. -->
+<script>
+  window.tcTrackingAllowed = function(){
+    try {
+      if (navigator.globalPrivacyControl === true) return false;   // GPC = a legally recognized opt-out
+      if (localStorage.getItem('tc_no_sell') === '1') return false; // explicit "Do Not Sell/Share"
+    } catch(e){}
+    return true;
+  };
+</script>
 <!-- Meta Pixel -->
 <script>
+if (tcTrackingAllowed()) {
 !function(f,b,e,v,n,t,s)
 {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
 n.callMethod.apply(n,arguments):n.queue.push(arguments)};
@@ -25,6 +39,7 @@ s.parentNode.insertBefore(t,s)}(window, document,'script',
 'https://connect.facebook.net/en_US/fbevents.js');
 fbq('init', '1056603483422469');
 fbq('track', 'PageView');
+}
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://www.facebook.com/tr?id=1056603483422469&ev=PageView&noscript=1"
@@ -36,11 +51,12 @@ alt="" /></noscript>
 window.dataLayer = window.dataLayer || [];
 function gtag(){dataLayer.push(arguments);}
 gtag('js', new Date());
-gtag('config', 'G-8WM0S308TV');
+if (tcTrackingAllowed()) { gtag('config', 'G-8WM0S308TV'); }
 </script>
 <!-- End Google Analytics -->
 <!-- Pinterest Tag -->
 <script>
+if (tcTrackingAllowed()) {
 !function(e){if(!window.pintrk){window.pintrk=function(){window.pintrk.queue.push(
 Array.prototype.slice.call(arguments))};var n=window.pintrk;n.queue=[],n.version="3.0";
 var t=document.createElement("script");t.async=!0,t.src=e;var r=
@@ -48,6 +64,7 @@ document.getElementsByTagName("script")[0];r.parentNode.insertBefore(t,r)}}
 ("https://s.pinimg.com/ct/core.js");
 pintrk('load', '2612849670075');
 pintrk('page');
+}
 </script>
 <noscript><img height="1" width="1" style="display:none"
 src="https://ct.pinterest.com/v3/?event=init&tid=2612849670075&noscript=1"
@@ -892,7 +909,9 @@ alt="" /></noscript>
       // campaign can optimize toward the real funnel (Meta/GA4/Pinterest). Non-overlapping signals:
       // InitiateCheckout (started) -> Lead (got a plan, the aha) -> CompleteRegistration (emailed it).
       // Skipped for test/agent sessions so ad optimization isn't polluted. Every call is guarded.
+      // Also skipped when the visitor has opted out (GPC / Do Not Sell) — TC-135.
       if (isTest) return;
+      if (window.tcTrackingAllowed && !tcTrackingAllowed()) return;
       try {
         var p = props || {};
         if (event === 'intake_start') {
@@ -1176,6 +1195,7 @@ alt="" /></noscript>
     <span class="sep">·</span><a href="/privacy.html">Privacy</a>
     <span class="sep">·</span><a href="/terms.html">Terms</a>
     <span class="sep">·</span><a href="mailto:care@thoughtscount.com" id="tcFooterContact">Contact us</a>
+    <span class="sep">·</span><a href="#" id="tcDoNotSell">Do Not Sell or Share My Info</a>
     <span class="copyright">&copy; 2026 Damay Enterprises</span>
   </div>
 </footer>
@@ -1230,6 +1250,19 @@ alt="" /></noscript>
   (function(){
     var f = document.getElementById('tcFooterContact');
     if (f) f.addEventListener('click', function(e){ e.preventDefault(); tcOpenContact('', 'footer'); });
+    // TC-135: "Do Not Sell or Share" opt-out. Sets a local flag that suppresses the advertising
+    // pixels (checked by tcTrackingAllowed on this + every future load). Reflects an existing
+    // opt-out on load. GPC is honored automatically, no click needed.
+    var dns = document.getElementById('tcDoNotSell');
+    if (dns) {
+      var optedOut = false; try { optedOut = localStorage.getItem('tc_no_sell') === '1'; } catch(e){}
+      if (optedOut || (navigator.globalPrivacyControl === true)) { dns.textContent = 'Opted out of sharing ✓'; }
+      dns.addEventListener('click', function(e){
+        e.preventDefault();
+        try { localStorage.setItem('tc_no_sell', '1'); } catch(err){}
+        dns.textContent = 'Opted out of sharing ✓';
+      });
+    }
   })();
 </script>
 
@@ -1483,6 +1516,16 @@ if (scrim) scrim.addEventListener('focusin', (e) => {
   }, 300);
 });
 
+// TC-132: in a grief / hard-time moment a big saturated-red CTA reads as alarm against a tender
+// moment, so the flow's primary button switches to the calm brand blue there. Red stays for
+// celebration/neutral. Conservative keyword match; explicit celebration signals (beat cancer, a
+// new job, a wedding) override scary words so a survival/good-news story keeps the confident red.
+function isHardMoment(s){
+  s = String(s || '').toLowerCase();
+  if (!s.trim()) return false;
+  if (/beat cancer|cancer[- ]?free|in remission|survived|new job|promotion|engaged|engagement|getting married|\bwedding\b|new baby|expecting|retir|graduat/.test(s)) return false;
+  return /lost a loved one|loved one|passed away|passed on|\bpassed\b|\bdied\b|\bdeath\b|funeral|grie|diagnos|terminal|hospice|miscarr|divorce|separat|laid off|layoff|lost (my|his|her|their|a) job|job loss|got fired|lost a pet|put (down|to sleep)|hard (week|time|day|diagnosis|year|stretch)|struggling|in the hospital|\bsick\b|\bill\b|illness/.test(s);
+}
 function openFlow(preset){
   idx = 0;
   flowPerson = null; window.__tcFlowPersonId = null;
@@ -1615,6 +1658,15 @@ function renderStep(){
   scrim.scrollTop = 0;
   const ta = document.getElementById('freetext');
   ta.focus({ preventScroll: true });
+  // TC-132: tint the primary CTA calm-blue when THIS is a grief/hard-time moment (red for
+  // celebration/neutral). Reads the moment from picks + saved + what's being typed right now, so
+  // it updates live as someone chooses "Lost a loved one" or writes about a loss.
+  const retintCta = () => {
+    const btn = document.getElementById('nextBtn'); if (!btn) return;
+    const liveMoment = STEPS[idx].key === 'moment' ? (ta.value || '') : '';
+    btn.classList.toggle('sage', isHardMoment([answers.moment, (picks.moment||[]).join(' '), liveMoment].join(' ')));
+  };
+  retintCta();
   // Chips set selection state only — they never write into the free-text box,
   // so a tapped chip and typed detail can't collide. Both are combined at send.
   stage.querySelectorAll('.pick').forEach(btn => {
@@ -1627,12 +1679,14 @@ function renderStep(){
       const on = i === -1;
       btn.classList.toggle('active', on);
       btn.setAttribute('aria-pressed', String(on));
+      retintCta();
     });
   });
   // Hide the "tell us a little first" nudge as soon as they start giving us something.
   const stepMsg = document.getElementById('stepMsg');
   const clearStepMsg = () => { if (stepMsg) stepMsg.style.display = 'none'; ta.style.borderColor = ''; };
   ta.addEventListener('input', clearStepMsg);
+  ta.addEventListener('input', retintCta);
   stage.querySelectorAll('.pick').forEach(b => b.addEventListener('click', clearStepMsg));
   // Voice = one inline mic inside the box (dictation: records in place, appends text).
   if (window.mountInlineMic) {
