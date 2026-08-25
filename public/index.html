@@ -557,10 +557,11 @@ alt="" /></noscript>
   .q-title { font-size: clamp(23px, 3.4vw, 28px); font-weight: 500; margin: 10px 0 4px; }
   .q-help { color: var(--ink-soft); font-size: 15px; margin: 0 0 22px; }
 
-  .chip-row { display: flex; flex-wrap: wrap; gap: 10px; margin-bottom: 20px; }
-  .pick { background: var(--cloud); border: 1.5px solid var(--line); border-radius: 13px; padding: 10px 15px; font-size: 14.5px; cursor: pointer; color: var(--ink); font-family: inherit; transition: all .15s ease; }
-  .pick:hover { border-color: var(--sage); }
-  .pick.active { background: var(--sage); color: #fff; border-color: var(--sage); }
+  .chip-row { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 0; margin-bottom: 6px; }
+  .pick-connector { font-size: 13px; color: var(--tc-ink-mute); margin: 16px 0 10px; line-height: 1.5; }
+  .pick { background: transparent; border: 1px solid var(--tc-line); border-radius: 999px; padding: 11px 16px; font-size: 14px; color: var(--tc-ink-soft); font-family: inherit; cursor: pointer; transition: all .15s ease; }
+  .pick:hover { border-color: var(--tc-blue); color: var(--tc-ink); background: var(--tc-blue-tint-2); }
+  .pick.active { background: var(--sage); color: #fff; border-color: var(--sage); font-weight: 500; }
 
   textarea, input[type=text], input[type=email], input[type=date] { width: 100%; border: 1.5px solid var(--line); border-radius: 14px; padding: 14px 16px; font-size: 15.5px; font-family: inherit; color: var(--ink); background: var(--cloud); resize: vertical; line-height: 1.6; }
   textarea:focus, input:focus { outline: none; border-color: var(--sage); box-shadow: 0 0 0 3px var(--mist); }
@@ -1477,7 +1478,7 @@ const STEPS = [
   { key: "relationship", eyebrow: "Who they are to you", title: "What's your relationship?", help: "This gently shapes everything. What's right for a spouse is different for a coworker.", picks: ["Close friend","Friend","Partner / spouse","Parent","Sibling","Other family","Coworker","Someone I manage","My boss","Neighbor","Client"], placeholder: "e.g. A coworker I like but don't know outside of work.",
     extra: { key: "name", label: "Their name, optional. Makes everything more personal", placeholder: "e.g. Todd" } },
   { key: "about", eyebrow: "Tell us about them", title: "What are they like?", help: "Anything that helps us make this feel like them: their personality, what they're going through, your history together.", picks: [], placeholder: "e.g. She's private and doesn't like a fuss, but she's been carrying a lot. We usually just chat about our kids." },
-  { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure, guide me"], placeholder: "Optional. Anything about your style or what you're comfortable with." },
+  { key: "voice", eyebrow: "What feels like you", title: "What feels authentic to you?", help: "We'll match everything to how you actually are. No performing, no pretending.", picks: ["Warm & direct","Quiet & low-key","A little humor","Practical & helpful","Heartfelt words","I'm not sure, guide me"], placeholder: "Optional. For example, I tend to keep it short and warm." },
   { key: "constraints", eyebrow: "Time & budget", title: "What can you give right now?", help: "Totally okay if it's not much. Sometimes the most meaningful gesture is free.", picks: ["Just a little time","An afternoon","No budget","Under $25","$25-75","$75-150","Money's not the issue"], placeholder: "Optional. For example, I'm slammed this week but want to do something meaningful.",
     extra: { key: "location", label: '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M12 21s-7-5.5-7-11a7 7 0 0 1 14 0c0 5.5-7 11-7 11Z"/><circle cx="12" cy="10" r="2.4" stroke="#118ab9"/></svg>What town or ZIP are they in?', hint: "Optional. If you add it, I'll point you to real shops near them (a local florist, bakery, or spot to grab something), not just online ideas.", placeholder: "e.g. Fayetteville, AR or 72703" } },
 ];
@@ -1752,11 +1753,12 @@ function renderStep(){
       <h2 class="q-title">${sTitle}</h2>
       <p class="q-help">${sHelp}</p>
       ${idx === 0 ? `<p class="q-reassure" style="margin:-4px 0 4px;font-size:12.5px;color:var(--tc-ink-mute);">Takes about a minute. Most people breeze through. Only this first question is needed.</p>` : ''}
-      ${picksHtml}
       <textarea id="freetext" placeholder="${sPlaceholder}">${current}</textarea>
       <div class="mic-wrap" style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span id="micStatus" style="font-size:12.5px;color:var(--ink-soft,#5a554c);"></span>
       </div>
+      ${picksHtml ? '<p class="pick-connector">Not sure where to start? Tap what\'s closest.</p>' : ''}
+      ${picksHtml}
       ${s.extra ? `<label style="display:block;margin-top:14px;font-size:13.5px;color:var(--ink-soft);">${s.extra.label}</label>
       ${s.extra.hint ? `<p style="margin:3px 0 0;font-size:12.5px;line-height:1.5;color:var(--tc-ink-mute);">${s.extra.hint}</p>` : ''}
       <input type="text" id="extrafield" style="margin-top:6px;" placeholder="${s.extra.placeholder}" value="${(answers[s.extra.key]||'').replace(/"/g,'&quot;')}" />` : ''}
