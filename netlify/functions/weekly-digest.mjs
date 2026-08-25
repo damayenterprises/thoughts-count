@@ -2,21 +2,16 @@
 // Emails the usage/SEO/analytics digest to the report recipients. The heavy lifting
 // lives in _digest.mjs so the same report can be sent on demand via send-digest.
 //
-// TRIGGER: native Netlify schedule (interim). This silently did NOT fire on
-// 2026-08-24 (no send_log row), the Netlify native-cron flakiness the portfolio
-// standard replaces with QStash. Migration to QStash is BLOCKED for now: the shared
-// Upstash QStash account is at its 10/10 free-tier schedule quota (all real portfolio
-// jobs), so there is no slot for a TC digest schedule yet. Until a slot frees up or
-// Upstash is upgraded, we keep the native schedule as the trigger and rely on the
-// send-watchdog to catch a miss (it did on 2026-08-24). send-digest.mjs also
-// recordSend()s, so a manual re-send is watchdog-visible too. When a QStash slot is
-// available: de-schedule this + register QStash -> POST /api/send-digest.
-// See reference_scheduler_standard_qstash + reference_netlify_scheduled_fn_403.
+// TRIGGER: MIGRATED to Upstash QStash 2026-08-24 (Upstash upgraded off the free tier's
+// 10-schedule cap → Pay-as-you-go). The native Netlify schedule was unreliable — it silently
+// did NOT fire on 2026-08-24 — so it has been REMOVED. QStash now POSTs Mondays 13:00 UTC
+// (~8am CT) to /api/send-digest (schedule scd_6zzMZ5Eds7ktchYJEQ5mDr7BkZSe), which runs the
+// SAME runDigest() and recordSend()s the "weekly-digest" job so the watchdog still confirms it.
+// This handler is kept only as a manual/back-up entry point (no schedule of its own).
+// See reference_scheduler_standard_qstash.
 
 import { runDigest } from "./_digest.mjs";
 import { recordSend } from "./_sendlog.mjs";
-
-export const config = { schedule: "0 13 * * 1" }; // Mondays 13:00 UTC (~8am CT)
 
 export default async () => {
   try {
