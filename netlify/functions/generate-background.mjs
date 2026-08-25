@@ -161,7 +161,11 @@ export default async (req) => {
       body: JSON.stringify({
         model: MODEL,
         max_tokens: MAX_OUTPUT_TOKENS,
-        system,
+        // Prompt caching (matches converse.mjs systemForCache): the SYSTEM_PROMPT +
+        // per-bucket exemplar block is a large, stable prefix. Same text, just cached.
+        // Wins when plan generations of the same bucket cluster within the 5-min TTL —
+        // marginal at pre-launch volume, scales in automatically as traffic grows.
+        system: [{ type: "text", text: system, cache_control: { type: "ephemeral" } }],
         tools: [{ name: "generate_action_plan", description: "Return a complete, personalized action plan for showing up in this moment.", input_schema: PLAN_SCHEMA }],
         tool_choice: { type: "tool", name: "generate_action_plan" },
         messages: [{ role: "user", content: userMessage }],
