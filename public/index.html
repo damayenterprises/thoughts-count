@@ -410,6 +410,31 @@ alt="" /></noscript>
   .reassure { margin-top: 16px; font-size: 13.5px; color: rgba(255,255,255,.85); }
   .reassure b { color: #fff; font-weight: 700; }
 
+  /* ===== NTD campaign treatment (utm_campaign=ntd) — additive + fully reversible. =====
+     Every rule is gated on body.tc-ntd so organic visitors see the page byte-identical.
+     Campaign copy lives in [hidden] elements revealed here; default copy is hidden here. */
+  .ntd-eyebrow { font-size: 13px; letter-spacing: .1em; text-transform: uppercase; font-weight: 700;
+    color: rgba(255,255,255,.82); margin: 0 auto 14px; text-align: center; }
+  /* reveal / hide, gated on the class (default state untouched). Each revealed element
+     gets its intended display explicitly (overriding the [hidden] attribute), so organic
+     visitors keep the [hidden] default and removing body.tc-ntd restores it exactly. */
+  body.tc-ntd .hero-default { display: none; }
+  body.tc-ntd .ntd-eyebrow[hidden] { display: block; }
+  body.tc-ntd h1.ntd-copy[hidden] { display: block; }
+  body.tc-ntd p.ntd-copy[hidden] { display: block; }
+  body.tc-ntd .ntd-secondary[hidden] { display: block; }
+  /* NTD primary action occupies the orb's slot and is visually dominant. */
+  body.tc-ntd .ntd-primary[hidden] { display: flex; flex-direction: column; align-items: center; gap: 0; margin: 8px auto 2px; }
+  body.tc-ntd .ntd-cta { font-size: 17px; padding: 16px 38px; }
+  body.tc-ntd .ntd-proof { margin-top: 14px; }
+  /* Secondary path microcopy + thin divider, above the demoted orb. */
+  body.tc-ntd .ntd-secondary { margin: 26px auto 0; max-width: 360px; }
+  body.tc-ntd .ntd-divider { height: 1px; background: rgba(255,255,255,.22); margin: 0 auto 14px; }
+  body.tc-ntd .ntd-secondary-copy { text-align: center; font-size: 14px; color: rgba(255,255,255,.85); }
+  /* Demote the orb for the campaign visitor only: smaller + lower. Never display:none —
+     the canvas stays mounted so its animation/JS remain intact. */
+  body.tc-ntd .hero-orb-wrap { margin-top: 10px; transform: scale(.62); transform-origin: top center; opacity: .92; }
+
   /* WP-3 "A daily thought" — a small, quiet note in Della's voice, sitting just under the
      hero as a gentle extension of her presence. Continues the hero's blue so it reads as
      one calm surface, not a loud quote box. Hidden until JS confirms there IS a line today
@@ -860,6 +885,20 @@ alt="" /></noscript>
 <body class="living-bg">
 
 <script>
+  // ---- NTD campaign flag (utm_campaign=ntd) ----
+  // Cold paid visitors arriving with ?utm_campaign=ntd get the campaign landing treatment.
+  // This ONLY toggles the look via body.tc-ntd; it does NOT auto-open the flow. Runs early
+  // (before the ?begin= deep-link handler) and independently of it. Additive + reversible:
+  // absent the class, the page is byte-identical to the organic experience.
+  (function(){
+    try {
+      var camp = new URLSearchParams(location.search).get('utm_campaign');
+      if (camp === 'ntd') document.body.classList.add('tc-ntd');
+    } catch(e){}
+  })();
+</script>
+
+<script>
   // ---- Living-gradient background (TC-75) ----
   // Living flowing-blue is the DEFAULT: <body class="living-bg"> in markup + the base
   // wash painted on #bg via CSS, so blue is there on first paint (no flash). This script
@@ -1049,14 +1088,33 @@ alt="" /></noscript>
 <main>
   <section class="hero wrap">
    <div class="hero-inner">
-    <h1>Show up for the moments that <em>matter most.</em></h1>
-    <p class="lead">Thoughtful guidance for life's meaningful moments.</p>
+    <!-- NTD campaign eyebrow: hidden for organic visitors, revealed only under body.tc-ntd. -->
+    <div class="ntd-eyebrow" hidden>National Thoughtful Day &middot; August 28</div>
+    <!-- Default (organic) headline + lead. Hidden under body.tc-ntd; restored exactly when the class is absent. -->
+    <h1 class="hero-default">Show up for the moments that <em>matter most.</em></h1>
+    <p class="lead hero-default">Thoughtful guidance for life's meaningful moments.</p>
+    <!-- NTD campaign headline + lead. Hidden for organic visitors, revealed only under body.tc-ntd. -->
+    <h1 class="ntd-copy" hidden>There's someone who keeps crossing your mind. <em>Today's the day to show up for them.</em></h1>
+    <p class="lead ntd-copy" hidden>Tell me who they are and what's going on. I'll help you get it right: what to say, what to steer clear of, a thoughtful gesture that fits, and how to keep showing up after.</p>
     <div class="hero-start">
+      <!-- NTD campaign primary action: a red CTA in the orb's primary slot. Hidden for organic
+           visitors, revealed only under body.tc-ntd. It does NOT auto-open the flow. -->
+      <div class="ntd-primary" hidden>
+        <button type="button" class="cta ntd-cta" onclick="openFlow('Someone who has been on my mind')">Start with them</button>
+        <div class="reassure ntd-proof">Words you can actually send &middot; A gesture that fits &middot; Ready in about a minute</div>
+      </div>
+      <!-- NTD secondary path microcopy + divider, revealed only under body.tc-ntd, above the demoted orb. -->
+      <div class="ntd-secondary" hidden>
+        <div class="ntd-divider" aria-hidden="true"></div>
+        <div class="ntd-secondary-copy">Prefer to say it out loud? Talk it through instead.</div>
+      </div>
       <!-- TC-90/orb-home: Della's presence orb IS the front door. The orb is the mic —
            tap / Enter / Space starts the hands-free spoken conversation (or, mic-less,
            opens the typed one). The old two-button hero-actions (#homeMicBtn "Say it out
            loud" + #homeTypeBtn "Type it out") were retired; #homeTypeBtn survives, demoted
-           to the small "or type instead" link below so its openConverse() wiring still binds. -->
+           to the small "or type instead" link below so its openConverse() wiring still binds.
+           NTD: kept mounted/wired for everyone; under body.tc-ntd it is shrunk + demoted below
+           the campaign CTA (never display:none, so the orb canvas/animation stay intact). -->
       <div class="hero-orb-wrap">
         <div class="stage" id="homeOrbStage" data-state="idle" data-life="energetic"
              role="button" tabindex="0" aria-label="Talk it through, tap to start">
@@ -1149,6 +1207,7 @@ alt="" /></noscript>
   <section class="section wrap">
     <h2>What's the moment?</h2>
     <div class="moments">
+      <button type="button" class="chip" onclick="openFlow('Someone who has been on my mind')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="11" r="5"/><path d="M4 27v-1.5a7 7 0 0 1 7-7h4a7 7 0 0 1 4 1.2"/><path d="M24.5 16.5c1.3-1.4 3.5-1 3.5 1 0 2-3.5 4-3.5 4S21 19.5 21 17.5c0-2 2.2-2.4 3.5-1Z"/></svg></span><span class="m-label">Someone on my mind</span></button>
       <button type="button" class="chip" onclick="openFlow('New baby')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="11" r="6"/><path d="M13 10h.01M19 10h.01M13.5 13.5a3.5 3 0 0 0 5 0"/><path d="M7 28v-2a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v2"/></svg></span><span class="m-label">New baby</span></button>
       <button type="button" class="chip" onclick="openFlow('New job or promotion')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="22" height="14" rx="2"/><path d="M12 11V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M5 17h22"/></svg></span><span class="m-label">New job or promotion</span></button>
       <button type="button" class="chip" onclick="openFlow('Engagement or wedding')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5h8l4 5-8 9-8-9 4-5Z"/><path d="M8 10h16"/></svg></span><span class="m-label">Engagement or wedding</span></button>
@@ -1658,10 +1717,34 @@ function renderStep(){
   }
   const current = answers[s.key] || "";
   const chosen = picks[s.key] || [];
-  const picksHtml = s.picks.length ? `<div class="chip-row" id="picks">${
-    s.picks.map(p => { const v = p.replace(/"/g,'&quot;'); const on = chosen.includes(p);
+  // A "seeded custom moment" = the flow was opened with openFlow(preset) where the preset moment
+  // isn't one of the built-in moment chips (e.g. the National Thoughtful Day "Someone who has been
+  // on my mind" entry). Without this it would be selected invisibly — no chip lit — so a warm
+  // reconnection clicker lands on a blank "What happened?" grief picker. Surface it as a pinned,
+  // pre-selected chip using the native chip styling so their intent is reflected. Only on the
+  // moment step, only when it isn't already a built-in pick.
+  const seededMoments = s.key === 'moment'
+    ? chosen.filter(v => !s.picks.includes(v))
+    : [];
+  const seededChipsHtml = seededMoments.map(v => {
+    const esc = v.replace(/"/g,'&quot;');
+    return `<button type="button" class="pick active" aria-pressed="true" data-v="${esc}">${esc}</button>`;
+  }).join('');
+  const picksHtml = (s.picks.length || seededChipsHtml) ? `<div class="chip-row" id="picks">${
+    seededChipsHtml + s.picks.map(p => { const v = p.replace(/"/g,'&quot;'); const on = chosen.includes(p);
       return `<button type="button" class="pick${on?' active':''}" aria-pressed="${on}" data-v="${v}">${p}</button>`; }).join('')
   }</div>` : "";
+  // De-grief the moment step for a non-hard seeded entry: the built-in placeholder is a coworker's
+  // death, which reads as a bereavement form to someone who tapped a warm "on my mind" ad. When the
+  // seeded moment isn't a hard moment, show a warm, neutral prompt and a matched title instead. The
+  // default (no-preset) flow and any hard/grief moment keep the original title + empathetic example.
+  let sPlaceholder = s.placeholder;
+  if (seededMoments.length && !isHardMoment(seededMoments.join(' '))){
+    sPlaceholder = 'e.g. We used to talk all the time and they have been on my mind. I want to reach out.';
+    if (!flowPerson){
+      sTitle = "Who's on your mind?";
+    }
+  }
   stage.innerHTML = `
     <div class="panel-body step-body">
       <div class="q-eyebrow">${sEyebrow} · ${idx+1} of ${STEPS.length}</div>
@@ -1670,7 +1753,7 @@ function renderStep(){
       <p class="q-help">${sHelp}</p>
       ${idx === 0 ? `<p class="q-reassure" style="margin:-4px 0 4px;font-size:12.5px;color:var(--tc-ink-mute);">Takes about a minute. Most people breeze through. Only this first question is needed.</p>` : ''}
       ${picksHtml}
-      <textarea id="freetext" placeholder="${s.placeholder}">${current}</textarea>
+      <textarea id="freetext" placeholder="${sPlaceholder}">${current}</textarea>
       <div class="mic-wrap" style="margin-top:8px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
         <span id="micStatus" style="font-size:12.5px;color:var(--ink-soft,#5a554c);"></span>
       </div>
