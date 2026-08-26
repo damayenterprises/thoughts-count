@@ -2000,23 +2000,6 @@ function micSvg(size, stroke, foot){
 window.micSvg = micSvg; // reused by the People screens (companion modules) for voice affordances
 window.toggleMic = toggleMic; // the inline-mic dictation surfaces (companion modules) reuse this
 window.setMic = setMic;
-// Pencil for the "type it" method — same stroke language, clay accent on the tip.
-function penSvg(size, stroke, accent){
-  return `<svg viewBox="0 0 24 24" aria-hidden="true" width="${size}" height="${size}">
-    <path d="M4 20.5h4L19 9.5a2 2 0 0 0 0-3l-1-1a2 2 0 0 0-3 0L4 16.5v4Z" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linejoin="round"/>
-    <line x1="14.5" y1="7" x2="17.5" y2="10" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
-  </svg>`;
-}
-// A hand-drawn speech bubble for the "Talk it through" (typed conversation) button —
-// pairs with the mic on "Say it out loud" so the two doors read as typed vs spoken
-// conversation (stroke style matches the site's other icons). `accent` = clay lines.
-function bubbleSvg(size, stroke, accent){
-  return `<svg viewBox="0 0 24 24" aria-hidden="true" width="${size}" height="${size}">
-    <path d="M20 11.5a7 7 0 0 1-9.8 6.4L5 19.5l1.2-3.6A7 7 0 1 1 20 11.5Z" fill="none" stroke="${stroke}" stroke-width="1.6" stroke-linejoin="round"/>
-    <line x1="9" y1="10.5" x2="16" y2="10.5" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
-    <line x1="9" y1="13.5" x2="13.5" y2="13.5" stroke="${accent}" stroke-width="1.6" stroke-linecap="round"/>
-  </svg>`;
-}
 // orb-home: the hero orb IS the front door + the mic. There's no longer a "Say it out loud"
 // button (retired) — the orb's tap / Enter / Space starts the hands-free spoken conversation,
 // exactly like the old #homeMicBtn did (same startHomeVoiceConverse → unlockSpeech + warm +

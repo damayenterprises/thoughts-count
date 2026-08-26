@@ -4,7 +4,7 @@
 // "queue drained → may open mic" feedback-loop predicate, mirrored here since it's inline in
 // index.html). All pure + offline.  Run: node test/tc88-stream-helpers.test.mjs
 import assert from "node:assert";
-import { takeSentences, extractSayPartial, takeFirstEarlyChunk, EARLY_MIN_CHARS } from "../netlify/functions/converse.mjs";
+import { takeSentences, extractSayPartial } from "../netlify/functions/converse.mjs";
 
 let pass = 0, fail = 0;
 function t(name, fn){ try { fn(); pass++; console.log(`  ok   ${name}`); } catch(e){ fail++; console.log(`  FAIL ${name} — ${e.message}`); } }
@@ -72,55 +72,6 @@ t("incremental: feeding growth only yields NEW sentences off the remainder", () 
   assert.deepStrictEqual(step("Oh no. "), ["Oh no."]);
   assert.deepStrictEqual(step("I'm sorry. "), ["I'm sorry."]);
   assert.deepStrictEqual(step("Tell me", true), ["Tell me"]);
-});
-
-console.log("\n# takeFirstEarlyChunk — the FIRST spoken chunk emits early (time-to-first-word)");
-
-t("nothing yet (empty / whitespace) → null (keep accumulating)", () => {
-  assert.strictEqual(takeFirstEarlyChunk(""), null);
-  assert.strictEqual(takeFirstEarlyChunk("   "), null);
-  assert.strictEqual(takeFirstEarlyChunk(null), null);
-});
-
-t("short fragment under threshold, no comma/sentence → null (not ready)", () => {
-  // "Oh that's" is < 35 chars, no comma, no sentence end → wait for more.
-  assert.strictEqual(takeFirstEarlyChunk("Oh that's"), null);
-});
-
-t("first comma+space fires early (before a full sentence)", () => {
-  const r = takeFirstEarlyChunk("Oh no, I'm so sorry to hear that happened.");
-  assert.strictEqual(r.chunk, "Oh no,");
-  assert.strictEqual(r.tail, " I'm so sorry to hear that happened.");
-});
-
-t("early chunk never splits mid-word (comma cut lands on the comma, tail starts at space)", () => {
-  const r = takeFirstEarlyChunk("Well, tell me more");
-  assert.strictEqual(r.chunk, "Well,");
-  assert.ok(/^\s/.test(r.tail), "tail should begin with the boundary whitespace, not mid-word");
-});
-
-t("no comma but >=35 chars → cut at the next word boundary (never mid-word)", () => {
-  // 35+ chars, no comma, no sentence end yet.
-  const s = "That sounds like it was really heavy and hard to carry";
-  const r = takeFirstEarlyChunk(s);
-  assert.ok(r, "should emit an early chunk once past the char threshold");
-  assert.ok(r.chunk.length >= EARLY_MIN_CHARS, "chunk reaches at least the min-char threshold");
-  // Reassembling chunk (trimmed) + tail must equal the source (no drop, no dup, no mid-word split).
-  assert.strictEqual((r.chunk + r.tail).replace(/\s+/g, " ").trim(), s.replace(/\s+/g, " ").trim());
-  // The boundary is a real whitespace split → the char just after the chunk in the source is space.
-  assert.ok(!/\S$/.test(r.tail[0]) || /\s/.test(r.tail[0]), "tail begins at a word boundary");
-});
-
-t("first full sentence (shorter than 35 chars, no comma) fires as the early chunk", () => {
-  const r = takeFirstEarlyChunk("Oh no. What happened next after that");
-  assert.strictEqual(r.chunk, "Oh no.");
-  assert.strictEqual(r.tail, " What happened next after that");
-});
-
-t("EARLIEST break wins: a comma before the char threshold beats the word-boundary cut", () => {
-  const s = "Okay, that is a lot to hold all at once and I hear you";
-  const r = takeFirstEarlyChunk(s);
-  assert.strictEqual(r.chunk, "Okay,"); // comma at index 4 beats the ~35-char word cut
 });
 
 console.log("\n# flushSay emit model — FULL SENTENCES only (no clause-chopping; matches converse.mjs)");
