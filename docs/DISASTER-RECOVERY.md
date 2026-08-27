@@ -43,8 +43,8 @@ Authoritative copy: **`G:\My Drive\Damay Enterprises Backup\thoughtfulness\.env`
 ## 4. Database backups (the important one)
 The Supabase project is **free tier: no PITR, no restorable platform backups** (`pitr_enabled:false`, `backups:[]`). Backups are therefore external:
 
-- **Automated daily** — private repo **`damayenterprises/tc-db-backups`**, GitHub Actions cron `0 9 * * *` (04:00 CT). Dumps every public table + a safe `auth.users` projection to `backups/tc-supabase-<date>.json` (last 30 kept). Secrets on that repo: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`.
-- **Manual snapshot** — `node --env-file=.env scripts/db-snapshot.mjs <outfile>` (this repo). Latest manual copy in `G:\My Drive\...\thoughtfulness\db-backups\`.
+- **Automated daily (authoritative)** — private repo **`damayenterprises/tc-db-backups`**, GitHub Actions cron `0 9 * * *` (04:00 CT). Dumps every public table + a safe `auth.users` projection to `backups/tc-supabase-<date>.json` (last 30 kept). Secrets on that repo: `SUPABASE_ACCESS_TOKEN`, `SUPABASE_PROJECT_REF`. Ad-hoc manual snapshots live in that repo's `manual/`.
+- **Manual snapshot** — `node --env-file=.env scripts/db-snapshot.mjs <outfile>`, then commit into the `tc-db-backups` repo (durable). ⚠️ **Do NOT rely on Google Drive (`G:`) for large dumps** — its streaming filesystem silently dropped a 2.2 MB DB snapshot on 2026-08-26 (small files like `.env` persist fine; big programmatic writes do not). GitHub is the durable home.
 
 **Verify backups are running:** `gh run list --repo damayenterprises/tc-db-backups` — the newest run should be < 24h old and green.
 
@@ -71,5 +71,6 @@ Records were set 2026-07-26 (see AgentGuide-Archive for exact values). Types in 
 > Exact record values live in the Namecheap DNS panel; do not guess them — read from Namecheap or the 2026-07-26 setup notes before changing anything.
 
 ## 7. Known gaps (tracked)
-- **TC-169** — Netlify Blobs (opted-in email reminders + analytics) have no off-platform backup yet.
+- **TC-169** — Netlify Blobs have no *automated* off-platform backup yet. The one non-regenerable store, `reminders` (opted-in scheduled emails), has a **manual snapshot** in `tc-db-backups/manual/tc-reminders-manual-<date>.json`; `analytics` (2.6k keys) is derived; the rest are caches. Automating the Blobs export is deferred to post-launch.
+- **Google Drive is unreliable for large programmatic writes** (see §4) — a 2.2 MB dump was silently dropped 2026-08-26. Small files (`.env`) persist. ⚠️ David's hourly whole-portfolio GDrive backup task may be silently dropping large files across all projects — worth a separate check.
 - `SUPABASE_ACCESS_TOKEN` used by the backup job is **account-scoped** (all Supabase projects). Rotate if the private repo/secret is ever exposed.
