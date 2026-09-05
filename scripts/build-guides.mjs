@@ -1997,8 +1997,9 @@ ${TRACKER}
     <p>Honest, practical guidance for life's big moments, the hard ones and the joyful ones. Real words, and gestures that actually help.</p>
     <div class="hcta"><a href="/">Get a plan for your situation →</a><span class="sub">Free · no account needed · personal to your relationship</span></div>
   </div>
-  <div class="pillars">${PILLARS.map((p) => `<a class="pillar-link" href="/guides/${p.slug}/">${esc(p.crumb)}</a>`).join("")}</div>
+  <div class="pillars">${PILLARS.map((p) => `<a class="pillar-link" href="/guides/${p.slug}/">${esc(p.crumb)}</a>`).join("")}<a class="pillar-link" href="/tools/what-to-say/">Free tool: What to say</a></div>
   <div class="grid">${cards}</div>
+  <p class="allguides" style="text-align:center;margin:0 0 34px;font-size:14.5px"><a href="/vs-chatgpt/">Thinking of just asking ChatGPT? See how we compare →</a></p>
   <footer>Thoughts Count: helping good intentions become meaningful actions.</footer>
 </div>
 </body>
@@ -2113,11 +2114,289 @@ ${TRACKER}
 </html>`;
 }
 
+// TC-176 authority lever: an embeddable, crawlable free tool. Anyone can drop it on their own site,
+// and the embed carries a visible "Powered by Thoughts Count" backlink — the one link-earning move that
+// needs no manual outreach. Data is derived from the guides we already publish (no fabricated stats;
+// a data report waits until real intake volume makes it credible). ?embed=1 renders minimal chrome.
+function whatToSayTool() {
+  const url = SITE + "/tools/what-to-say/";
+  const DATA = GUIDES.map((g) => ({
+    slug: g.slug,
+    label: g.h1,
+    tone: g.tone,
+    say: g.say.slice(0, 3).map((s) => s[0]),
+    avoid: g.avoid.slice(0, 3).map((s) => s[0]),
+    gesture: g.gestures[0] ? `${g.gestures[0][0]}. ${g.gestures[0][1]}` : "",
+  }));
+  const appLd = {
+    "@context": "https://schema.org",
+    "@type": "WebApplication",
+    name: "What to Say, a free tool",
+    url,
+    applicationCategory: "LifestyleApplication",
+    operatingSystem: "Any",
+    offers: { "@type": "Offer", price: "0", priceCurrency: "USD" },
+    description: "A free tool for what to say and what to avoid in life's hard and happy moments, with a gesture that helps.",
+    publisher: { "@id": ORG_ID },
+    isPartOf: { "@id": SITE + "/#website" },
+  };
+  const embedSnippet = `<iframe src="${url}?embed=1" title="What to Say, by Thoughts Count" width="100%" height="560" style="border:1px solid #e7ded0;border-radius:16px;max-width:560px" loading="lazy"></iframe>
+<p style="font:13px system-ui;color:#5a554c">Free tool by <a href="${url}">Thoughts Count</a></p>`;
+  return `<!doctype html>
+<html lang="en">
+<head>
+${MARKETING_TAGS}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>What to Say: A Free Tool for Life's Big Moments | Thoughts Count</title>
+<meta name="description" content="A free tool for what to say, what to avoid, and a gesture that helps, for weddings, grief, new babies, hard times and more. No account, instant, and embeddable." />
+<link rel="canonical" href="${url}" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="What to Say: A Free Tool for Life's Big Moments" />
+<meta property="og:description" content="Pick a moment and see what to say, what to avoid, and a gesture that helps. Free and instant." />
+<meta property="og:url" content="${url}" />
+<meta property="og:site_name" content="Thoughts Count" />
+<meta property="og:image" content="${SITE}/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${SITE}/og.png" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<script type="application/ld+json">${JSON.stringify(appLd)}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{--paper:#f7f3ec;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.65;background:var(--paper)}
+  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
+  a{color:var(--blue)}
+  h1,h2{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em}
+  .wrap{max-width:640px;margin:0 auto;padding:0 20px}
+  .bar{padding:18px 0}
+  .brand{font-size:15px;font-weight:700;color:var(--blue);text-decoration:none;display:inline-flex;gap:9px;align-items:center;text-transform:uppercase;letter-spacing:.18em}
+  .brand svg{width:22px;height:22px}
+  .hero{text-align:center;padding:14px 0 6px}
+  .hero h1{font-size:clamp(24px,4vw,34px);margin:0 0 8px}
+  .hero p{color:var(--soft);margin:0 auto;max-width:46ch;font-size:16px}
+  .card{background:var(--cloud);border:1px solid var(--line);border-radius:20px;padding:22px;margin:18px 0;box-shadow:0 14px 40px rgba(64,52,34,.06)}
+  label.lbl{display:block;font-size:13px;font-weight:700;color:var(--blue-deep);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}
+  select{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:16px;background:#fff;color:var(--ink)}
+  .out{margin-top:18px}
+  .out h2{font-size:15px;margin:16px 0 8px;text-transform:uppercase;letter-spacing:.06em}
+  .out h2.good{color:var(--blue-deep)}.out h2.bad{color:var(--red)}
+  .line{border:1px solid var(--line);border-radius:12px;padding:11px 14px;margin:7px 0;font-size:15.5px;background:#fff}
+  .line.bad{color:#7a2f28;background:#fdf0ee;border-color:#f3d6d1}
+  .gesture{background:#e3f0f6;border-radius:12px;padding:12px 14px;font-size:15px;margin-top:8px}
+  .cta{margin:18px 0 4px;text-align:center}
+  .cta a.btn{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:13px 26px;border-radius:999px;font-weight:700;font-size:15.5px}
+  .cta .sub{display:block;font-size:12.5px;color:var(--soft);margin-top:8px}
+  .readmore{text-align:center;margin-top:10px;font-size:14px}
+  .embed-box{margin:26px 0 8px}
+  .embed-box h2{font-size:16px;margin:0 0 8px}
+  textarea{width:100%;height:96px;border:1px solid var(--line);border-radius:12px;padding:12px;font:13px ui-monospace,Menlo,monospace;background:#fff;color:var(--ink);resize:vertical}
+  footer{padding:18px 0 44px;color:var(--soft);font-size:13px;text-align:center}
+  .poweredby{display:none;text-align:center;font-size:12.5px;color:var(--soft);padding:10px 0}
+  body.embed{background:transparent}
+  body.embed #bg,body.embed .bar,body.embed .hero p,body.embed .embed-box,body.embed footer{display:none}
+  body.embed .hero{padding:4px 0 2px}
+  body.embed .hero h1{font-size:20px}
+  body.embed .wrap{padding:0 12px}
+  body.embed .card{margin:8px 0;box-shadow:none}
+  body.embed .poweredby{display:block}
+</style>
+</head>
+<body>
+<div id="bg" aria-hidden="true"></div>
+${TRACKER}
+<div class="wrap">
+  <div class="bar"><a class="brand" href="/">${MARK}Thoughts Count</a></div>
+  <div class="hero">
+    <h1>What to say</h1>
+    <p>Pick a moment. See what genuinely helps to say, what to avoid, and one gesture that means more than any card. Free, and yours to use.</p>
+  </div>
+  <div class="card">
+    <label class="lbl" for="sit">Choose a moment</label>
+    <select id="sit" aria-label="Choose a moment"></select>
+    <div class="out" id="out" aria-live="polite"></div>
+    <div class="cta" id="cta" hidden>
+      <a class="btn" href="/">Get a plan made for your person</a>
+      <span class="sub">Free. No account. About a minute with Della.</span>
+    </div>
+    <p class="readmore" id="readmore" hidden></p>
+  </div>
+  <div class="poweredby">Free tool by <a href="/">Thoughts Count</a></div>
+  <div class="embed-box card">
+    <h2>Put this on your site, free</h2>
+    <p style="font-size:14px;color:var(--soft);margin:0 0 10px">Helpful for anyone who writes about relationships, grief, weddings, or well-being. Copy the code below.</p>
+    <textarea readonly onclick="this.select()">${esc(embedSnippet)}</textarea>
+  </div>
+  <footer>Thoughts Count: helping good intentions become meaningful actions.</footer>
+</div>
+<script>
+(function(){
+  var DATA=${JSON.stringify(DATA)};
+  if(/[?&]embed=1/.test(location.search)){document.body.classList.add('embed');}
+  var sel=document.getElementById('sit'),out=document.getElementById('out'),cta=document.getElementById('cta'),rm=document.getElementById('readmore');
+  var order=['hard','everyday','celebration'];
+  DATA.sort(function(a,b){var d=order.indexOf(a.tone)-order.indexOf(b.tone);return d||a.label.localeCompare(b.label);});
+  var ph=document.createElement('option');ph.value='';ph.textContent='Pick a moment...';sel.appendChild(ph);
+  DATA.forEach(function(d,i){var o=document.createElement('option');o.value=i;o.textContent=d.label;sel.appendChild(o);});
+  function esc(s){return String(s);}
+  function render(){
+    var d=DATA[sel.value];
+    if(!d){out.innerHTML='';cta.hidden=true;rm.hidden=true;return;}
+    var h='<h2 class="good">Say something like</h2>';
+    d.say.forEach(function(l){h+='<div class="line">'+l+'</div>';});
+    h+='<h2 class="bad">What to avoid</h2>';
+    d.avoid.forEach(function(l){h+='<div class="line bad">'+l+'</div>';});
+    if(d.gesture){h+='<h2 class="good">A gesture that helps</h2><div class="gesture">'+d.gesture+'</div>';}
+    out.innerHTML=h;
+    cta.hidden=false;
+    rm.hidden=false;rm.innerHTML='<a href="/guides/'+d.slug+'/">Read the full guide on this</a>';
+  }
+  sel.addEventListener('change',render);
+})();
+</script>
+</body>
+</html>`;
+}
+
+// TC-175 bottom-funnel "vs ChatGPT" page: own the "just ask ChatGPT what to say" query with an honest,
+// capability-framed case for a companion built for these moments. Names the competitor (a real search
+// term) but describes us in capability language, never as "AI" (cross-app brand rule).
+function vsChatgptPage() {
+  const url = SITE + "/vs-chatgpt/";
+  const faq = [
+    ["Can ChatGPT write a sympathy card?", "It can produce a sympathy message, but general chatbots tend to write something polished and generic that can read as impersonal on the page that matters most. A tool built for these moments asks who the person was to you and shapes the words to them, tells you what to avoid, and adds a gesture, so it lands like you and not like a template."],
+    ["Is ChatGPT good for knowing what to say when someone is grieving?", "For a quick line, it can help. But grief is where the wrong phrase does real harm, and a general assistant will not warn you off the clichés that sting or tell you when a note beats a text. Guidance built for hard moments leads with what not to say and how to keep showing up after, not just a paragraph to copy."],
+    ["What is a better alternative to ChatGPT for what to say?", "Thoughts Count is built for exactly this: you answer a few gentle questions about your person and the moment, and you get what to say, what to avoid, a gesture that fits, roughly how much to spend, and timed reminders to keep showing up. It is free, needs no account, and is designed to sound hand-written, not generated."],
+    ["Should I use ChatGPT to write a message for a friend?", "If you already know what you want to say and just want it tidied, a general chatbot is fine. If it matters and you do not want to get it wrong, something made for the relationship will get you closer, because it starts from your person instead of a blank prompt."],
+    ["Is Thoughts Count free like ChatGPT?", "Yes. A plan is free and needs no account. The difference is not price, it is that every answer is shaped around your specific person and moment, and comes with the gesture and the timing, not only the words."],
+  ];
+  const faqLd = { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })) };
+  const articleLd = { "@context": "https://schema.org", "@type": "Article", headline: "Thoughts Count vs ChatGPT: what to say when it matters", description: "An honest look at using a general chatbot versus a companion built for showing up for the people you love.", mainEntityOfPage: url, inLanguage: "en", datePublished: PUBLISHED, dateModified: BUILD_DATE, author: { "@id": ORG_ID }, publisher: { "@id": ORG_ID } };
+  const breadcrumbLd = { "@context": "https://schema.org", "@type": "BreadcrumbList", itemListElement: [ { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" }, { "@type": "ListItem", position: 2, name: "vs ChatGPT", item: url } ] };
+  const rows = [
+    ["Where it starts", "A blank prompt. You have to know what to ask, and what details to give.", "A few gentle questions about your person and the moment, so you do not have to know the right words first."],
+    ["What you get back", "A block of text to copy.", "What to say, what to avoid, a gesture that fits, how much to spend, and when to follow up."],
+    ["What NOT to say", "Rarely, unless you ask.", "Front and center, because the wrong line is what people fear most."],
+    ["How it sounds", "Can read polished and generic on the page.", "Tuned to sound hand-written, with the tells stripped out, so you can send it as-is."],
+    ["Beyond words", "Words only.", "A note, a meal, showing up, sometimes a gift. Words are one option among several."],
+    ["After the moment", "The chat is gone.", "Remembers your people and their dates, and nudges you to keep showing up when everyone else has moved on."],
+  ];
+  const rowsHtml = rows.map(([k, a, b]) => `
+      <div class="crow">
+        <div class="ck">${esc(k)}</div>
+        <div class="ca"><span class="tag">A general chatbot</span>${esc(a)}</div>
+        <div class="cb"><span class="tag tag-us">Thoughts Count</span>${esc(b)}</div>
+      </div>`).join("");
+  const faqRows = faq.map(([q, a]) => `
+      <div class="qa"><h3>${esc(q)}</h3><p>${esc(a)}</p></div>`).join("");
+  return `<!doctype html>
+<html lang="en">
+<head>
+${MARKETING_TAGS}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Thoughts Count vs ChatGPT: What to Say When It Matters</title>
+<meta name="description" content="Thinking of asking ChatGPT what to say? Here is an honest look at when a general chatbot is enough and when a companion built for showing up for people helps more." />
+<link rel="canonical" href="${url}" />
+<meta property="og:type" content="article" />
+<meta property="og:title" content="Thoughts Count vs ChatGPT: what to say when it matters" />
+<meta property="og:description" content="When a general chatbot is enough, and when a tool built for the moment helps more." />
+<meta property="og:url" content="${url}" />
+<meta property="og:site_name" content="Thoughts Count" />
+<meta property="og:image" content="${SITE}/og.png" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${SITE}/og.png" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<script type="application/ld+json">${JSON.stringify(articleLd)}</script>
+<script type="application/ld+json">${JSON.stringify(faqLd)}</script>
+<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{--paper:#f7f3ec;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.7;background:var(--paper)}
+  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
+  a{color:var(--blue)}
+  h1,h2,h3{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em;line-height:1.25}
+  .wrap{max-width:780px;margin:0 auto;padding:0 22px}
+  .bar{padding:20px 0}
+  .brand{font-size:15px;font-weight:700;color:var(--blue);text-decoration:none;display:inline-flex;gap:9px;align-items:center;text-transform:uppercase;letter-spacing:.18em}
+  .brand svg{width:22px;height:22px}
+  .crumbs{font-size:13px;color:var(--soft);margin:8px 0 0}
+  .crumbs a{color:var(--soft)}
+  .hero{text-align:center;padding:18px 0 4px}
+  .hero h1{font-size:clamp(26px,4.4vw,38px);margin:0 0 12px}
+  .hero p{color:var(--soft);max-width:52ch;margin:0 auto;font-size:17px}
+  article{background:var(--cloud);border:1px solid var(--line);border-radius:22px;padding:34px 32px;margin:18px 0 24px;box-shadow:0 14px 40px rgba(64,52,34,.06)}
+  .verdict{background:#e3f0f6;border-radius:14px;padding:16px 18px;font-size:16px;margin:0 0 8px}
+  h2{font-size:22px;margin:28px 0 12px}
+  .crow{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:#fff}
+  .ck{font-weight:700;font-size:15px;margin-bottom:8px}
+  .ca,.cb{font-size:15px;padding:8px 0}
+  .ca{color:var(--soft);border-bottom:1px dashed var(--line)}
+  .cb{color:var(--ink)}
+  .tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;margin-right:8px;background:#eee;color:#666}
+  .tag-us{background:#fdeceb;color:var(--red)}
+  .cta{margin:26px 0 6px;text-align:center}
+  .cta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:15px 32px;border-radius:999px;font-weight:700;font-size:16.5px;box-shadow:0 10px 30px rgba(64,52,34,.14)}
+  .cta .sub{display:block;font-size:13.5px;color:var(--soft);margin-top:10px}
+  .qa{padding:12px 0;border-bottom:1px dashed var(--line)}
+  .qa:last-child{border-bottom:none}
+  .qa h3{font-size:16.5px;margin:0 0 4px}
+  .qa p{margin:0;font-size:15.5px;color:var(--ink)}
+  .fine{font-size:15px;color:var(--soft)}
+  footer{padding:20px 0 50px;color:var(--soft);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div id="bg" aria-hidden="true"></div>
+${TRACKER}
+<div class="wrap">
+  <header class="bar">
+    <a class="brand" href="/">${MARK}Thoughts Count</a>
+    <div class="crumbs"><a href="/">Home</a> › vs ChatGPT</div>
+  </header>
+  <div class="hero">
+    <h1>Thinking of asking ChatGPT what to say?</h1>
+    <p>It is a fair instinct. Here is an honest look at when a general chatbot is enough, and when something built for the moment helps more.</p>
+  </div>
+  <article>
+    <div class="verdict"><strong>The short version:</strong> if you already know what you want to say and just want it tidied up, a general chatbot is fine. When it truly matters and you do not want to get it wrong, a tool built for showing up starts from your person, not a blank prompt, and gives you more than words.</div>
+
+    <h2>Side by side</h2>${rowsHtml}
+
+    <h2>When ChatGPT is genuinely fine</h2>
+    <p class="fine">We mean this. For a low-stakes note, a quick rewrite, or when you already have the words and just want them smoothed, a general assistant does the job. The case below is only about the moments that are harder to get right: a loss, a diagnosis, a friend falling apart, a milestone you want to honor well.</p>
+
+    <h2>Why a companion made for this helps more</h2>
+    <p>The hardest part of showing up is rarely the sentence. It is knowing what the person actually needs, what would sting, whether a gift or a meal or just your presence is right, and remembering to come back weeks later when everyone else has moved on. A blank prompt cannot ask you those questions. Thoughts Count does, and shapes everything around the answers, so what you send sounds like you and lands the way you meant it.</p>
+
+    <div class="cta">
+      <a href="/">Try it, free</a>
+      <span class="sub">A plan for your person in about a minute. No account.</span>
+    </div>
+
+    <h2>Common questions</h2>
+    <div class="faq">${faqRows}</div>
+  </article>
+  <footer>Thoughts Count: helping good intentions become meaningful actions.</footer>
+</div>
+</body>
+</html>`;
+}
+
 function sitemap() {
   const urls = [
     { loc: SITE + "/", pri: "1.0" },
     { loc: SITE + "/guides/", pri: "0.8" },
     { loc: SITE + "/thoughts/", pri: "0.6" }, // TC-179 daily-thought hub (freshens daily)
+    { loc: SITE + "/tools/what-to-say/", pri: "0.7" }, // TC-176 embeddable free tool
+    { loc: SITE + "/vs-chatgpt/", pri: "0.7" }, // TC-175 bottom-funnel comparison
     ...PILLARS.map((p) => ({ loc: `${SITE}/guides/${p.slug}/`, pri: "0.7" })),
     ...GUIDES.map((g) => ({ loc: `${SITE}/guides/${g.slug}/`, pri: "0.7" })),
   ];
@@ -2150,6 +2429,11 @@ for (const p of PILLARS) {
   writeFileSync(join(dir, "index.html"), pillar(p));
   np++;
 }
+// TC-176 embeddable free tool + TC-175 vs-ChatGPT page (static, served straight from public/).
+mkdirSync(join(ROOT, "public", "tools", "what-to-say"), { recursive: true });
+writeFileSync(join(ROOT, "public", "tools", "what-to-say", "index.html"), whatToSayTool());
+mkdirSync(join(ROOT, "public", "vs-chatgpt"), { recursive: true });
+writeFileSync(join(ROOT, "public", "vs-chatgpt", "index.html"), vsChatgptPage());
 writeFileSync(join(ROOT, "public", "sitemap.xml"), sitemap());
 writeFileSync(join(ROOT, "public", "robots.txt"), robots);
-console.log(`Wrote ${n} guide pages + hub + ${np} pillar pages + sitemap.xml + robots.txt`);
+console.log(`Wrote ${n} guide pages + hub + ${np} pillar pages + tool + vs-chatgpt + sitemap.xml + robots.txt`);
