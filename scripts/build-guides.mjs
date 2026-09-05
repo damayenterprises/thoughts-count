@@ -899,14 +899,21 @@ function page(g) {
   // TC-174 Surface 3: an inline Della intake, pre-filled with this guide's situation and editable.
   // Native GET form → /?begin=<situation>&from=guide, so it works even without JS (progressive
   // enhancement). Placed at peak intent (right after "What to say") and again at the foot of the page.
+  // Grief guard (UX gate): on hard-moment guides (tone:"hard") the celebratory "make my plan" framing
+  // reads as turning loss into a task, so Della speaks differently — steadier, no "plan" language.
+  const ctaHard = g.tone === "hard";
+  const ctaLine = ctaHard
+    ? "This is a hard one, and the right words are personal. Tell me about your person and I'll help you find them."
+    : "Want words that fit your person, not a stranger's? Tell me who they are and I'll make you a plan.";
+  const ctaBtn = ctaHard ? "Help me find the words" : "Make my plan";
   const dellaCta = `
     <div class="della-cta">
       <div class="della-cta-head">${MARK}<span>From ${esc(HER_NAME)}</span></div>
-      <p class="della-cta-line">Want words that fit your person, not a stranger's? Tell me who they are and I'll make you a plan.</p>
+      <p class="della-cta-line">${ctaLine}</p>
       <form class="della-cta-form" action="/" method="get">
         <input type="text" name="begin" value="${esc(g.begin)}" maxlength="120" aria-label="Your situation" />
         <input type="hidden" name="from" value="guide" />
-        <button type="submit">Make my plan</button>
+        <button type="submit">${ctaBtn}</button>
       </form>
       <span class="della-cta-sub">Free. No account. About a minute.</span>
     </div>`;
