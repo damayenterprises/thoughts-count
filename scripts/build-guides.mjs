@@ -923,7 +923,7 @@ function page(g) {
   // with source "guide". Straight punctuation only (human-sendable rule). Hidden once opted in.
   const dailyOptin = `
     <div class="daily-optin" id="guideDailyOptin">
-      <p class="do-prompt">Want a small thought from ${esc(HER_NAME)} each morning?</p>
+      <p class="do-prompt">Want a small thought like this from me each morning?</p>
       <form class="do-form" id="guideDailyForm" novalidate>
         <input type="email" id="guideDailyEmail" placeholder="you@email.com" aria-label="Your email" autocomplete="email" />
         <button type="submit" id="guideDailyBtn">Yes, send them</button>
@@ -952,7 +952,7 @@ function page(g) {
             if(!res.ok){btn.disabled=false;msg.className='do-msg bad';msg.textContent=(res.j&&res.j.error)||'That did not go through. Try again in a moment.';return;}
             try{localStorage.setItem('tc_daily_sub','1');}catch(e){}
             form.style.display='none';wrap.querySelector('.do-prompt').style.display='none';
-            msg.className='do-msg';msg.textContent='Lovely. You will get a small thought each morning.';
+            msg.className='do-msg';msg.textContent="Lovely. I'll send you a small thought each morning.";
           })
           .catch(function(){btn.disabled=false;msg.className='do-msg bad';msg.textContent='That did not go through. Try again in a moment.';});
       });
