@@ -138,14 +138,60 @@
     $("genAt").textContent = "As of " + new Date(d.generated_at).toLocaleString() + (d.excluded_noise_events ? "  ·  " + num(d.excluded_noise_events) + " bot/test events filtered" : "");
     const f = d.funnel || {}, c = d.conversion || {}, t = d.traffic || {}, w = d.what_people_need || {};
 
-    // today's activity from the per-day event tally (YYYYMMDD keys)
+    // TC ongoing dashboard: per-day traffic + funnel + sign-ups (real visitors; insiders/bots
+    // excluded upstream). `daily` is oldest→newest; period rollups are derived here on the client.
     const now = new Date();
     const todayKey = "" + now.getFullYear() + String(now.getMonth()+1).padStart(2,"0") + String(now.getDate()).padStart(2,"0");
-    const byDay = d.by_day || {};
-    const todayEvents = byDay[todayKey] || 0;
-    const dayKeys = Object.keys(byDay).sort().slice(-14);
-    const maxDay = Math.max(1, ...dayKeys.map(k => byDay[k]));
-    const spark = dayKeys.map(k => `<div class="b ${k===todayKey?'today':''}" style="height:${Math.round((byDay[k]/maxDay)*100)}%" title="${k}: ${byDay[k]}"></div>`).join("");
+    const daily = Array.isArray(d.daily) ? d.daily : [];
+    const su = d.signups || {};
+    const dailyByKey = Object.fromEntries(daily.map(r => [r.day, r]));
+    const todayRow = dailyByKey[todayKey] || { visitors:0, engaged:0, plans:0, emails:0, saves:0 };
+    const sparkDays = daily.slice(-30);
+    const maxV = Math.max(1, ...sparkDays.map(r => r.visitors));
+    const spark = sparkDays.map(r => `<div class="b ${r.day===todayKey?'today':''}" style="height:${Math.round((r.visitors/maxV)*100)}%" title="${r.day}: ${r.visitors} visitors"></div>`).join("");
+    // 7d vs prior-7d — summed daily totals (visitor-days, not distinct-over-week; labeled honestly).
+    const sumR = (arr) => arr.reduce((a,x)=>({visitors:a.visitors+x.visitors,engaged:a.engaged+x.engaged,plans:a.plans+x.plans,emails:a.emails+x.emails,saves:a.saves+x.saves}),{visitors:0,engaged:0,plans:0,emails:0,saves:0});
+    const l7 = sumR(daily.slice(-7)), p7 = sumR(daily.slice(-14,-7));
+    const delta = (a,b)=> b>0 ? Math.round(((a-b)/b)*100) : (a>0?null:0);
+    const arrow = (a,b)=>{const dv=delta(a,b); if(dv==null) return '<span style="color:#0a5876;font-weight:700">new</span>'; if(dv>0) return `<span style="color:#1a7f37;font-weight:700">▲ ${dv}%</span>`; if(dv<0) return `<span style="color:#c0392b;font-weight:700">▼ ${Math.abs(dv)}%</span>`; return '<span style="color:var(--soft)">—</span>';};
+    const dailyRowsHtml = daily.slice(-21).reverse().map(r => {
+      const dd = r.day.slice(4,6)+"/"+r.day.slice(6,8);
+      const vb = Math.max(3, Math.round((r.visitors/maxV)*100));
+      return `<tr><td class="k">${dd}${r.day===todayKey?' <span style="color:var(--blue);font-weight:700">today</span>':''}<div class="bar" style="width:${vb}%"></div></td><td class="v">${num(r.visitors)}</td><td class="v">${num(r.engaged)}</td><td class="v">${num(r.plans)}</td><td class="v">${num(r.emails)}</td><td class="v">${num(r.saves)}</td></tr>`;
+    }).join("") || '<tr><td class="muted">No data yet</td><td></td><td></td><td></td><td></td><td></td></tr>';
+
+    const signupCards = [
+      { n: su.unique_emails_total, l: "Total unique emails", sub: "all opt-ins, deduped" },
+      { n: su.daily_thought_emails, l: "Daily-thought opt-ins", sub: "new door (TC-174)" },
+      { n: su.plan_emails, l: "Plan emails", sub: "emailed their plan" },
+      { n: su.account_saves, l: "Account saves", sub: "saved to their People" },
+      { n: d.returning_30d, l: "Returning visitors", sub: "active 2+ days (30d)" },
+    ].map(x => `<div class="card"><div class="n">${num(x.n)}</div><div class="l">${x.l}</div>${x.sub?`<div class="sub">${x.sub}</div>`:""}</div>`).join("");
+
+    const signupSection = `
+      <section>
+        <h3>Sign-ups &amp; retention</h3>
+        <div class="cards">${signupCards}</div>
+      </section>`;
+
+    const dailySection = `
+      <section>
+        <h3>Daily traffic &amp; funnel</h3>
+        <div class="spark">${spark || '<span class="muted">No data yet</span>'}</div>
+        <div class="muted" style="margin:8px 0 14px;">Real visitors/day, last 30 days · today so far: <b>${num(todayRow.visitors)}</b> visitors · ${num(todayRow.plans)} plans · ${num(todayRow.emails+todayRow.saves)} sign-ups</div>
+        <table>
+          <thead><tr><td class="k"><b>Last 7 days</b></td><td class="v"><b>Recent 7</b></td><td class="v"><b>Prior 7</b></td><td class="v"><b>Trend</b></td></tr></thead>
+          <tr><td class="k">Visits (visitor-days)</td><td class="v">${num(l7.visitors)}</td><td class="v">${num(p7.visitors)}</td><td class="v">${arrow(l7.visitors,p7.visitors)}</td></tr>
+          <tr><td class="k">Engaged</td><td class="v">${num(l7.engaged)}</td><td class="v">${num(p7.engaged)}</td><td class="v">${arrow(l7.engaged,p7.engaged)}</td></tr>
+          <tr><td class="k">Plans</td><td class="v">${num(l7.plans)}</td><td class="v">${num(p7.plans)}</td><td class="v">${arrow(l7.plans,p7.plans)}</td></tr>
+          <tr><td class="k">Sign-ups (emails + saves)</td><td class="v">${num(l7.emails+l7.saves)}</td><td class="v">${num(p7.emails+p7.saves)}</td><td class="v">${arrow(l7.emails+l7.saves,p7.emails+p7.saves)}</td></tr>
+        </table>
+        <h3 style="margin-top:18px;">By day (last 21)</h3>
+        <table>
+          <thead><tr><td class="k"><b>Day</b></td><td class="v"><b>Visitors</b></td><td class="v"><b>Engaged</b></td><td class="v"><b>Plans</b></td><td class="v"><b>Emails</b></td><td class="v"><b>Saves</b></td></tr></thead>
+          ${dailyRowsHtml}
+        </table>
+      </section>`;
 
     const cards = [
       { n: f.visitors, l: "Real visitors", sub: (f.insider_sessions_excluded ? num(f.insider_sessions_excluded)+" insider + bots/agents excluded" : "excl. bots/agents/you+JC") },
@@ -212,16 +258,13 @@
 
     $("body").innerHTML = `
       ${sinceBanner}
+      ${signupSection}
+      ${dailySection}
       ${acqHtml}
       <div style="font-size:12.5px;color:var(--soft);margin:14px 2px 4px;">All-time (includes pre-launch build/QA/insider visits — history can't be cleaned)</div>
       <div class="cards">${cards}</div>
       <section>
-        <h3>Activity (last 14 days · total events/day)</h3>
-        <div class="spark">${spark || '<span class="muted">No data yet</span>'}</div>
-        <div class="muted" style="margin-top:8px;">Today: <b>${num(todayEvents)}</b> events · ${num(f.page_views)} page views all-time</div>
-      </section>
-      <section>
-        <h3>Funnel</h3>
+        <h3>Funnel (all-time)</h3>
         ${funnelHtml}
       </section>
       <div class="grid2">

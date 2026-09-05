@@ -132,6 +132,70 @@ function acquisitionBreakdown(evts) {
   return { by_channel: rows(chan), paid_sources: rows(paidSource), paid_creatives: rows(paidCreative), paid_landing_pages: rows(paidLanding) };
 }
 
+// TC dashboard (ongoing): per-day time-series so we can see traffic + funnel progression each day
+// and over periods, not just a cumulative total. One row per day (only days that have events),
+// oldest→newest. Insider/agent sessions are excluded exactly like the headline counts, so a day's
+// "visitors" matches the real-visitor definition. `emails`/`saves` are the day's sign-ups; plan
+// generation is the mid-funnel step. Distinct sessions are per-day (a returning sid counts once/day).
+function dailySeries(events) {
+  const insiderSids = new Set(events.filter((e) => e.insider).map((e) => e.sid).filter(Boolean));
+  const ok = (sid) => sid && !insiderSids.has(sid);
+  const byDay = new Map();
+  for (const e of events) {
+    const day = e.ymd;
+    if (!day) continue;
+    let g = byDay.get(day);
+    if (!g) { g = { day, visitors: new Set(), engaged: new Set(), plans: 0, emails: 0, daily_thought: 0, saves: 0 }; byDay.set(day, g); }
+    if (ok(e.sid)) g.visitors.add(e.sid);
+    if ((e.event === "intake_start" || e.event === "plan_generated") && ok(e.sid)) g.engaged.add(e.sid);
+    if (e.event === "plan_generated") g.plans += 1;
+    if (e.event === "email_submitted" && !e.insider) { g.emails += 1; if (e.source === "daily_thought") g.daily_thought += 1; }
+    if (e.event === "plan_saved") g.saves += 1;
+  }
+  return [...byDay.keys()].sort().map((day) => {
+    const g = byDay.get(day);
+    return { day, visitors: g.visitors.size, engaged: g.engaged.size, plans: g.plans, emails: g.emails, daily_thought: g.daily_thought, saves: g.saves };
+  });
+}
+
+// Sign-ups broken out by the door they came through — the metric that was structurally 0 before the
+// TC-174 capture fix. Deduped by hashed email (external only) so re-opt-ins don't inflate. Account
+// saves (plan_saved) are a separate, stronger commitment than an email.
+function signupBreakdown(events) {
+  const em = events.filter((e) => e.event === "email_submitted" && !e.insider);
+  const uniq = (list) => new Set(list.map((e) => e.emailHash).filter(Boolean)).size;
+  return {
+    daily_thought_emails: uniq(em.filter((e) => e.source === "daily_thought")),
+    plan_emails: uniq(em.filter((e) => e.source !== "daily_thought")),
+    account_saves: events.filter((e) => e.event === "plan_saved").length,
+    unique_emails_total: uniq(em),
+  };
+}
+
+// Returning real visitors within a window: distinct sessions active on 2+ distinct days. A coarse
+// but honest retention signal (anon sids persist in localStorage across visits). sinceYmd bounds it.
+function returningCount(events, sinceYmd) {
+  const insiderSids = new Set(events.filter((e) => e.insider).map((e) => e.sid).filter(Boolean));
+  const daysBySid = new Map();
+  for (const e of events) {
+    if (!e.sid || insiderSids.has(e.sid) || !e.ymd) continue;
+    if (sinceYmd && String(e.ymd) < sinceYmd) continue;
+    let s = daysBySid.get(e.sid);
+    if (!s) { s = new Set(); daysBySid.set(e.sid, s); }
+    s.add(e.ymd);
+  }
+  let r = 0;
+  for (const s of daysBySid.values()) if (s.size >= 2) r += 1;
+  return r;
+}
+
+// YYYYMMDD for `n` days before today (UTC-ish; the buckets are UTC ymd, consistent with logEvent).
+function ymdDaysAgo(n) {
+  const d = new Date();
+  d.setDate(d.getDate() - n);
+  return ymdOf(d);
+}
+
 // Aggregate a list of (already test-filtered) events into the report shape.
 // Utilization counts include everyone real (you + JC = insiders). "Growth" numbers
 // (unique external emails) exclude insiders; insider activity is surfaced separately.
@@ -293,6 +357,12 @@ export function computeSummary(events) {
     outcomes,
     voice_latency,
     by_day: tally(events.map((e) => e.ymd)),
+    // TC ongoing dashboard: per-day traffic + funnel + sign-ups, the sign-up breakdown by door,
+    // and a 30-day returning-visitor count. The frontend derives period rollups (7d vs prior 7d)
+    // from `daily`, so no extra windows are computed here.
+    daily: dailySeries(events),
+    signups: signupBreakdown(events),
+    returning_30d: returningCount(events, ymdDaysAgo(30)),
   };
 }
 
