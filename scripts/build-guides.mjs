@@ -276,7 +276,7 @@ const GUIDES = [
       ["What practical things can I do for a grieving friend?", "Drop off freezer meals, handle chores (lawn, laundry, pet care, errands), help with the paperwork that follows a death, and coordinate a longer-term meal or check-in schedule."],
       ["How long should I keep helping?", "Well beyond the funeral. Support usually vanishes after a couple of weeks, exactly when grief deepens. Check in at one month, six months, and the one-year anniversary."],
     ],
-    related: ["what-to-say-after-a-miscarriage", "how-to-honor-someone-on-a-loss-anniversary"],
+    related: ["what-to-say-after-a-miscarriage", "how-to-honor-someone-on-a-loss-anniversary", "what-to-say-to-someone-going-through-a-divorce"],
   },
   {
     slug: "how-to-help-new-parents",
@@ -522,6 +522,7 @@ const GUIDES = [
       ["“I'm so sorry. However you're feeling about it, I'm on your side.”", "Offers loyalty without forcing them to explain or defend the decision."],
       ["“You don't have to have it figured out. I'm here for the long haul.”", "Divorce is a marathon of logistics and emotion; naming that you'll stay eases the fear of being a burden."],
       ["“Do you want to talk about it, or would a normal night out sound better?”", "Gives them a break from being 'the person going through a divorce.'"],
+      ["“None of this makes you a failure.”", "Say it plainly. Even people who chose the divorce often carry a quiet sense of having failed; naming it out loud helps lift it."],
     ],
     avoid: [
       ["“I never liked them anyway.”", "Trashing the ex can backfire. They may reconcile, co-parent, or still love parts of them. Follow their lead."],
@@ -532,10 +533,29 @@ const GUIDES = [
       ["Take a logistical load off", "Divorce buries people in admin and solo parenting. Offer one specific thing: a meal, a school pickup, help moving boxes."],
       ["Keep including them", "Newly single people often get quietly dropped from couple gatherings. A standing invitation says 'you still belong here.'"],
       ["Mark the small wins", "First night in the new place, paperwork finalized: a card or a 'proud of you' text honors milestones no one else celebrates."],
+      ["Note the hard dates", "Quietly put the would-be anniversary and the first solo holidays in your calendar. A short 'thinking of you today' when everyone else has forgotten means the most."],
+    ],
+    sections: [
+      {
+        h: "What to say based on your relationship",
+        rows: [
+          ["If it's a close friend", "Be direct about your loyalty and then keep showing up in ordinary ways, not just the crisis moments: 'I'm on your side no matter what, and I'm not going anywhere.'"],
+          ["If it's a family member", "Family divorces come loaded with everyone's opinions. Be the one who adds none: 'I love you, I'm not keeping score, and I'm here however you need me.'"],
+          ["If it's a coworker or someone you don't know well", "Keep it brief and private: 'I heard you've got a lot going on right now, I'm thinking of you.' Don't probe for details, and don't raise it in front of others."],
+          ["If you're worried about taking sides", "You don't have to take one. Support the person in front of you without commenting on the ex at all. 'I'm here for you' needs no verdict on who was right."],
+        ],
+      },
+      {
+        h: "What to say once the divorce is final",
+        p: "When the paperwork is signed, the world assumes it's over and moves on, but this is often when the quiet really sets in. Skip 'congratulations, you're better off' unless they say it first, and skip a heavy 'I'm so sorry' if what they feel is relief. Something open works better: 'However you're feeling about this being final, I'm glad you're through it, and I'm still here.' Then keep treating them like the same friend, invited to the same things, checked in on through the first solo holidays and the dates that used to matter.",
+      },
     ],
     followUp: "Support clusters around the announcement, then fades as the process grinds on for a year or more. Check in during the quiet stretches: after a court date, around what would've been an anniversary, on the first holidays alone. Being the friend who remembers those dates is a rare gift.",
     faq: [
       ["What do you say to someone going through a divorce?", "Offer loyalty and presence without taking sides or asking for details: 'I'm on your side, however you feel about it,' and 'I'm here for the long haul.' Let them decide how much to share and whether they want distraction or a listening ear."],
+      ["What do you text someone going through a divorce?", "Keep it warm and low-pressure: 'Thinking of you. No need to reply, I just wanted you to know I'm on your side.' A short, no-obligation text is often kinder than a call in the early days, because it lets them respond when they have the energy."],
+      ["Do you say congratulations or sorry about a divorce?", "Follow their lead. Divorce can be a grief, a relief, or both, and assuming either way can sting. If you're unsure, stay open: 'However you're feeling about this, I'm here for you,' and save 'congratulations' or 'I'm sorry' for after they've signaled which one fits."],
+      ["What do you say to a coworker or acquaintance who's getting divorced?", "Acknowledge it gently and keep it private: 'I heard you've got a lot going on, I'm thinking of you.' Don't ask what happened or bring it up in front of others. Warm, brief, and no prying is exactly right."],
       ["What should you not say to someone getting divorced?", "Avoid bashing the ex, ranking their loss ('at least no kids'), and prying with 'what went wrong?' These can backfire or minimize a real grief. Support them without interrogating them."],
       ["How can I support a friend during a divorce?", "Take a logistical load off (meals, childcare, moving help), keep including them in plans so they don't feel dropped, and quietly mark the milestones and hard dates no one else acknowledges."],
       ["How long does someone need support after a divorce?", "Often a year or more. The legal process and the emotional recovery both take time. Support usually fades after the announcement, so checking in through the long, quiet middle matters most."],
