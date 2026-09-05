@@ -91,6 +91,18 @@
   to = "/.netlify/functions/track"
   status = 200
 
+# TC-174 Surface 2: low-commitment "daily thought" email opt-in (home bar + guide foot)
+[[redirects]]
+  from = "/api/subscribe-daily"
+  to = "/.netlify/functions/subscribe-daily"
+  status = 200
+
+# TC-174 Surface 2: one-tap unsubscribe from the daily thought (linked in every daily email)
+[[redirects]]
+  from = "/api/daily-unsub"
+  to = "/.netlify/functions/daily-unsub"
+  status = 200
+
 # Analytics summary (admin token required)
 [[redirects]]
   from = "/api/analytics"

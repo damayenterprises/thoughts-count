@@ -17,9 +17,10 @@ export const config = { schedule: "30 14 * * *" }; // ~9:30am CT daily, after th
 // What MUST fire, and on which CT weekdays (0=Sun..6=Sat). `daily` = every day. Each job name
 // must match the `job` its send passes to recordSend(). This is the per-brand config.
 export const EXPECTED_SENDS = [
-  { job: "reminders-cron", label: "Daily plan reminders", daily: true },
-  { job: "nudges-cron",    label: "Daily people nudges",  daily: true },
-  { job: "weekly-digest",  label: "Weekly report",        days: [1] }, // Mondays
+  { job: "reminders-cron",     label: "Daily plan reminders", daily: true },
+  { job: "nudges-cron",        label: "Daily people nudges",  daily: true },
+  { job: "daily-thought-send", label: "Daily thought email",  daily: true }, // TC-174 Surface 2
+  { job: "weekly-digest",      label: "Weekly report",        days: [1] }, // Mondays
 ];
 
 // DST-aware America/Chicago helpers.

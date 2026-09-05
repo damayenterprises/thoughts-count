@@ -1742,6 +1742,43 @@ async function mountSaveToPerson(stageEl, plan) {
       card.querySelector("#tcSavePlan").innerHTML = `${checkSvg(16, "currentColor")}<span>Saved</span>`;
       card.querySelector("#tcSavePlan").style.cssText += ";display:inline-flex;align-items:center;gap:8px;justify-content:center;";
       card.querySelector("#tcSavePlan").disabled = true;
+
+      // TC-174 Surface 4: the return hook. Now that this plan is saved to a real person, Della OFFERS
+      // to nudge the user to check in later (a week out, or further for a hard time). Never-extractive:
+      // we store only the person's first name + a date, and the nudge goes TO THE USER — never any
+      // outreach to the person, and we never ask for their contact info.
+      try {
+        if (typeof window.tcOfferCheckin === "function") {
+          let displayName = recipient;
+          if (!displayName) {
+            if (sel.value === "__new") displayName = nameEl.value.trim();
+            else { const pm = people.find((p) => p.id === personId); displayName = pm ? pm.name : ""; }
+          }
+          const fn = firstName(displayName) || "them";
+          const valence = classifyValenceLite(occasion || plan.plan_title || "");
+          const savedPersonId = personId;
+          window.tcOfferCheckin({
+            mountEl: card,
+            firstName: fn,
+            valence,
+            onAccept: async () => {
+              const days = valence === "hard_time" ? 21 : 7;
+              const dt = new Date(); dt.setDate(dt.getDate() + days);
+              const event_date = ymd(dt);
+              // Idempotent: don't stack a duplicate check-in if the user accepts twice or re-saves.
+              let exists = false;
+              try {
+                const { data: ex } = await sb.from("key_dates").select("id").eq("person_id", savedPersonId).eq("label", "check-in").eq("event_date", event_date).limit(1);
+                exists = !!(ex && ex.length);
+              } catch (e) { /* dedup lookup failed — fall through and insert (a possible dup beats no nudge) */ }
+              if (!exists) {
+                await addKeyDate(savedPersonId, { label: "check-in", kind: "moment", event_date, recurs: false, lead_days: 0 });
+              }
+              return days === 7 ? "in a week" : "in about three weeks";
+            },
+          });
+        }
+      } catch (e) { console.error("checkin offer failed", e); }
     } catch (e) { console.warn("save plan failed", e); msg.className = "k-msg bad"; msg.textContent = "Could not save. Please try again."; }
   };
 }
