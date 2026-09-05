@@ -73,16 +73,18 @@ export default async () => {
 function renderPage({ featured, rest }) {
   const url = SITE + "/thoughts/";
   const featuredHtml = featured ? `
-      <p class="today-day">${esc(fmtDay(featured.day)) || "Today"}</p>
-      <blockquote class="today-line">${esc(featured.line)}</blockquote>` : `
+      <p class="today-day"${featured.day ? ` id="${esc(featured.day)}"` : ""}>${esc(fmtDay(featured.day)) || "Today"}</p>
+      <blockquote class="today-line">${esc(featured.line)}</blockquote>${featured.day ? `
+      <a class="t-share" data-day="${esc(featured.day)}" href="/thoughts/#${esc(featured.day)}">Share this thought</a>` : ""}` : `
       <blockquote class="today-line">A small thought is on its way. Check back in the morning.</blockquote>`;
 
   const archiveHtml = rest.length ? `
     <h2>Recent thoughts</h2>
     <div class="archive">${rest.map((a) => `
-      <div class="thought">
+      <div class="thought" id="${esc(a.day)}">
         <p class="t-day">${esc(fmtDay(a.day))}</p>
         <p class="t-line">${esc(a.line)}</p>
+        <a class="t-share" data-day="${esc(a.day)}" href="/thoughts/#${esc(a.day)}">Share</a>
       </div>`).join("")}
     </div>` : "";
 
@@ -165,6 +167,10 @@ function renderPage({ featured, rest }) {
   .thought{border:1px solid var(--line);background:var(--cloud);border-radius:14px;padding:14px 16px;margin:10px 0}
   .t-day{font-size:12px;color:var(--soft);margin:0 0 5px;text-transform:uppercase;letter-spacing:.05em}
   .t-line{font-family:'Fraunces',Georgia,serif;font-style:italic;font-size:17px;line-height:1.5;margin:0;color:var(--ink)}
+  .t-share{display:inline-block;margin-top:8px;font-size:12.5px;color:var(--blue);text-decoration:none;opacity:.8}
+  .t-share:hover{opacity:1;text-decoration:underline}
+  .today .t-share{margin-top:16px;color:var(--blue-deep)}
+  .thought:target{border-color:var(--blue);box-shadow:0 0 0 3px rgba(17,138,185,.12)}
   .daily-optin{margin:26px 0 4px;padding:18px 20px;background:#eef6fa;border:1px solid var(--line);border-radius:16px}
   .do-prompt{margin:0 0 10px;font-size:15.5px;font-weight:600;color:var(--blue-deep)}
   .do-form{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
@@ -240,6 +246,22 @@ ${archiveHtml}
       .catch(function(){btn.disabled=false;msg.className='do-msg bad';msg.textContent='That did not go through. Try again in a moment.';});
   });
 })();
+</script>
+<script>
+// TC-179 per-day share: copy the permalink to this exact thought, falling back to a normal anchor jump.
+document.addEventListener('click',function(e){
+  var a=e.target.closest('.t-share');if(!a)return;
+  var day=a.getAttribute('data-day');if(!day)return;
+  var url=location.origin+'/thoughts/#'+day;
+  if(navigator.clipboard&&navigator.clipboard.writeText){
+    e.preventDefault();
+    navigator.clipboard.writeText(url).then(function(){
+      var prev=a.textContent;a.textContent='Link copied';
+      try{history.replaceState(null,'',url);}catch(_){}
+      setTimeout(function(){a.textContent=prev;},1500);
+    }).catch(function(){location.hash=day;});
+  }
+});
 </script>
 </body>
 </html>`;

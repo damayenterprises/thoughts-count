@@ -1893,6 +1893,7 @@ ${dellaCta}
 
     <div class="related">
       <h2>More guides</h2>${related}${pillarLink}
+      <a class="rel rel-pillar" href="/thoughts/">A small thought from ${esc(HER_NAME)}, every morning →</a>
     </div>
 ${dailyOptin}
   </article>
