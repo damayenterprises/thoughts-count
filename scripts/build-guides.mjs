@@ -236,7 +236,7 @@ const GUIDES = [
       ["What's a meaningful graduation gift?", "Something for their next chapter, like practical items for a first job or apartment, paired with a handwritten letter. The letter is often the part they keep."],
       ["How do you encourage a graduate who doesn't know what's next?", "Reassure them that not having it all figured out is normal and okay, express your belief in them, and check in again a few weeks later without pressure."],
     ],
-    related: ["what-to-write-in-a-milestone-birthday-card", "what-to-say-for-a-new-job-or-promotion"],
+    related: ["what-to-write-in-a-milestone-birthday-card", "what-to-say-for-a-new-job-or-promotion", "what-to-say-when-someone-gets-engaged"],
   },
 
   // ---- Batch 2: DO / practical help + ACKNOWLEDGE / recognize / celebrate ----
@@ -722,7 +722,7 @@ const GUIDES = [
       ["What's a thoughtful anniversary gift?", "An experience that recreates a shared memory, the gift of time together (a night out or a weekend away), or a heartfelt letter. Meaning outlasts any object."],
       ["How do you make an anniversary message meaningful?", "Speak to the years since the wedding, the ordinary days and the seasons weathered together, and name something real you admire about their relationship."],
     ],
-    related: ["what-to-write-in-a-wedding-card", "what-to-write-in-a-milestone-birthday-card"],
+    related: ["what-to-write-in-a-wedding-card", "what-to-write-in-a-milestone-birthday-card", "what-to-say-when-someone-gets-engaged"],
   },
   {
     slug: "what-to-write-in-a-retirement-card",
@@ -776,6 +776,7 @@ const GUIDES = [
       ["“This is the best news. I'm so happy for you both. Tell me everything!”", "Genuine enthusiasm and an invitation to share beats a quick 'congrats.'"],
       ["“You two are so right for each other. I've thought so for a long time.”", "Affirms the relationship itself, which means more than reacting to the proposal."],
       ["“However you celebrate this, I'm here for it. No pressure, just joy.”", "A refreshing change from everyone immediately asking about the wedding date."],
+      ["“I love seeing you this happy.”", "Sometimes the warmest thing is to simply reflect their joy back to them, with no advice and no questions attached."],
     ],
     avoid: [
       ["“So when's the wedding?” right away", "It rushes past the moment into logistics they may not have figured out yet."],
@@ -786,15 +787,34 @@ const GUIDES = [
       ["Celebrate the moment itself", "Take them out, raise a toast, or send a small treat to mark the engagement, before all the wedding planning begins."],
       ["Offer specific help, later", "Once the dust settles, a genuine 'I'd love to help with X' is welcome, but let them enjoy being engaged first."],
       ["Send a heartfelt note", "A card celebrating the two of them, not the wedding to come, is a warm surprise in a sea of logistics questions."],
+      ["Note the date for later", "Jot down the engagement date and check in around their first anniversary of it, or as the wedding nears. Remembering when others have forgotten is its own quiet gift."],
+    ],
+    sections: [
+      {
+        h: "What to say based on your relationship",
+        rows: [
+          ["If it's your best friend", "Skip the polish and be real: 'I'm actually crying, this is the best news, I love you both.' They want your unfiltered joy far more than a perfect sentence."],
+          ["If it's a sibling or close family", "Speak to the whole story and the belonging: 'I've watched this relationship grow, and I could not be happier to really call them family.' That lands hard here."],
+          ["If it's a coworker or someone you're not close to", "Warm but brief is exactly right: 'Congratulations, that's wonderful news, I'm so happy for you.' Sincere and uncomplicated beats overreaching."],
+          ["If you have mixed feelings about it", "Lead with them, not your doubts: 'I'm happy for you.' Your job in this moment is to celebrate. Any concerns, if they are yours to raise at all, are for another day."],
+        ],
+      },
+      {
+        h: "Should you text, call, or send a card?",
+        p: "A text is perfect for the first reaction, warm and immediate the moment you hear the news. A call is lovely for someone close, so they can actually hear the joy in your voice. And a handwritten card a week or two later, once the flood of announcement comments has died down, is the one that gets kept. If you can, do both: the quick text now and the card later. The couple feels celebrated twice, at the peak and again in the quiet after.",
+      },
     ],
     followUp: "The excitement of an engagement gives way to months of planning, and a surprising amount of stress and family opinions. Check in during that stretch, not about the seating chart, just 'how are <em>you two</em> doing in all this?' It's a rare and welcome question.",
     faq: [
       ["What do you say when someone gets engaged?", "Lead with genuine enthusiasm and make it about the couple: 'I'm so happy for you both, tell me everything,' and affirm that they're right for each other. Save the wedding-logistics questions for later."],
+      ["Do you say congratulations when someone gets engaged?", "Yes. The old etiquette rule was to say 'congratulations' to the person who proposed and 'best wishes' to the other, on the idea that you don't congratulate someone simply for getting engaged. That distinction has largely faded, and a warm 'congratulations to you both' is welcome and correct today."],
+      ["What do you text someone who just got engaged?", "Keep it warm and immediate: 'Just saw the news, I'm so happy for you both. Congratulations!' You don't need the perfect line in a text; your quick, genuine excitement in the moment is the whole point. Save a longer message for a card later."],
+      ["How do you congratulate a coworker on their engagement?", "Warm but brief is the right register: 'Congratulations, that's wonderful news, I'm really happy for you.' You can add a light, sincere question like 'How are you feeling?' without prying into wedding logistics."],
       ["What should you not say to a newly engaged couple?", "Avoid immediately asking 'when's the wedding?', leading with how expensive or stressful weddings are, or making the ring your first reaction. Let them enjoy the moment first."],
       ["How do you celebrate someone's engagement?", "Mark the engagement itself by taking them out, toasting them, or sending a small treat, all before the wedding planning starts. A heartfelt note about the two of them is always welcome."],
       ["When should you offer to help with the wedding?", "After the initial excitement settles. Let the couple simply be engaged for a while, then offer specific help rather than a vague 'let me know if you need anything.'"],
     ],
-    related: ["what-to-write-in-a-wedding-card", "what-to-write-in-a-new-baby-card"],
+    related: ["what-to-write-in-a-wedding-card", "what-to-write-in-a-new-baby-card", "what-to-write-in-an-anniversary-card"],
   },
 ];
 
@@ -892,6 +912,23 @@ function page(g) {
       </div>`).join("");
   const gestureRows = g.gestures.map(([t, txt]) => `
       <div class="gesture"><h3>${t}</h3><p>${txt}</p></div>`).join("");
+  // Optional depth sections (SEO: consolidate a query cluster — relationship / channel variants — into
+  // ONE strong page as sections instead of thin separate pages). Backward-compatible: guides without
+  // `sections` render unchanged. A section is either prose ({h,p}) or a labelled row list ({h,rows}).
+  const sectionsHtml = (g.sections || []).map((s) => {
+    if (s.rows) {
+      const rows = s.rows.map(([line, note]) => `
+      <div class="row">
+        <div class="line">${line}</div>
+        <div class="note">${note}</div>
+      </div>`).join("");
+      return `
+    <h2>${esc(s.h)}</h2>${rows}`;
+    }
+    return `
+    <h2>${esc(s.h)}</h2>
+    <p>${s.p}</p>`;
+  }).join("");
   const faqRows = g.faq.map(([q, a]) => `
       <div class="qa"><h3>${esc(q)}</h3><p>${esc(a)}</p></div>`).join("");
   const related = g.related.map((s) => GUIDE_BY_SLUG[s]).filter(Boolean).map((r) => `
@@ -1071,7 +1108,7 @@ ${dellaCta}
 
     <h2>${g.gesturesHeading || "Gestures that help"}</h2>
     <div class="gestures">${gestureRows}</div>
-
+${sectionsHtml}
     <h2>How to keep showing up</h2>
     <p>${g.followUp}</p>
 
