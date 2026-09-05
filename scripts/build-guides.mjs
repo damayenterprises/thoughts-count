@@ -12,7 +12,14 @@ import { dirname, join } from "node:path";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SITE = "https://thoughtscount.com";
-const TODAY = "2026-07-27";
+// PUBLISHED is the stable original publish date (datePublished). dateModified + sitemap lastmod use the
+// live BUILD_DATE so Google sees a genuine freshness signal every time we regenerate (TC-176 lever #3).
+// A per-guide `published` override wins when set (so new matrix waves carry their own real publish date).
+const PUBLISHED = "2026-07-27";
+const BUILD_DATE = new Date().toISOString().slice(0, 10);
+// The homepage declares the canonical entity graph (Organization/WebSite by @id). Guides reference the
+// SAME @id for author/publisher so all guide authority consolidates onto one entity (TC-173 brand-term).
+const ORG_ID = SITE + "/#organization";
 
 // Real designer bubble+heart mark (icon-color.svg, viewBox 0 0 250 250) — used in the
 // guide header brand lockups. Outlined paths, no font dependency.
@@ -840,6 +847,61 @@ const GUIDES = [
 
 const GUIDE_BY_SLUG = Object.fromEntries(GUIDES.map((g) => [g.slug, g]));
 
+// ---- TC-176: situation pillar pages ----
+// Each pillar is a rankable hub for a head-term cluster ("sympathy messages", "celebration wishes")
+// that also concentrates internal-link authority: hub → pillar → leaf, and every leaf links back up.
+// Pillars are keyed by the guide `tone` so new matrix pages join their pillar automatically.
+const PILLARS = [
+  {
+    slug: "sympathy",
+    tone: "hard",
+    crumb: "Sympathy & support",
+    linkLabel: "All sympathy & support guides",
+    title: "Sympathy & Support: What to Say in Life's Hardest Moments",
+    h1: "What to say when someone is going through something hard",
+    meta: "A calm library of what to say and do when someone you love is grieving, sick, or struggling: honest words, what to avoid, and how to keep showing up.",
+    intro: "When someone you care about is hurting, the fear of saying the wrong thing can freeze you into saying nothing, and silence is the one thing that hurts most. These guides give you honest, specific words for the hardest moments, the things to avoid, and the small gestures that carry more than any card.",
+  },
+  {
+    slug: "celebrations",
+    tone: "celebration",
+    crumb: "Celebrations & milestones",
+    linkLabel: "All celebration & milestone guides",
+    title: "Celebrations & Milestones: What to Write and Say",
+    h1: "What to write and say for life's happy milestones",
+    meta: "Warm, non-cliché words for weddings, new babies, graduations, promotions, engagements and more: what to write, what to skip, and gestures that make the moment land.",
+    intro: "The happy moments deserve more than a thumbs-up in the group chat. These guides help you mark weddings, babies, graduations, new jobs and other milestones with words that feel personal, not borrowed, and gestures that turn a passing 'congrats' into something they'll remember.",
+  },
+  {
+    slug: "everyday",
+    tone: "everyday",
+    crumb: "Everyday moments",
+    linkLabel: "All everyday-moment guides",
+    title: "Everyday Kindness: Thank-Yous and Quiet Support",
+    h1: "Words for the everyday moments that matter",
+    meta: "Not every meaningful moment has a name. Here's how to thank the people who are always there and support someone through an ordinary hard week.",
+    intro: "Some of the most meaningful moments have no occasion at all: thanking the person who quietly holds you up, or reaching out to someone worn down by an ordinary hard week. These guides help you show people they're seen, no card aisle required.",
+  },
+];
+const PILLAR_BY_TONE = Object.fromEntries(PILLARS.map((p) => [p.tone, p]));
+
+// Dense internal-linking mesh (TC-176): curated `related` first (editor's picks), then auto-fill with
+// same-cluster guides up to a floor of 5, so every page ships a rich, on-topic link block that grows
+// automatically as the matrix expands. De-duped, never self-links.
+function relatedFor(g, floor = 5) {
+  const out = [];
+  const seen = new Set([g.slug]);
+  for (const slug of g.related || []) {
+    const r = GUIDE_BY_SLUG[slug];
+    if (r && !seen.has(r.slug)) { out.push(r); seen.add(r.slug); }
+  }
+  for (const x of GUIDES) {
+    if (out.length >= floor) break;
+    if (x.tone === g.tone && !seen.has(x.slug)) { out.push(x); seen.add(x.slug); }
+  }
+  return out;
+}
+
 // ---------- templates ----------
 // Privacy-first tracker, same shape as the homepage. Shares the tc_sid session so a
 // guide → app journey is one continuous funnel, and records the traffic source.
@@ -899,13 +961,15 @@ function page(g) {
     "@type": "FAQPage",
     mainEntity: g.faq.map(([q, a]) => ({ "@type": "Question", name: q, acceptedAnswer: { "@type": "Answer", text: a } })),
   };
+  const pillar = PILLAR_BY_TONE[g.tone];
   const breadcrumbLd = {
     "@context": "https://schema.org",
     "@type": "BreadcrumbList",
     itemListElement: [
       { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
       { "@type": "ListItem", position: 2, name: "Guides", item: SITE + "/guides/" },
-      { "@type": "ListItem", position: 3, name: g.title, item: url },
+      ...(pillar ? [{ "@type": "ListItem", position: 3, name: pillar.crumb, item: `${SITE}/guides/${pillar.slug}/` }] : []),
+      { "@type": "ListItem", position: pillar ? 4 : 3, name: g.title, item: url },
     ],
   };
   const articleLd = {
@@ -915,10 +979,11 @@ function page(g) {
     description: g.meta,
     mainEntityOfPage: url,
     inLanguage: "en",
-    datePublished: TODAY,
-    dateModified: TODAY,
-    author: { "@type": "Organization", name: "Thoughts Count", url: SITE + "/" },
-    publisher: { "@type": "Organization", name: "Thoughts Count", logo: { "@type": "ImageObject", url: SITE + "/favicon.svg" } },
+    datePublished: g.published || PUBLISHED,
+    dateModified: BUILD_DATE,
+    author: { "@id": ORG_ID },
+    publisher: { "@id": ORG_ID },
+    isPartOf: pillar ? { "@type": "CollectionPage", "@id": `${SITE}/guides/${pillar.slug}/#collection`, name: pillar.title } : undefined,
   };
   const sayRows = g.say.map(([line, note]) => `
       <div class="row good">
@@ -951,8 +1016,10 @@ function page(g) {
   }).join("");
   const faqRows = g.faq.map(([q, a]) => `
       <div class="qa"><h3>${esc(q)}</h3><p>${esc(a)}</p></div>`).join("");
-  const related = g.related.map((s) => GUIDE_BY_SLUG[s]).filter(Boolean).map((r) => `
+  const related = relatedFor(g).map((r) => `
         <a class="rel" href="/guides/${r.slug}/">${r.h1}</a>`).join("");
+  const pillarLink = pillar ? `
+        <a class="rel rel-pillar" href="/guides/${pillar.slug}/">${pillar.linkLabel} →</a>` : "";
   // TC-174 Surface 3: an inline Della intake, pre-filled with this guide's situation and editable.
   // Native GET form → /?begin=<situation>&from=guide, so it works even without JS (progressive
   // enhancement). Placed at peak intent (right after "What to say") and again at the foot of the page.
@@ -1103,6 +1170,7 @@ ${MARKETING_TAGS}
   .related{margin:26px 0 0}
   .related h2{font-size:19px}
   .rel{display:block;background:var(--cloud);border:1px solid var(--line);border-radius:12px;padding:11px 15px;margin:7px 0;text-decoration:none;color:var(--blue);font-weight:600}
+  .rel-pillar{background:#e3f0f6;color:var(--blue-deep)}
   footer{padding:20px 0 50px;color:var(--soft);font-size:13px;text-align:center}
 </style>
 </head>
@@ -1112,7 +1180,7 @@ ${TRACKER}
 <div class="wrap">
   <header class="bar">
     <a class="brand" href="/">${MARK}Thoughts Count</a>
-    <div class="crumbs"><a href="/">Home</a> › <a href="/guides/">Guides</a> › ${esc(g.h1)}</div>
+    <div class="crumbs"><a href="/">Home</a> › <a href="/guides/">Guides</a> › ${pillar ? `<a href="/guides/${pillar.slug}/">${esc(pillar.crumb)}</a> › ` : ""}${esc(g.h1)}</div>
   </header>
 
   <article>
@@ -1138,7 +1206,7 @@ ${dellaCta}
     <div class="faq">${faqRows}</div>
 
     <div class="related">
-      <h2>More guides</h2>${related}
+      <h2>More guides</h2>${related}${pillarLink}
     </div>
 ${dailyOptin}
   </article>
@@ -1218,7 +1286,10 @@ ${MARKETING_TAGS}
   .hcta{text-align:center;margin:22px 0 4px}
   .hcta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:13px 30px;border-radius:999px;font-weight:700;font-size:16px;box-shadow:0 10px 30px rgba(64,52,34,.14)}
   .hcta .sub{display:block;font-size:13px;color:var(--soft);margin-top:9px}
-  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin:26px 0 40px}
+  .pillars{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:22px 0 4px}
+  .pillar-link{background:var(--cloud);border:1px solid var(--line);border-radius:999px;padding:9px 18px;text-decoration:none;color:var(--blue-deep);font-weight:600;font-size:14.5px;box-shadow:0 6px 18px rgba(64,52,34,.05)}
+  .pillar-link:hover{border-color:var(--blue)}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin:22px 0 40px}
   .card{background:var(--cloud);border:1px solid var(--line);border-radius:18px;padding:20px;text-decoration:none;color:var(--ink);box-shadow:0 10px 30px rgba(64,52,34,.05);transition:transform .12s}
   .card:hover{transform:translateY(-2px)}
   .card h2{font-size:19px;margin:8px 0 6px}
@@ -1240,7 +1311,116 @@ ${TRACKER}
     <p>Honest, practical guidance for life's big moments, the hard ones and the joyful ones. Real words, and gestures that actually help.</p>
     <div class="hcta"><a href="/">Get a plan for your situation →</a><span class="sub">Free · no account needed · personal to your relationship</span></div>
   </div>
+  <div class="pillars">${PILLARS.map((p) => `<a class="pillar-link" href="/guides/${p.slug}/">${esc(p.crumb)}</a>`).join("")}</div>
   <div class="grid">${cards}</div>
+  <footer>Thoughts Count: helping good intentions become meaningful actions.</footer>
+</div>
+</body>
+</html>`;
+}
+
+function pillar(p) {
+  const url = `${SITE}/guides/${p.slug}/`;
+  const guides = GUIDES.filter((g) => g.tone === p.tone);
+  const collectionLd = {
+    "@context": "https://schema.org",
+    "@type": "CollectionPage",
+    "@id": url + "#collection",
+    name: p.title,
+    url,
+    description: p.meta,
+    isPartOf: { "@id": SITE + "/#website" },
+    inLanguage: "en",
+    mainEntity: {
+      "@type": "ItemList",
+      itemListElement: guides.map((g, i) => ({ "@type": "ListItem", position: i + 1, url: `${SITE}/guides/${g.slug}/`, name: g.title })),
+    },
+  };
+  const breadcrumbLd = {
+    "@context": "https://schema.org",
+    "@type": "BreadcrumbList",
+    itemListElement: [
+      { "@type": "ListItem", position: 1, name: "Home", item: SITE + "/" },
+      { "@type": "ListItem", position: 2, name: "Guides", item: SITE + "/guides/" },
+      { "@type": "ListItem", position: 3, name: p.crumb, item: url },
+    ],
+  };
+  const cards = guides.map((g) => `
+      <a class="card" href="/guides/${g.slug}/">
+        <span class="tag ${g.tone}">${g.tone === "hard" ? "Hard moment" : g.tone === "everyday" ? "Everyday" : "Celebration"}</span>
+        <h2>${esc(g.h1)}</h2>
+        <p>${esc(g.meta)}</p>
+      </a>`).join("");
+  return `<!doctype html>
+<html lang="en">
+<head>
+${MARKETING_TAGS}
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>${esc(p.title)} | Thoughts Count</title>
+<meta name="description" content="${esc(p.meta)}" />
+<link rel="canonical" href="${url}" />
+<meta property="og:type" content="website" />
+<meta property="og:title" content="${esc(p.title)}" />
+<meta property="og:description" content="${esc(p.meta)}" />
+<meta property="og:url" content="${url}" />
+<meta property="og:site_name" content="Thoughts Count" />
+<meta property="og:image" content="${SITE}/og.png" />
+<meta property="og:image:width" content="1200" />
+<meta property="og:image:height" content="630" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:image" content="${SITE}/og.png" />
+<link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+<script type="application/ld+json">${JSON.stringify(collectionLd)}</script>
+<script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<style>
+  :root{--cloud:#fdfbf7;--paper:#f7f3ec;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
+  *{box-sizing:border-box}
+  body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.7;background:var(--paper)}
+  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
+  a{color:var(--blue)}
+  h1,h2{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em}
+  .wrap{max-width:900px;margin:0 auto;padding:0 22px}
+  .bar{padding:20px 0}
+  .brand{font-size:15px;font-weight:700;color:var(--blue);text-decoration:none;display:inline-flex;gap:9px;align-items:center;text-transform:uppercase;letter-spacing:.18em}
+  .brand svg{width:22px;height:22px}
+  .crumbs{font-size:13px;color:var(--soft);margin:8px 0 0}
+  .crumbs a{color:var(--soft)}
+  .hero{text-align:center;padding:22px 0 8px}
+  .hero h1{font-size:clamp(27px,4.4vw,40px);margin:0 0 12px}
+  .hero p{color:var(--soft);max-width:56ch;margin:0 auto;font-size:17px;line-height:1.7}
+  .hcta{text-align:center;margin:22px 0 4px}
+  .hcta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:13px 30px;border-radius:999px;font-weight:700;font-size:16px;box-shadow:0 10px 30px rgba(64,52,34,.14)}
+  .hcta .sub{display:block;font-size:13px;color:var(--soft);margin-top:9px}
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin:26px 0 26px}
+  .card{background:var(--cloud);border:1px solid var(--line);border-radius:18px;padding:20px;text-decoration:none;color:var(--ink);box-shadow:0 10px 30px rgba(64,52,34,.05);transition:transform .12s}
+  .card:hover{transform:translateY(-2px)}
+  .card h2{font-size:19px;margin:8px 0 6px}
+  .card p{color:var(--soft);font-size:14px;margin:0}
+  .tag{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;border-radius:999px}
+  .tag.hard{background:#e3f0f6;color:var(--blue-deep)}
+  .tag.celebration{background:#fdeceb;color:var(--red)}
+  .tag.everyday{background:#f1ebe1;color:var(--soft)}
+  .allguides{text-align:center;margin:6px 0 40px;font-size:15px}
+  footer{padding:20px 0 50px;color:var(--soft);font-size:13px;text-align:center}
+</style>
+</head>
+<body>
+<div id="bg" aria-hidden="true"></div>
+${TRACKER}
+<div class="wrap">
+  <div class="bar"><a class="brand" href="/">${MARK}Thoughts Count</a>
+  <div class="crumbs"><a href="/">Home</a> › <a href="/guides/">Guides</a> › ${esc(p.crumb)}</div></div>
+  <div class="hero">
+    <h1>${esc(p.h1)}</h1>
+    <p>${esc(p.intro)}</p>
+    <div class="hcta"><a href="/">Get a plan for your situation →</a><span class="sub">Free · no account needed · personal to your relationship</span></div>
+  </div>
+  <div class="grid">${cards}</div>
+  <p class="allguides"><a href="/guides/">← Browse all guides</a></p>
   <footer>Thoughts Count: helping good intentions become meaningful actions.</footer>
 </div>
 </body>
@@ -1251,11 +1431,12 @@ function sitemap() {
   const urls = [
     { loc: SITE + "/", pri: "1.0" },
     { loc: SITE + "/guides/", pri: "0.8" },
+    ...PILLARS.map((p) => ({ loc: `${SITE}/guides/${p.slug}/`, pri: "0.7" })),
     ...GUIDES.map((g) => ({ loc: `${SITE}/guides/${g.slug}/`, pri: "0.7" })),
   ];
   return `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls.map((u) => `  <url><loc>${u.loc}</loc><lastmod>${TODAY}</lastmod><priority>${u.pri}</priority></url>`).join("\n")}
+${urls.map((u) => `  <url><loc>${u.loc}</loc><lastmod>${BUILD_DATE}</lastmod><priority>${u.pri}</priority></url>`).join("\n")}
 </urlset>
 `;
 }
@@ -1275,6 +1456,13 @@ for (const g of GUIDES) {
 }
 mkdirSync(join(ROOT, "public", "guides"), { recursive: true });
 writeFileSync(join(ROOT, "public", "guides", "index.html"), hub());
+let np = 0;
+for (const p of PILLARS) {
+  const dir = join(ROOT, "public", "guides", p.slug);
+  mkdirSync(dir, { recursive: true });
+  writeFileSync(join(dir, "index.html"), pillar(p));
+  np++;
+}
 writeFileSync(join(ROOT, "public", "sitemap.xml"), sitemap());
 writeFileSync(join(ROOT, "public", "robots.txt"), robots);
-console.log(`Wrote ${n} guide pages + hub + sitemap.xml + robots.txt`);
+console.log(`Wrote ${n} guide pages + hub + ${np} pillar pages + sitemap.xml + robots.txt`);
