@@ -67,7 +67,11 @@ alt="" /></noscript>
   :root{--paper:#f7f3ec;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.75;background:var(--paper)}
-  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(120% 80% at 15% 0%, rgba(17,138,185,.05), transparent 60%),var(--paper)}
+  /* TC-174 blocker #2 (Design Lead ruling): share home's living-gradient COLOR WORLD so the guide→home
+     seam reads as one brand, but STATIC (no blobs) — a reading page stays calm (brand law #6: only the
+     orb animates, and guides have no orb). Article + cards stay opaque warm "rooms" for legibility.
+     Exact base wash from ITERATION-2-SPEC PART 2. */
+  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
   a{color:var(--blue)}
   h1,h2,h3{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em;line-height:1.2}
   .wrap{max-width:760px;margin:0 auto;padding:0 22px}
