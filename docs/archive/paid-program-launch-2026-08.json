@@ -1,0 +1,359 @@
+{
+  "generated_at": "2026-09-05T05:04:00.205Z",
+  "excluded_noise_events": 665,
+  "total_events": 2819,
+  "unique_visitors": 1396,
+  "since_launch": {
+    "since": "20260824",
+    "visitors": 1251,
+    "engaged_visitors": 51,
+    "plans_generated": 8,
+    "emails_submitted": 0,
+    "page_views": 1805
+  },
+  "acquisition_since_launch": {
+    "by_channel": [
+      {
+        "key": "Paid",
+        "sessions": 1162,
+        "engaged": 32,
+        "plans": 2,
+        "engaged_pct": 2.8
+      },
+      {
+        "key": "Direct",
+        "sessions": 50,
+        "engaged": 13,
+        "plans": 4,
+        "engaged_pct": 26
+      },
+      {
+        "key": "Social",
+        "sessions": 37,
+        "engaged": 4,
+        "plans": 1,
+        "engaged_pct": 10.8
+      },
+      {
+        "key": "Internal",
+        "sessions": 2,
+        "engaged": 2,
+        "plans": 0,
+        "engaged_pct": 100
+      }
+    ],
+    "paid_sources": [
+      {
+        "key": "facebook_mobile_feed",
+        "sessions": 983,
+        "engaged": 26,
+        "plans": 1,
+        "engaged_pct": 2.6
+      },
+      {
+        "key": "fb",
+        "sessions": 101,
+        "engaged": 2,
+        "plans": 0,
+        "engaged_pct": 2
+      },
+      {
+        "key": "an",
+        "sessions": 33,
+        "engaged": 0,
+        "plans": 0,
+        "engaged_pct": 0
+      },
+      {
+        "key": "facebook_desktop_feed",
+        "sessions": 16,
+        "engaged": 1,
+        "plans": 0,
+        "engaged_pct": 6.3
+      },
+      {
+        "key": "facebook_right_column",
+        "sessions": 10,
+        "engaged": 2,
+        "plans": 0,
+        "engaged_pct": 20
+      },
+      {
+        "key": "others",
+        "sessions": 10,
+        "engaged": 1,
+        "plans": 1,
+        "engaged_pct": 10
+      },
+      {
+        "key": "ig",
+        "sessions": 9,
+        "engaged": 0,
+        "plans": 0,
+        "engaged_pct": 0
+      }
+    ],
+    "paid_creatives": [
+      {
+        "key": "with_cta",
+        "sessions": 677,
+        "engaged": 25,
+        "plans": 1,
+        "engaged_pct": 3.7
+      },
+      {
+        "key": "no_cta",
+        "sessions": 342,
+        "engaged": 5,
+        "plans": 1,
+        "engaged_pct": 1.5
+      },
+      {
+        "key": "untagged",
+        "sessions": 140,
+        "engaged": 2,
+        "plans": 0,
+        "engaged_pct": 1.4
+      },
+      {
+        "key": "120250567805490600",
+        "sessions": 3,
+        "engaged": 0,
+        "plans": 0,
+        "engaged_pct": 0
+      }
+    ],
+    "paid_landing_pages": [
+      {
+        "key": "/",
+        "sessions": 1162,
+        "engaged": 32,
+        "plans": 2,
+        "engaged_pct": 2.8
+      }
+    ]
+  },
+  "funnel": {
+    "visitors": 1396,
+    "engaged_visitors": 94,
+    "insider_sessions_excluded": 0,
+    "page_views": 2319,
+    "intake_starts": 242,
+    "plans_generated": 100,
+    "plans_viewed": 68,
+    "emails_submitted": 19,
+    "unique_emails": 0,
+    "team_emails": 1,
+    "reminders_sent": 16,
+    "plans_saved_to_account": 0
+  },
+  "conversion": {
+    "landed_to_started_pct": 17.3,
+    "started_to_plan_pct": 41.3,
+    "plan_to_email_pct": 19
+  },
+  "traffic": {
+    "by_channel": {
+      "Paid": 1631,
+      "Direct": 565,
+      "Internal": 63,
+      "Social": 51,
+      "Referral": 1
+    },
+    "top_sources": {
+      "facebook_mobile_feed": 1397,
+      "fb": 145,
+      "Facebook": 51,
+      "an": 38,
+      "facebook_desktop_feed": 19,
+      "others": 13,
+      "facebook_right_column": 10,
+      "ig": 9,
+      "teams.public.onecdn.static.microsoft": 1
+    },
+    "landing_pages": {
+      "/": 2281,
+      "/guides/": 26,
+      "/guides/how-to-help-new-parents/": 5,
+      "/guides/what-to-say-when-someone-loses-a-parent/": 2,
+      "/guides/what-to-write-in-a-new-baby-card/": 1,
+      "/guides/what-to-say-when-someone-loses-their-job/": 1,
+      "/guides/ways-to-thank-someone-who-is-always-there/": 1,
+      "/guides/what-to-say-when-someone-gets-engaged/": 1,
+      "/guides/what-to-say-after-a-miscarriage/": 1
+    }
+  },
+  "what_people_need": {
+    "valence": {
+      "celebration": 55,
+      "hard_time": 26,
+      "other": 18,
+      "gratitude": 1
+    },
+    "occasion": {
+      "new_job_promotion": 16,
+      "new_baby": 16,
+      "other": 14,
+      "birthday": 13,
+      "bereavement": 10,
+      "anniversary": 8,
+      "wedding_engagement": 6,
+      "illness_diagnosis": 5,
+      "encouragement": 4,
+      "job_loss": 3,
+      "graduation": 2,
+      "retirement": 1,
+      "breakup_divorce": 1,
+      "thank_you": 1
+    },
+    "relationship": {
+      "friend": 51,
+      "family": 21,
+      "coworker": 15,
+      "partner": 6,
+      "unspecified": 6,
+      "other": 1
+    },
+    "budget_band": {
+      "unspecified": 52,
+      "25_75": 24,
+      "no_limit": 12,
+      "75_150": 10,
+      "over_150": 2
+    },
+    "wanted_local_ideas": 21,
+    "gift_fit_rate_pct": 81
+  },
+  "helpfulness": {
+    "responses": 5,
+    "helpful_yes": 4,
+    "helpful_no": 1,
+    "helpful_rate_pct": 80,
+    "by_occasion": {
+      "birthday": {
+        "yes": 2,
+        "no": 0,
+        "rate_pct": 100
+      },
+      "encouragement": {
+        "yes": 1,
+        "no": 0,
+        "rate_pct": 100
+      },
+      "job_loss": {
+        "yes": 0,
+        "no": 1,
+        "rate_pct": 0
+      },
+      "graduation": {
+        "yes": 1,
+        "no": 0,
+        "rate_pct": 100
+      }
+    },
+    "down_reasons": {}
+  },
+  "outcomes": {
+    "responses": 0,
+    "went_well": 0,
+    "fell_flat": 0,
+    "unclear": 0,
+    "landed_rate_pct": null,
+    "by_occasion": {},
+    "by_valence": {}
+  },
+  "voice_latency": {
+    "turns": 50,
+    "eot_ms": {
+      "n": 50,
+      "p50": 2017,
+      "p95": 2620,
+      "max": 2622
+    },
+    "transcribe_ms": {
+      "n": 50,
+      "p50": 1,
+      "p95": 810,
+      "max": 2272
+    },
+    "converse_ms": {
+      "n": 50,
+      "p50": 2232,
+      "p95": 5270,
+      "max": 11667
+    },
+    "tts_ms": {
+      "n": 50,
+      "p50": 1545,
+      "p95": 3587,
+      "max": 4234
+    },
+    "gap_ms": {
+      "n": 50,
+      "p50": 4711,
+      "p95": 8060,
+      "max": 13215
+    },
+    "felt_ms": {
+      "n": 50,
+      "p50": 6582,
+      "p95": 10682,
+      "max": 15268
+    }
+  },
+  "by_day": {
+    "20260726": 21,
+    "20260727": 21,
+    "20260728": 33,
+    "20260729": 15,
+    "20260730": 3,
+    "20260731": 22,
+    "20260801": 14,
+    "20260802": 26,
+    "20260803": 26,
+    "20260804": 55,
+    "20260805": 51,
+    "20260806": 49,
+    "20260807": 18,
+    "20260808": 1,
+    "20260809": 82,
+    "20260810": 73,
+    "20260811": 107,
+    "20260812": 24,
+    "20260813": 19,
+    "20260814": 49,
+    "20260815": 16,
+    "20260816": 13,
+    "20260817": 19,
+    "20260818": 13,
+    "20260819": 5,
+    "20260820": 36,
+    "20260821": 37,
+    "20260822": 19,
+    "20260823": 1,
+    "20260824": 416,
+    "20260825": 369,
+    "20260826": 350,
+    "20260827": 340,
+    "20260828": 298,
+    "20260829": 129,
+    "20260830": 2,
+    "20260831": 5,
+    "20260901": 1,
+    "20260903": 5,
+    "20260904": 9,
+    "20260905": 27
+  },
+  "ad_spend": {
+    "spend": 249.01,
+    "impressions": 68082,
+    "clicks": 2599,
+    "reach": 32237,
+    "campaigns": [
+      {
+        "name": "TC · National Thoughtful Day (Aug 24-28)",
+        "spend": 249.01
+      }
+    ]
+  }
+}
