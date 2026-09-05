@@ -843,6 +843,529 @@ const GUIDES = [
     ],
     related: ["what-to-write-in-a-wedding-card", "what-to-write-in-a-new-baby-card", "what-to-write-in-an-anniversary-card"],
   },
+
+  // ---- Batch 5 (TC-175 wave 1): proven-demand matrix expansion ----
+  {
+    slug: "what-to-write-in-a-sympathy-card",
+    tone: "hard",
+    gesturesHeading: "Ways to show you care",
+    title: "What to Write in a Sympathy Card",
+    meta: "Gentle, genuine sympathy card messages: what to write when words feel impossible, condolence card wording to use, phrases to avoid, and ways to keep showing up.",
+    h1: "What to write in a sympathy card",
+    begin: "Someone I care about is grieving and I want to send a card",
+    intro: [
+      "There is no perfect sentence that fixes this, and the person grieving isn't looking for one. They will remember that you reached out at all, and a few honest lines mean far more than a signed store-bought verse.",
+      "Here is what to write when the words feel impossible, what to leave off, and how to keep showing up after the card is opened.",
+    ],
+    matters: "You cannot say the wrong thing as badly as you can say nothing. The card that lands isn't the most eloquent one, it's the one that names the person who died and lets your friend know they are <em>not</em> forgotten in this.",
+    say: [
+      ["“I am so sorry. I don't have the right words, but I am thinking of you and I am here.”", "Honesty about not knowing what to say is disarming and true. It removes the pressure to sound wise."],
+      ["“I keep remembering how your mom laughed. The world is quieter without her.”", "Naming the person and a specific memory tells the griever their loved one mattered and is remembered."],
+      ["“You don't need to reply to this. I just wanted you to know I'm holding you close right now.”", "Grief is exhausting. Releasing them from the duty to respond is a real kindness."],
+      ["“I'll call Sunday to check in. If you'd rather I just drop off groceries, that's okay too.”", "A specific, low-pressure offer turns sympathy into something they can actually lean on."],
+    ],
+    avoid: [
+      ["“Everything happens for a reason.”", "It asks the grieving person to find meaning in their pain before they're ready, and it can feel dismissive of how much it hurts."],
+      ["“They're in a better place now.”", "Even when well meant, it can land as a correction of their grief rather than comfort. Let them feel the loss."],
+      ["“Let me know if you need anything.”", "It sounds kind but puts the work on them. They rarely have the energy to ask, so offer something specific instead."],
+    ],
+    gestures: [
+      ["Say the person's name", "Grieving people often fear their loved one will be forgotten. Writing or speaking the name is a gift, not a reminder of the pain they already carry."],
+      ["Drop off food without asking", "Leave a meal at the door with a note. Eating is hard in early grief, and something ready to reheat quietly takes one thing off their plate."],
+      ["Do a concrete chore", "Offer to mow the lawn, walk the dog, or handle a specific errand. Practical help is love made visible when they can barely function."],
+      ["Mark the calendar for later", "Note the date somewhere so you can reach out in a month, when most cards have stopped and the quiet sets in."],
+    ],
+    sections: [
+      {
+        h: "What to write based on your relationship",
+        rows: [
+          ["A close friend", "Be personal and specific. Name the person who died, share a memory, and make a real offer of help. You have the standing to say “I love you and I'm not going anywhere.”"],
+          ["A family member", "Lean into shared history. Recall the person together and acknowledge that you're grieving too, so your relative doesn't feel alone in it. “I'm here, and we'll get through this as a family.”"],
+          ["A coworker or acquaintance", "Keep it warm but simpler. “I was so sorry to hear about your loss. I'm thinking of you and there's no rush on anything here.” Sincere and undemanding is exactly right."],
+          ["Someone you're not close to", "A short, kind line is plenty and welcome. “Thinking of you and your family during this hard time.” You don't need to be close to offer comfort."],
+        ],
+      },
+    ],
+    followUp: "The hardest part often comes weeks later, after the funeral, when the cards stop and everyone assumes life has moved on. Put a reminder somewhere to check in around the one month mark with a simple “I'm still thinking of you, how are you really doing?” Being the person who remembers long after the crowd fades is one of the kindest things you can do.",
+    faq: [
+      ["What do you write in a sympathy card?", "Write a short, honest message that names the person who died, offers your comfort, and if you can, makes a specific offer of help. A line like “I'm so sorry, I'm thinking of you, and I'm here” means more than any polished verse."],
+      ["What should you not say in a sympathy card?", "Avoid lines that try to explain the loss or rush the grief, like “everything happens for a reason,” “they're in a better place,” or the vague “let me know if you need anything.” Simple and sincere always beats profound."],
+      ["What is a short sympathy message?", "A short message can be as simple as “Thinking of you and your family during this hard time.” Brevity is fine. The fact that you wrote at all is what the person will remember."],
+      ["Is it okay to mention the person who died in a sympathy card?", "Yes, and it's often the most comforting thing you can do. Grieving people worry their loved one will be forgotten, so naming them or sharing a memory reassures them the person mattered."],
+      ["What can I write instead of sorry for your loss?", "Try something warmer and more specific like “My heart is with you” or “I'm holding you close right now.” Naming a memory of the person who died lands even more personally than any stock phrase."],
+      ["How do you end a sympathy card?", "Close with warmth and, ideally, an open door. “With love,” “Thinking of you,” or “Here whenever you need me” all work. Adding a gentle “no need to reply” can be a quiet relief."],
+    ],
+    related: ["what-to-say-when-someone-loses-a-parent", "ways-to-help-a-grieving-friend", "how-to-honor-someone-on-a-loss-anniversary"],
+  },
+  {
+    slug: "what-to-write-in-a-thank-you-card",
+    tone: "celebration",
+    gesturesHeading: "Ways to make it land",
+    title: "What to Write in a Thank-You Card (Without Clichés)",
+    meta: "Warm, specific ideas for what to write in a thank-you card: wording for friends, family, coworkers, teachers, and gift-givers, plus lines to skip.",
+    h1: "What to write in a thank-you card",
+    begin: "I want to write a thank-you card to someone who did something kind",
+    intro: [
+      "The reason most thank-you cards feel flat is that they say the same thing: “thank you so much for everything.” It's polite, and it's forgettable. The ones people keep in a drawer for years are the ones that name the <em>actual</em> thing you're grateful for.",
+      "Here's how to write a thank-you note that sounds like you, plus wording for different people in your life and the lines worth skipping.",
+    ],
+    matters: "The whole job of a thank-you card is to make the other person feel <em>seen</em>. Naming the specific thing they did, and what it meant to you, is what turns a nicety into something they actually feel.",
+    say: [
+      ["“Thank you for driving all the way out on Saturday to help me move. I know it ate your whole day, and I couldn't have done it without you.”", "It names the exact favor and acknowledges the cost. That specificity is what makes it feel real instead of routine."],
+      ["“The necklace is beautiful, but honestly it's the note you tucked inside that I keep rereading.”", "Ties the thanks to a real detail and shows you noticed the thought behind the gift, not just the gift."],
+      ["“You probably don't realize how much your check-in text meant that week. It landed on a hard day and it stuck with me.”", "Tells them the impact they had, which most people never actually hear. That's the part that lands."],
+      ["“Thank you for believing in me before I believed in myself. I think about your advice more than you know.”", "Works for a mentor or parent. It credits them with something specific and lasting, not just a generic kindness."],
+    ],
+    avoid: [
+      ["“Thanks for everything!”", "It's the default, and it tells the person nothing about what they actually did. Name one real thing instead."],
+      ["“Sorry this is so late.”", "Leading with an apology makes the note about your guilt. A late, warm thank-you still beats a prompt, hollow one. Just say it."],
+      ["“No need to thank me back!”", "Turning your own thank-you into a small instruction makes it about the transaction. Let the gratitude just sit there."],
+    ],
+    gestures: [
+      ["Say it out loud too", "A card is lovely, and hearing “that meant a lot to me” in person or on a call hits differently. Do both when you can."],
+      ["Be specific about what you'll do with it", "If it was a gift, tell them: “I'm wearing it to the interview.” If it was help, “you saved me an entire weekend.” It proves the kindness mattered."],
+      ["Return the favor when they're not looking for it", "The strongest thank-you is remembering, months later, that they came through for you, and quietly showing up for them."],
+      ["Send it even when it feels overdue", "People worry a late thank-you is worse than none. It isn't. A note that arrives weeks later still tells them they were on your mind."],
+    ],
+    sections: [
+      {
+        h: "What to write depending on who they are",
+        rows: [
+          ["A close friend", "Skip the formality and write how you actually talk. Reference the specific moment: the ride, the venting session, the thing only they would have done. Inside jokes are allowed."],
+          ["A family member", "Name something they did that you may never have said out loud. “Thank you for always making a plate for me” or “for never making me feel like a burden” lands harder than a generic thanks."],
+          ["A coworker or boss", "Keep it warm but specific and professional. Point to the concrete thing: they covered for you, mentored you, went to bat for you. “Thank you for trusting me with that project” beats “thanks for the opportunity.”"],
+          ["A teacher or mentor", "Tell them the impact, not just the effort. Teachers rarely hear how they changed someone. “Your class is the reason I chose this major” is the kind of line they keep for years."],
+          ["Someone who gave a gift", "Mention the gift by name and how you'll use it. If it was money, be gracious and concrete: “it's going toward the apartment, and it means the world.” Never leave them guessing whether it arrived."],
+        ],
+      },
+    ],
+    followUp: "Gratitude works best as a habit, not a single card. Keep noticing the people who show up for you, and tell them in the moment instead of saving it all for one occasion. A quick “hey, that really helped me” text costs nothing and lands more often than a perfect note you never get around to sending.",
+    faq: [
+      ["What do you write in a thank-you card?", "Name the specific thing the person did and what it meant to you, in your own words. One genuine, detailed line beats a paragraph of “thanks so much for everything.”"],
+      ["How do you start a thank-you note?", "Start with the specific thing, not a generic greeting. “Thank you for driving me to the airport at 5am” pulls the reader in immediately, where “I just wanted to say thanks” doesn't."],
+      ["Is it too late to send a thank-you card?", "No. A late thank-you still means more than none, and most people are simply glad you thought of them. Skip the long apology and just send it."],
+      ["What should you not write in a thank-you card?", "Avoid vague filler like “thanks for everything,” a heavy apology for being late, and anything that turns it back into a transaction. Be specific instead."],
+      ["How do you thank someone for a gift you didn't love?", "Thank them for the thought and the gesture, which are real, without lying about the item. “It was so thoughtful of you to remember” is honest and kind."],
+      ["How long should a thank-you card be?", "A few genuine sentences is plenty. Length isn't the point; specificity is. One real detail beats three lines of politeness."],
+    ],
+    related: ["ways-to-thank-someone-who-is-always-there", "what-to-write-in-a-graduation-card"],
+  },
+  {
+    slug: "what-to-write-in-a-birthday-card",
+    tone: "celebration",
+    title: "What to Write in a Birthday Card",
+    meta: "Warm, non-cliché ideas for what to write in a birthday card, with lines for a friend, partner, family, or coworker, plus what to skip and small gestures that land.",
+    h1: "What to write in a birthday card",
+    begin: "Someone I care about has a birthday coming up",
+    intro: [
+      "A birthday card is a small chance to make someone feel truly seen, and most of us waste it on 'Happy Birthday!' plus a signature. One specific line will do more than a whole page of generic warmth.",
+      "Here's what to write, what to skip, and how to make the card sound like it actually came from you.",
+    ],
+    matters: "A birthday reminds people they matter, and a card that names <em>why</em> they matter to you is the part they reread. Specificity is the whole game.",
+    say: [
+      ["“I'm so glad you were born, and so glad you're in my life.”", "Simple and direct. It says the quiet thing out loud, which most cards never do."],
+      ["“The world got a lot better the day you showed up in it.”", "Warm without being sappy, and it works for almost anyone you love."],
+      ["“Watching you go after that new job this year made me proud to know you.”", "Names one real thing from their year. This is what turns a card into something they keep."],
+      ["“Here's to another year of you. I can't wait to see it.”", "Forward-looking and affectionate, good for a friend or partner."],
+    ],
+    avoid: [
+      ["“Another year older!”", "The age joke is tired, and it makes the card about getting old instead of about them."],
+      ["“Hope you have a great day!”", "It's fine, but it says nothing only you could say. Add one specific line and it comes alive."],
+      ["“Sorry this is late!”", "Leading with the apology makes the card about you. A warm late note still lands, so just write the warm part."],
+    ],
+    gestures: [
+      ["Name a specific memory", "Recall one moment from your year together. It tells them you actually remember, not just that you remembered the date."],
+      ["Say what you'd miss", "A single line about what the world would be like without them is quietly powerful, and rare."],
+      ["Make plans, not just wishes", "Offer a real date to celebrate, like dinner next week. A plan is a gift that says the card was only the start."],
+      ["Write it by hand", "Even three handwritten lines beat a typed paragraph. The effort is the message."],
+    ],
+    sections: [
+      {
+        h: "What to write based on who they are",
+        rows: [
+          ["A close friend", "Get specific and a little bold. Name an inside joke or a moment from this year, then tell them plainly what their friendship means to you. This is the one place gushing is welcome."],
+          ["A partner", "Go beyond romance into gratitude. Name something they did this year that you admired, and be tender about the ordinary life you share. Specific beats grand."],
+          ["A family member", "Reach for warmth and history. A memory from years back, or a line naming a trait you've always loved in them, lands deeper than any generic wish."],
+          ["A coworker or someone you don't know well", "Keep it warm but light. One genuine, specific compliment about working with them beats a formal 'best wishes,' and never feels like too much."],
+        ],
+      },
+    ],
+    followUp: "The card is the opening, not the whole gift. Actually follow through on the plan you offered, or send a text on the day itself so the warmth reaches them twice.",
+    faq: [
+      ["What do you write in a birthday card?", "Skip 'Happy Birthday' plus a signature and add one specific line: a memory, something you admire about them, or what they mean to you. Specificity is what makes it land."],
+      ["What is a good short birthday message?", "Try 'I'm so glad you were born, and so glad you're in my life.' Short, warm, and more personal than the usual wishes."],
+      ["What should you not write in a birthday card?", "Skip tired age jokes like 'another year older,' generic lines like 'hope you have a great day,' and leading with 'sorry this is late.'"],
+      ["What can I write in a birthday card for a coworker?", "Keep it warm but light: one genuine, specific compliment about working with them. It feels personal without being too much."],
+      ["How do you make a birthday card feel personal?", "Name one real thing: a shared memory, a trait you love, or something they did this year. One specific detail beats a page of general warmth."],
+      ["What do you write in a birthday card for someone you don't know well?", "A short, sincere line works best. Wish them a good year ahead and add one small, honest compliment rather than trying to sound close."],
+    ],
+    related: ["what-to-write-in-a-milestone-birthday-card", "what-to-write-in-an-anniversary-card"],
+  },
+  {
+    slug: "what-to-say-to-someone-who-is-sick",
+    tone: "hard",
+    gesturesHeading: "Ways to actually help",
+    title: "What to Say to Someone Who Is Sick That Actually Helps",
+    meta: "What to say to someone who is sick: honest get well messages, what to write in a get well card, what to avoid, and real ways to help beyond good wishes.",
+    h1: "What to say to someone who is sick",
+    begin: "Someone I care about is seriously ill",
+    intro: [
+      "When someone gets sick, most people freeze. They fall back on either forced cheer or a vague offer to help, and both land oddly because they put the work back on the person who is already exhausted. What actually helps is steadiness, a little normalcy, and specific offers they can say yes to.",
+      "Here is what to say, what to write in a card, what to steer clear of, and how to keep showing up once the first wave of attention fades.",
+    ],
+    matters: "They are managing appointments, uncertainty, and other people's worry, often while feeling terrible. What they need from you is not to be fixed. They need to feel like a person, not a patient, and to know your support is real and not just words.",
+    say: [
+      ["“I'm sorry you're dealing with this. I'm here, and I'm not going anywhere.”", "It is honest, it makes no promises about the outcome, and it offers presence."],
+      ["“Can I drop off dinner Thursday, or would earlier in the week be better?”", "A concrete offer with a choice is far easier to accept than a blank one."],
+      ["“No need to reply. Just thinking of you and wanted you to know.”", "A get well message that expects nothing back is a gift when replying feels like a chore."],
+      ["“Do you want to talk about how you're feeling, or would a normal chat be a relief right now?”", "Letting them set the register hands back a little control."],
+    ],
+    avoid: [
+      ["“Let me know if you need anything.”", "It sounds kind but puts the burden on them to ask. Offer something specific instead."],
+      ["“You'll be fine, stay positive!”", "Forced optimism can make it hard for them to admit they are scared or worn down."],
+      ["“Have you tried [supplement or diet]?”", "Unsolicited health advice is tiring and can feel like you are blaming them."],
+    ],
+    gestures: [
+      ["Bring food that reheats well", "Drop off a meal they can freeze or warm up later. No visit required, no reply expected."],
+      ["Handle one dull errand", "Groceries, a prescription pickup, a load of laundry. Removing one chore lifts a real weight."],
+      ["Send a short note by mail", "A card or a few lines they can hold onto lands differently than another text in the pile."],
+      ["Text like normal", "Send the meme, the news, the small update about your day. Being treated as themselves is a relief."],
+    ],
+    sections: [
+      {
+        h: "What to say based on your relationship",
+        rows: [
+          ["A close friend", "Be direct and warm. Say you're scared for them too if that's true, then show up with specific help and normal conversation, not just serious check-ins."],
+          ["A family member", "Lean on shared history. Offer the practical things family can quietly handle, rides, meals, watching the kids, without waiting to be asked."],
+          ["A coworker or acquaintance", "Keep it brief and low-pressure. A short note that you're thinking of them and a small concrete offer is plenty. Don't pry into details they haven't shared."],
+          ["Someone with a chronic or long-term illness", "Skip the get well soon framing, since there may be no soon. Acknowledge the reality, keep treating them normally, and stay steady over months, not just at the start."],
+        ],
+      },
+    ],
+    followUp: "Attention pours in when someone first gets sick and thins out fast, right as the long, dull stretch of being unwell sets in. That middle is the hardest part. Put a reminder in your phone to check in every couple of weeks. Showing up when everyone else has moved on is the whole point.",
+    faq: [
+      ["What do you say to someone who is sick?", "Something honest and steady: that you're sorry they're going through it, that you're there, and one specific offer of help they can easily accept."],
+      ["What should you write in a get well card?", "Keep it warm and short. Say you're thinking of them, that they don't need to reply, and offer one concrete thing you'll do, like dropping off a meal."],
+      ["What should you not say to someone who is sick?", "Avoid forced positivity, scary stories about others, unsolicited health advice, and the vague let me know if you need anything."],
+      ["What is a good short get well message?", "Try: I'm sorry you're dealing with this, I'm thinking of you, and no need to reply. It's warm, honest, and asks nothing of them."],
+      ["How do you comfort someone with a chronic illness?", "Drop the get well soon framing, acknowledge that it's ongoing, keep treating them like themselves, and stay in touch consistently over the long haul."],
+      ["Is it okay to just send a text when someone is sick?", "Yes. A short, kind text that expects no reply is often exactly right. Pair it with a specific offer if you can help in person."],
+    ],
+    related: ["comforting-words-for-a-cancer-diagnosis", "how-to-help-a-friend-with-cancer", "what-to-say-to-someone-having-a-hard-week"],
+  },
+  {
+    slug: "what-to-say-to-a-grieving-coworker",
+    tone: "hard",
+    gesturesHeading: "Ways to help that fit a workplace",
+    title: "What to Say to a Grieving Coworker",
+    meta: "What to say to a coworker who lost a loved one, from a first acknowledgment to their return to work, plus what to avoid and specific ways to help.",
+    h1: "What to say to a grieving coworker",
+    begin: "A coworker just lost a loved one",
+    intro: [
+      "Grief at work is genuinely awkward, and the fear of overstepping makes a lot of people say nothing at all. But a coworker who gets silence from the desk beside them just feels more alone. A short, sincere acknowledgment is almost always the right call, even if it feels small.",
+      "You don't need to be their closest friend to say something kind. Here is how to acknowledge it, what to avoid, and how to help in ways that actually fit a workplace.",
+    ],
+    matters: "At work, people often worry that mentioning a loss will make it worse. It won't. What lands as cold is pretending nothing happened. A brief, warm acknowledgment tells them they can be a whole person here, not just a role.",
+    say: [
+      ["“I was so sorry to hear about your loss. I'm thinking of you.”", "Simple and sincere is enough. You don't need to say more than this."],
+      ["“Please don't worry about the Thursday report, I've got it covered.”", "At work, taking a real task off their plate says more than any card."],
+      ["“No need to reply. Just wanted you to know I'm thinking of you.”", "Give them an easy out so your kindness doesn't become one more thing to answer."],
+      ["“It's good to have you back. Go at your own pace, and I'm around if you need anything picked up.”", "For when they return, this names the moment without making it heavy."],
+    ],
+    avoid: [
+      ["“Let me know if you need anything.”", "It sounds kind but is especially empty at work, where they won't ask. Offer to cover something specific instead."],
+      ["“At least you got to say goodbye.”", "Any sentence that starts with 'at least' tends to minimize what they're feeling."],
+      ["“How are you holding up?” asked loudly at their desk", "Save real check-ins for a private moment. A public spotlight can force them to perform being okay."],
+    ],
+    gestures: [
+      ["Cover their work quietly", "Pick up a deadline or field their inbox without making them ask or manage it."],
+      ["Organize a group card or meal fund", "One person collects, so the team's care arrives as a single warm gesture, not ten separate asks."],
+      ["Protect their space on return", "Give a heads-up to others so they're not ambushed with questions, and shield their first day back."],
+      ["Handle the small logistics", "Reschedule the meetings they were leading and let clients know, so they don't return to a pileup."],
+    ],
+    sections: [
+      {
+        h: "What to say based on your role",
+        rows: [
+          ["If you're their manager", "Lead with the person, not the workload: “Take the time you need, and don't worry about work right now, we've got it handled.” Then actually cover it so those words are true. Be clear about leave so they aren't guessing."],
+          ["If you're a close work friend", "You can be warmer and more direct: “I'm so sorry. I'm here for the work stuff and the non-work stuff, whichever you need.” Follow up privately, not just in the office."],
+          ["If you're on their team but not close", "A brief, sincere note is welcome and enough: “I was sorry to hear your news. Thinking of you.” You don't need a relationship to offer basic kindness."],
+          ["When they first return to work", "Acknowledge it once, simply, then follow their lead: “Good to see you. No pressure to talk about anything.” Don't over-fuss and don't pretend it never happened."],
+        ],
+      },
+    ],
+    followUp: "Grief doesn't end when someone comes back to work. Weeks later, when the team has moved on, they may still be in it. A quiet check-in a month out means a lot, and remembering the hard dates, the anniversary, the birthday, the first holiday, shows a kind of care most coworkers never offer.",
+    faq: [
+      ["What do you say to a coworker who lost a loved one?", "Keep it short and sincere: “I was so sorry to hear about your loss, I'm thinking of you.” Then offer to cover a specific task rather than a vague 'let me know if you need anything.'"],
+      ["What do you say to a colleague whose parent died?", "A brief, warm acknowledgment is enough, even if you aren't close: “I'm so sorry about your dad. Thinking of you.” If you can, take something concrete off their plate at work."],
+      ["Should you say anything to a grieving coworker or leave them alone?", "Say something. Silence reads as cold or indifferent, not respectful. A short acknowledgment lets them know they can be human at work, and you can still give them space afterward."],
+      ["What do you say when a coworker returns to work after a death?", "Acknowledge it once, simply: “It's good to have you back, go at your own pace.” Then follow their lead. Don't over-fuss, and don't act like nothing happened."],
+      ["Is it appropriate to send a sympathy card to a coworker?", "Yes. A group card the team signs, or a short handwritten note, is a fitting workplace gesture. Keep the message simple and sincere rather than trying to fix anything."],
+      ["What should you not say to a grieving coworker?", "Avoid 'at least' phrases, silver linings, and the empty 'let me know if you need anything.' At work especially, offer specific help instead of putting the work of asking on them."],
+    ],
+    related: ["what-to-say-when-someone-loses-a-parent", "ways-to-help-a-grieving-friend"],
+  },
+  {
+    slug: "what-to-say-to-someone-going-through-a-breakup",
+    tone: "hard",
+    title: "What to Say to Someone Going Through a Breakup",
+    meta: "What to say to a friend going through a breakup: comforting words that validate the loss, what to text, what to avoid, and steady ways to help without ex-bashing or pep talks.",
+    h1: "What to say to someone going through a breakup",
+    begin: "A friend just went through a breakup",
+    intro: [
+      "A breakup is a real grief the world loves to shrug off. Everyone says there are plenty of fish, as if losing a person you built a life around is a minor inconvenience.",
+      "Your friend doesn't need cheering up or a dating app. They need someone who treats this loss like it counts, because it does.",
+    ],
+    matters: "The hardest part is often feeling like they're not <em>allowed</em> to be this sad over someone they're no longer with. When you take the loss seriously, you give them permission to actually feel it instead of performing that they're fine.",
+    say: [
+      ["“This is a real loss, and I'm so sorry. You get to be sad about it for as long as you need.”", "Validates the grief instead of rushing them past it."],
+      ["“You don't have to be okay right now. I'm not going anywhere.”", "Takes the pressure off having to bounce back on anyone's timeline."],
+      ["“Tell me about them, or tell me about your day. Either way I'm here.”", "Lets them set the depth instead of forcing a heavy conversation."],
+      ["“Want company tonight, or want me to just keep you distracted?”", "Offers presence two ways so they can pick what they can handle."],
+    ],
+    avoid: [
+      ["“You're better off without them.”", "Even if it's true, they may not feel it yet, and it can make them defend the relationship instead."],
+      ["“There are plenty of other people out there.”", "Rushes them toward the next thing before they've grieved this one."],
+      ["“I never liked them anyway.”", "If they reconcile, you become the person who trashed their partner. Follow their lead."],
+    ],
+    gestures: [
+      ["Show up with a distraction", "Bring food, a movie, a walk. Ordinary company beats a big talk when they're raw."],
+      ["Handle a small logistics knot", "Offer to help untangle the shared streaming account, the returned key, the split-up plans."],
+      ["Text without needing a reply", "A simple 'thinking of you today' with no question attached lets them feel seen without owing you a response."],
+      ["Keep the invitations coming", "Newly single friends quietly drop off group plans. A standing invite says they still belong."],
+    ],
+    sections: [
+      {
+        h: "What to say depending on the situation",
+        rows: [
+          ["If it's fresh and raw", "Skip advice entirely. 'I'm so sorry, I'm right here' is enough for the first few days."],
+          ["If they were the one dumped", "Guard against the shame spiral: 'This says nothing about how lovable you are.'"],
+          ["If they ended it but still hurt", "Name that leaving can grieve too: 'Choosing it doesn't mean it stopped hurting.'"],
+          ["If it was long-term or they lived together", "Treat it like the major life upheaval it is, not a simple split: 'You're rebuilding your whole daily life. That's huge.'"],
+          ["If you never liked the ex", "Keep it to yourself for now. 'However you feel about them, I'm on your side' beats 'good riddance.'"],
+        ],
+      },
+    ],
+    followUp: "Support floods in the first week, then everyone assumes they're over it. The quiet weeks later, when the distraction fades and the empty apartment sets in, are often the hardest. Circle back then with a simple 'how are you really doing.'",
+    faq: [
+      ["What do you say to someone going through a breakup?", "Validate that it's a real loss and stay present: 'This is hard, you get to be sad, and I'm here.' Skip the pep talks and the ex-bashing."],
+      ["What do you text someone going through a breakup?", "Keep it warm and low-pressure: 'Thinking of you today, no need to reply. Here whenever you want company.'"],
+      ["How do you comfort someone after a breakup?", "Take the loss seriously, let them feel it without a timeline, and offer ordinary company. Presence helps more than advice."],
+      ["Should I say bad things about their ex?", "No. It can make them defend the relationship, and if they get back together you become the one who trashed their partner. Follow their lead."],
+      ["What not to say to someone going through a breakup?", "Avoid 'plenty of fish,' 'you're better off,' and 'you'll find someone else.' They rush the grief instead of honoring it."],
+      ["How do you support a friend after a long-term breakup?", "Treat it as a full life upheaval. They're rebuilding daily routines and a shared home, so help with logistics and keep including them in plans."],
+    ],
+    related: ["what-to-say-to-someone-going-through-a-divorce", "what-to-say-to-someone-having-a-hard-week"],
+  },
+  {
+    slug: "how-to-support-a-friend-from-far-away",
+    tone: "hard",
+    gesturesHeading: "Ways to help from afar",
+    title: "How to Support a Friend From Far Away",
+    meta: "When you can't be there in person, presence is about consistency, not proximity. How to support a grieving, sick, or struggling friend from another city, with help that arrives at their door.",
+    h1: "How to support a friend from far away",
+    begin: "A friend is struggling and you live far away",
+    intro: [
+      "Distance makes you feel useless. Someone you love is grieving or sick or falling apart, and you are hundreds of miles away, replaying how much better you'd be if you could just show up at their door. The guilt is real, and it is also a little bit of a trap, because it keeps you focused on the one thing you can't do instead of the many things you can.",
+      "Presence was never really about proximity. It is about consistency and thoughtfulness, and those travel just fine. Here is how to show up in a way your friend actually feels, from wherever you are.",
+    ],
+    matters: "The people who live near your friend will fade as the weeks pass and life pulls them back. Distance can make you the one who <em>stays</em>, the steady voice that keeps checking in long after the crisis stops being news. That consistency is worth more than any single visit.",
+    say: [
+      ["“I can't be there in person, so I'm here on the phone every Sunday until this eases up. Pick up or don't, I'll keep calling.”", "Turns distance into a standing promise instead of an apology."],
+      ["“I know I'm far. Tell me one thing I can handle from here and I'll do it today.”", "Offers concrete remote help instead of helpless sympathy."],
+      ["“No need to reply. Just wanted you to know I'm thinking about you today.”", "Reaches across the distance without adding a task."],
+      ["“Who is with you right now? I want to send them something to give you.”", "Uses a local person as your hands on the ground."],
+    ],
+    avoid: [
+      ["“I wish I was there.”", "It centers your feelings and leaves them with nothing. Send help instead of a wish."],
+      ["“Call me if you need anything.”", "From far away this is even emptier. They won't call. Offer something specific."],
+      ["Going quiet because you feel too far to matter", "Silence reads as absence. A short text from a distance still lands."],
+    ],
+    gestures: [
+      ["Send food to their door", "A meal-delivery gift card or a grocery gift card means dinner shows up without them lifting a finger."],
+      ["Mail something they can hold", "A real letter or a care package outlasts a text and says you spent time, not just seconds."],
+      ["Organize the friends who are close", "Coordinate the local people into a rota for meals, rides, and check-ins so nobody has to ask."],
+      ["Take one online task off their plate", "Handle a form, a bill, a return, or a phone call they've been dreading, all from your own screen."],
+    ],
+    sections: [
+      {
+        h: "How to help from a distance",
+        rows: [
+          ["When someone local can be your hands", "Find one person near your friend and coordinate through them. You can fund a meal, plan a visit, or send flowers, and they deliver it in person on your behalf."],
+          ["Sending help that arrives at their door", "Default to help that needs no decision from your friend. A meal-delivery gift card, a grocery card, a cleaning service, or a care package all land without them managing anything."],
+          ["Staying present between visits", "Set a standing call or text at the same time each week so your check-in becomes something they can count on rather than something you have to remember."],
+          ["If you can travel for the hardest moments", "Save your trip for when it matters most, a diagnosis, a funeral, a first week alone. Ask what would help before you book, and don't expect to be hosted once you arrive."],
+        ],
+      },
+    ],
+    followUp: "The hardest part of loving someone from far away is that you don't see the bad days, so you have to remember them on purpose. Put the anniversary, the surgery date, and the quiet weeks after the crowd leaves in your calendar now, and let a message arrive on the days you can't.",
+    faq: [
+      ["How do you support someone from far away?", "Trade the visit you can't make for consistency you can. Send help that arrives at their door, set a standing weekly call, and coordinate the friends who live nearby to be your hands."],
+      ["How can I help a grieving friend long distance?", "Send ready-to-eat food or a meal-delivery gift card so they don't have to cook, mail a real letter, and keep checking in for months, not days. Distance lets you be the one who stays after the local crowd fades."],
+      ["How do I be there for someone when I can't be there physically?", "Presence is consistency, not proximity. Pick a regular time to reach out, take a concrete task off their plate remotely, and remember the hard dates even though you won't see them arrive."],
+      ["What can I send a friend who is sick or grieving far away?", "Send something that requires no effort from them: a meal-delivery or grocery gift card, a cleaning service, or a care package with easy food and comfort items. A handwritten letter alongside it lasts far longer than a text."],
+      ["How do I stop feeling guilty for not being there?", "The guilt keeps you fixed on the one thing you can't do. Redirect it into the many you can, and let concrete remote help replace 'I wish I was there.' Showing up steadily from afar matters more than a single visit."],
+      ["Should I travel to see a friend in crisis?", "If you can, save the trip for the moments that matter most and ask what would actually help before you book. Between visits, your consistency from a distance is what carries them."],
+    ],
+    related: ["ways-to-help-a-grieving-friend", "how-to-help-a-friend-with-cancer"],
+  },
+  {
+    slug: "what-to-write-in-a-baby-shower-card",
+    tone: "celebration",
+    gesturesHeading: "Small ways to celebrate them",
+    title: "What to Write in a Baby Shower Card",
+    meta: "Warm, non-cliché things to write in a baby shower card: messages for the parent-to-be, what to avoid, and gentle notes for those who took a hard road to get here.",
+    h1: "What to write in a baby shower card",
+    begin: "Someone I love is having a baby shower",
+    intro: [
+      "A baby shower is all anticipation. The baby is not here yet, and the person you are celebrating is standing on the edge of a huge change, thrilled and a little nervous all at once. A note that speaks to <em>them</em> lands far better than one more generic 'congrats.'",
+      "Here's what to write, what to skip, and how to celebrate the parent they are becoming.",
+    ],
+    matters: "Shower cards default to congratulating the baby that has not arrived yet. The ones people keep speak to the parent-to-be, their excitement, their nerves, and the fact that they are already loved and not alone in this.",
+    say: [
+      ["“I cannot wait to meet this little one, and I cannot wait to watch you become a mom.”", "Celebrates the baby and the person becoming a parent."],
+      ["“You are going to be so good at this. I already see it in you.”", "Speaks to the nerves under the excitement."],
+      ["“So much love is waiting for this baby, and it starts with you.”", "Warm and specific, no cliché."],
+      ["“Whatever you need in these early days, I am in. Just say the word.”", "Turns a card into a real offer of help."],
+    ],
+    avoid: [
+      ["“Say goodbye to sleep!”", "It is every card, and it greets good news with a warning."],
+      ["“You have no idea what you are in for.”", "Meant as a joke, but it can land as fear."],
+      ["“When are you having the next one?”", "Let them arrive at this one first."],
+    ],
+    gestures: [
+      ["Offer a specific hand", "Not 'let me know if you need anything,' but 'I will bring dinner the first week.'"],
+      ["Give something for the parent", "A cozy robe or a favorite treat, so the grown-up gets looked after too."],
+      ["Write down a promise", "Note one thing you will do after the baby comes, then actually do it."],
+      ["Share a small piece of wisdom", "One honest, kind line about parenthood from your own life, if you have it to give."],
+    ],
+    sections: [
+      {
+        h: "What to write depending on who they are",
+        rows: [
+          ["A close friend", "Be personal and a little emotional. You get to say how much this moment means to you and how sure you are that they are ready."],
+          ["Your sister or family", "Lean on shared history. A memory of them, or a nod to the family this baby is joining, means the world."],
+          ["A coworker", "Warm but lighter. Congratulate them, wish them an easy stretch ahead, and say the team is genuinely happy for them."],
+          ["A first-time parent", "Reassure more than you tease. They are excited and nervous. Tell them plainly that they are going to be wonderful and that you are in their corner."],
+          ["Someone who waited a long time or came through loss", "Go gentle and glad. Skip the jokes about the road ahead. Something like 'This little one is so lucky, and so are we to be here for it' honors the weight without naming the pain unless they have."],
+        ],
+      },
+    ],
+    followUp: "The shower ends, but the moment that matters most is still coming. Stay close through the last stretch of pregnancy and the birth, and be the person who shows up in the blurry newborn weeks with food, a check-in, and a simple 'how are <em>you</em> doing?'",
+    faq: [
+      ["What do you write in a baby shower card?", "A warm, specific line that celebrates the coming baby and speaks to the parent-to-be, their excitement, their nerves, and how ready they are."],
+      ["What is a short baby shower message?", "Try 'So happy for you and this little one on the way.' Short and heartfelt beats long and generic."],
+      ["What should you not write in a baby shower card?", "Skip 'say goodbye to sleep' and 'you have no idea what you are in for.' They greet good news with a warning."],
+      ["What do you write in a baby shower card for a first-time parent?", "Reassure them. Something like 'You are going to be a natural, and I am here for whatever you need' calms the nerves under the excitement."],
+      ["What do you say to someone who had a hard road to this pregnancy?", "Be gentle and glad, and skip the jokes. 'This baby is so loved already, and so are you' honors the journey without naming the hard parts unless they do."],
+      ["Is a baby shower card different from a new baby card?", "Yes. A shower card is written before the baby arrives and celebrates the parent-to-be, while a new baby card comes after the birth and welcomes the baby who is here."],
+    ],
+    related: ["what-to-write-in-a-new-baby-card", "how-to-help-new-parents"],
+  },
+  {
+    slug: "what-to-write-in-a-housewarming-card",
+    tone: "celebration",
+    gesturesHeading: "Ways to welcome them home",
+    title: "What to Write in a Housewarming Card",
+    meta: "Warm, non-cliché things to write in a housewarming card: new home messages for friends and family, what to avoid, and thoughtful ways to welcome them to the neighborhood.",
+    h1: "What to write in a housewarming card",
+    begin: "Someone I care about just moved into a new home",
+    intro: [
+      "It's easy to reach for “congrats on the new place” and leave it there. But a house isn't really about the square footage or the closing paperwork. It's about the life that's going to happen inside it, and a card that says so will mean far more.",
+      "Here's what to write to someone settling into a new home, what to skip, and a few ways to make their first weeks feel more welcome.",
+    ],
+    matters: "A new home is a fresh start, and often a tiring, slightly lonely one too. The warmest notes look past the walls to <em>them</em>: the mornings, the dinners, and the quiet evenings they'll get to have here.",
+    say: [
+      ["“Wishing you a home full of good mornings, long dinners, and the kind of nights you never want to end.”", "Naming the ordinary life ahead beats a generic congratulations on the building itself."],
+      ["“I can't wait to see what you do with the place, and to be there for a meal once the boxes are gone.”", "It celebrates them and quietly promises you'll show up, which is half of what a home is for."],
+      ["“May this be the house where your best memories happen.”", "A wish for the memories they'll make lands warmer than praise for the property."],
+      ["“So happy for you both. Every corner of this place is going to feel like you soon.”", "It acknowledges the newness with faith that it will become theirs, which is exactly the reassurance a big move needs."],
+    ],
+    avoid: [
+      ["“Hope you can afford it!”", "Even as a joke, money cracks about a home land as pressure, not celebration."],
+      ["“Now the real work begins.”", "Leading with the chores ahead deflates a moment that's meant to feel hopeful."],
+      ["A signature and nothing else", "For someone you care about, a blank card reads like you mailed it in."],
+    ],
+    gestures: [
+      ["Give something the home will actually use", "A good dish towel set, a plant, or a nice bottle for the first night becomes part of the place instead of clutter."],
+      ["Bring a meal during moving week", "The kitchen is the last thing unpacked. A home-cooked dinner dropped off in the chaos is a kindness they won't forget."],
+      ["Offer your hands, not just your words", "Showing up to carry boxes, build furniture, or hang a few things says more than any card can."],
+      ["Welcome them to the area", "If you know the neighborhood, a short list of your favorite coffee shop, park, and takeout spot helps a new place start to feel like home."],
+    ],
+    sections: [
+      {
+        h: "What to write depending on who they are",
+        rows: [
+          ["A close friend", "Be personal and a little excited. Picture yourself in their new space: “Cannot wait to be a regular on that couch.” Warmth over formality."],
+          ["Family", "You can be tender and proud. Name what this milestone means: “Watching you build a place of your own is one of my favorite things.”"],
+          ["A couple's first home together", "Celebrate the two of them, not just the address. Wish them the everyday life they'll share there, the ordinary Tuesdays as much as the milestones."],
+          ["A first-time homeowner", "Honor the size of it. Buying a first home is huge and a bit scary. Reassure them: “You earned this, and it's going to feel like yours before you know it.”"],
+          ["Someone who moved far away", "Acknowledge the distance with love, not guilt. Tell them you're proud and that the door swings both ways: “A new adventure for you, and a place I already can't wait to visit.”"],
+        ],
+      },
+    ],
+    followUp: "The excitement of a move fades fast, and a half-unpacked house in an unfamiliar place can feel quiet and lonely. A text a few weeks later, asking how it's settling in or when you can come see it, tells them the welcome wasn't just for moving day.",
+    faq: [
+      ["What do you write in a housewarming card?", "Write something specific to them and the life they'll live there. Wish them good memories in the new place and, if you can, offer to help or to visit once they're settled."],
+      ["What should you not write in a housewarming card?", "Skip money jokes like “hope you can afford it,” lines about all the work ahead, and leaving just a signature. Keep it hopeful, not daunting."],
+      ["What's a short housewarming message?", "“So happy for you. Wishing you a home full of good memories.” Short is fine as long as it's warm and sounds like you."],
+      ["What do you say for a first home?", "Honor how big it is. Try: “Your very first home. You earned this, and it's going to feel like yours in no time.” A little pride goes a long way."],
+      ["How do you congratulate someone on a new house?", "Look past the house to the life in it: “Congratulations. May this be the place where your best days happen.” Specific and warm beats a plain “congrats.”"],
+      ["Is it okay to give money in a housewarming card?", "Yes, and it's often welcome after the expense of a move. A short warm note alongside it keeps the gesture personal rather than transactional."],
+    ],
+    related: ["what-to-write-in-a-wedding-card", "what-to-write-in-a-new-baby-card"],
+  },
+  {
+    slug: "what-to-say-to-a-caregiver",
+    tone: "hard",
+    gesturesHeading: "Ways to actually help",
+    title: "What to Say to a Caregiver Who Feels Invisible",
+    meta: "What to say to a caregiver looking after a sick or aging loved one, how to see them as a person and not a saint, plus real relief to offer and what to avoid.",
+    h1: "What to say to a caregiver",
+    begin: "Someone I know is caring for a sick or aging loved one",
+    intro: [
+      "Everyone asks how the patient is doing, and almost no one asks how the caregiver is holding up. The person doing the caring often becomes invisible, running on empty while the world checks on someone else.",
+      "The most powerful thing you can do is see <em>them</em>, the caregiver, as a person who is also struggling, and then hand them real relief instead of praise.",
+    ],
+    matters: "Caregiving is quiet, relentless, and lonely, and calling someone a saint can make it worse, because saints aren't allowed to be tired or resentful or scared. Being seen as a whole person, and getting one real thing taken off their plate, is what actually helps.",
+    say: [
+      ["“How are you doing, really? Not the patient. You.”", "Turning the question toward them says they still count as a person."],
+      ["“I'm coming Saturday to sit with your mom so you can leave the house.”", "A named, concrete break is worth more than any offer to help someday."],
+      ["“This is hard, and you're allowed to hate it some days.”", "Permission to feel the ugly parts breaks the saint script that isolates them."],
+      ["“I'm bringing dinner Thursday. Just tell me the gate code.”", "Removes the decision and the coordination, not just the cooking."],
+    ],
+    avoid: [
+      ["“You're a saint, I could never do it.”", "It sounds kind but it isolates them and shuts down honest feelings."],
+      ["“Let me know if you need anything.”", "They are too depleted to assign you tasks. Offer one specific thing instead."],
+      ["“At least they still know who you are.”", "Silver linings dismiss the grief they are living every day."],
+    ],
+    gestures: [
+      ["Give them an actual break", "Sit with their loved one for a few hours so they can sleep, walk, or just leave."],
+      ["Feed them without asking", "Drop off a meal on a set day. Make it something reheatable so nothing is wasted."],
+      ["Ask about their life", "Their job, their kids, a show they used to love. Remind them they exist outside the caregiving."],
+      ["Take an errand off their list", "Grab the groceries, pick up the prescription, handle the one call they keep dreading."],
+    ],
+    sections: [
+      {
+        h: "What to say based on your relationship to them",
+        rows: [
+          ["A close friend caring for a parent", "“I've got Saturday afternoons. Standing offer, no need to ask.” Give them a repeating slot they can lean on without guilt."],
+          ["A coworker stretched thin", "“I can cover the Monday report so you can breathe.” Take real weight off at work instead of just saying you understand."],
+          ["A family member sharing the load", "“What is actually on you right now, and what can I take?” Split the invisible tasks, not just the visible ones."],
+          ["Someone long into caregiving", "“You've been carrying this a long time. I'm still here, and I still see it.” The ones deep in it are the most forgotten, so name that you haven't moved on."],
+        ],
+      },
+    ],
+    followUp: "Caregiving is a marathon, and support fades fast while the work never does. Months in, the caregiver often disappears from everyone's radar. Set a recurring reminder to check on them, not the patient, long after the casseroles stop coming.",
+    faq: [
+      ["What do you say to a caregiver who is burned out?", "Ask how they are as a person, name that it's hard, and offer one concrete break like sitting with their loved one so they can rest. Praise alone can feel isolating."],
+      ["Why does telling a caregiver they're a saint feel bad?", "It puts them on a pedestal where they aren't allowed to be tired, angry, or scared, and it can make them feel more alone. See them as a whole person instead."],
+      ["What is the best practical help for a caregiver?", "Give them time off by sitting with the person they care for, bring reheatable meals on a set schedule, and take a recurring errand or chore fully off their plate."],
+      ["How do I support a caregiver over the long term?", "Keep checking in on them specifically, long after the crisis, since support fades but the caregiving does not. Put reminders in your calendar every week or two."],
+      ["What should I not say to a caregiver?", "Skip “let me know if you need anything,” silver linings like “at least,” and saint language. Offer something specific and ask about their own life."],
+    ],
+    related: ["how-to-help-a-friend-with-cancer", "what-to-say-to-someone-having-a-hard-week"],
+  },
 ];
 
 const GUIDE_BY_SLUG = Object.fromEntries(GUIDES.map((g) => [g.slug, g]));
@@ -1114,7 +1637,7 @@ ${MARKETING_TAGS}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.75;background:var(--paper)}
   /* TC-174 blocker #2 (Design Lead ruling): share home's living-gradient COLOR WORLD so the guide→home
-     seam reads as one brand, but STATIC (no blobs) — a reading page stays calm (brand law #6: only the
+     seam reads as one brand, but STATIC (no blobs), a reading page stays calm (brand law #6: only the
      orb animates, and guides have no orb). Article + cards stay opaque warm "rooms" for legibility.
      Exact base wash from ITERATION-2-SPEC PART 2. */
   #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
@@ -1270,7 +1793,7 @@ ${MARKETING_TAGS}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.7;background:var(--paper)}
   /* TC-174 blocker #2 (Design Lead ruling): share home's living-gradient COLOR WORLD so the guide→home
-     seam reads as one brand, but STATIC (no blobs) — a reading page stays calm (brand law #6: only the
+     seam reads as one brand, but STATIC (no blobs), a reading page stays calm (brand law #6: only the
      orb animates, and guides have no orb). Article + cards stay opaque warm "rooms" for legibility.
      Exact base wash from ITERATION-2-SPEC PART 2. */
   #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
