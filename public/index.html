@@ -5248,7 +5248,7 @@ function renderPlan(p){
       </div>
     </div>
     <!-- TC-174 Surface 1: quiet sticky nudge to the save card, shown only when the card is scrolled out of view. -->
-    <button type="button" id="savePlanChip" class="save-chip" onclick="var c=document.getElementById('keepCard'); if(c) c.scrollIntoView({behavior:'smooth',block:'center'});">Save this plan</button>
+    <button type="button" id="savePlanChip" class="save-chip" onclick="var c=document.getElementById('keepCard'); if(c) c.scrollIntoView({behavior:'smooth',block:'center'});">${fbHard ? 'Keep this close' : 'Save this plan'}</button>
     <!-- TC-71: quieter secondary row — the single save card above is the main action. -->
     <div class="plan-secondary">
       <div class="plan-actions">
