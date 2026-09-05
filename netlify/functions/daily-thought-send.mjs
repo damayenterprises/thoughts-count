@@ -35,7 +35,11 @@ export default async () => {
       if (r.ok) {
         const d = await r.json();
         if (d && d.line && String(d.line).trim()) {
-          thought = { line: String(d.line).trim(), day: d.day || today };
+          // dayMark drives the once-per-day dedupe, so it must be ONE stable format run-to-run
+          // regardless of whether MOS returns `day`. Normalize to dashed YYYY-MM-DD always
+          // (MOS's `day` is already dashed; the fallback matches it) so a run where MOS omits
+          // `day` can't flip the format vs a run where it includes it and cause a double-send.
+          thought = { line: String(d.line).trim(), day: normalizeDay(d.day) };
         }
       }
     } finally { clearTimeout(t); }
@@ -48,7 +52,7 @@ export default async () => {
 
   // 2) Send to every active subscriber, once per thought-day.
   const siteUrl = (getEnv("URL") || "https://thoughtscount.com").replace(/\/+$/, "");
-  const dayMark = thought.day || today;
+  const dayMark = thought.day; // always dashed YYYY-MM-DD (normalized above)
   try {
     const store = getStore(SUBSCRIBER_STORE);
     let cursor;
@@ -56,21 +60,30 @@ export default async () => {
       const page = await store.list({ cursor });
       cursor = page.cursor;
       for (const b of page.blobs || []) {
-        const rec = await store.get(b.key, { type: "json" });
-        if (!rec || rec.active === false || !rec.email) continue;
-        if (rec.lastSentDay === dayMark) continue; // already sent this day's line (idempotent)
-        audience++;
-        const unsubUrl = `${siteUrl}/api/daily-unsub?token=${encodeURIComponent(rec.token || "")}`;
-        const res = await sendEmail({
-          to: rec.email,
-          subject: "A thought for today",
-          html: dailyThoughtEmailHtml({ line: thought.line, unsubUrl }),
-        });
-        if (res.ok) {
-          await store.setJSON(b.key, { ...rec, lastSentDay: dayMark });
-          delivered++;
-          await logEvent("daily_thought_sent", { insider: isTestEmail(rec.email) });
-        } else {
+        // Per-recipient isolation: a thrown fetch/store error for ONE subscriber must not abort the
+        // whole batch (sendEmail doesn't wrap fetch, so a network error would otherwise bubble to the
+        // outer try and skip everyone left). Count it failed and move on; an unsent record keeps its
+        // old lastSentDay, so the next fire retries it.
+        try {
+          const rec = await store.get(b.key, { type: "json" });
+          if (!rec || rec.active === false || !rec.email) continue;
+          if (rec.lastSentDay === dayMark) continue; // already sent this day's line (idempotent)
+          audience++;
+          const unsubUrl = `${siteUrl}/api/daily-unsub?token=${encodeURIComponent(rec.token || "")}`;
+          const res = await sendEmail({
+            to: rec.email,
+            subject: "A thought for today",
+            html: dailyThoughtEmailHtml({ line: thought.line, unsubUrl }),
+          });
+          if (res.ok) {
+            await store.setJSON(b.key, { ...rec, lastSentDay: dayMark });
+            delivered++;
+            await logEvent("daily_thought_sent", { insider: isTestEmail(rec.email) });
+          } else {
+            failed++;
+          }
+        } catch (e) {
+          console.error("daily-thought-send: recipient failed", e);
           failed++;
         }
       }
@@ -90,6 +103,16 @@ export default async () => {
 
 function ymd(d) {
   return d.getFullYear().toString() + String(d.getMonth() + 1).padStart(2, "0") + String(d.getDate()).padStart(2, "0");
+}
+// Canonical dashed YYYY-MM-DD for the dedupe key. Accepts MOS's dashed `day` (passed through),
+// a bare YYYYMMDD (dashed), or nothing/garbage (falls back to today, dashed) — so `dayMark` is
+// one consistent format on every run.
+function normalizeDay(v) {
+  const s = String(v || "").trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+  if (/^\d{8}$/.test(s)) return `${s.slice(0, 4)}-${s.slice(4, 6)}-${s.slice(6, 8)}`;
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 }
 function json(obj) {
   return new Response(JSON.stringify(obj), { headers: { "content-type": "application/json" } });
