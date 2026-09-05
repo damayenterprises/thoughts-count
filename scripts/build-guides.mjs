@@ -16,6 +16,9 @@ const TODAY = "2026-07-27";
 
 // Real designer bubble+heart mark (icon-color.svg, viewBox 0 0 250 250) — used in the
 // guide header brand lockups. Outlined paths, no font dependency.
+// Della's name, for the inline intake CTA. Hardcoded here because this is a static build-time
+// generator (the live app loads it dynamically; a build script can't reach that runtime config).
+const HER_NAME = "Della";
 const MARK = `<svg viewBox="0 0 250 250" aria-hidden="true"><path fill="#118ab9" d="M30.84,247.61c-1.22,0-2.42-.54-3.34-1.57-1.36-1.51-1.87-3.82-1.31-5.92l9.28-34.68C14.07,182.85,2.33,153.46,2.33,122.3,2.33,55.3,57.27.8,124.8.8s122.47,54.5,122.47,121.5-54.94,121.5-122.47,121.5c-19.29,0-38.44-4.55-55.53-13.17l-36.69,16.6c-.57.26-1.16.38-1.74.38ZM69.39,218.66c.68,0,1.35.17,1.99.5,16.31,8.59,34.78,13.13,53.42,13.13,62.16,0,112.73-49.34,112.73-110S186.96,12.3,124.8,12.3,12.07,61.65,12.07,122.3c0,28.9,11.42,56.2,32.16,76.89,1.5,1.5,2.09,3.92,1.5,6.13l-7.2,26.9,29.12-13.18c.56-.25,1.15-.38,1.74-.38Z"/><path fill="#ef4136" d="M148.18,75.95c-7.61,0-15.23,2.92-21.04,8.75l-2.35,2.36-2.35-2.36c-5.81-5.83-13.42-8.75-21.03-8.75-7.62,0-15.23,2.92-21.04,8.76l-.42.43c-11.62,11.67-11.62,30.59,0,42.27l2.35,2.36,5.15,5.18,37.34,37.52,42.5-42.7,2.35-2.36c11.61-11.67,11.61-30.6,0-42.27l-.43-.43c-5.81-5.83-13.42-8.75-21.04-8.75h0Z"/></svg>`;
 
 const GUIDES = [
@@ -893,7 +896,20 @@ function page(g) {
       <div class="qa"><h3>${esc(q)}</h3><p>${esc(a)}</p></div>`).join("");
   const related = g.related.map((s) => GUIDE_BY_SLUG[s]).filter(Boolean).map((r) => `
         <a class="rel" href="/guides/${r.slug}/">${r.h1}</a>`).join("");
-  const ctaHref = `/?begin=${encodeURIComponent(g.begin)}`;
+  // TC-174 Surface 3: an inline Della intake, pre-filled with this guide's situation and editable.
+  // Native GET form → /?begin=<situation>&from=guide, so it works even without JS (progressive
+  // enhancement). Placed at peak intent (right after "What to say") and again at the foot of the page.
+  const dellaCta = `
+    <div class="della-cta">
+      <div class="della-cta-head">${MARK}<span>From ${esc(HER_NAME)}</span></div>
+      <p class="della-cta-line">Want words that fit your person, not a stranger's? Tell me who they are and I'll make you a plan.</p>
+      <form class="della-cta-form" action="/" method="get">
+        <input type="text" name="begin" value="${esc(g.begin)}" maxlength="120" aria-label="Your situation" />
+        <input type="hidden" name="from" value="guide" />
+        <button type="submit">Make my plan</button>
+      </form>
+      <span class="della-cta-sub">Free. No account. About a minute.</span>
+    </div>`;
 
   return `<!doctype html>
 <html lang="en">
@@ -955,6 +971,16 @@ ${MARKETING_TAGS}
   .cta{margin:30px 0 6px;text-align:center}
   .cta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:15px 32px;border-radius:999px;font-weight:700;font-size:16.5px;box-shadow:0 10px 30px rgba(64,52,34,.14)}
   .cta .sub{display:block;font-size:13.5px;color:var(--soft);margin-top:10px}
+  /* TC-174 Surface 3: inline Della intake — turns a reader into a personalized plan without leaving the page */
+  .della-cta{background:#e3f0f6;border:1px solid var(--line);border-radius:18px;padding:22px 24px;margin:26px 0;text-align:center}
+  .della-cta-head{display:inline-flex;align-items:center;gap:8px;font-size:12.5px;font-weight:700;color:var(--blue-deep);text-transform:uppercase;letter-spacing:.12em}
+  .della-cta-head svg{width:22px;height:22px}
+  .della-cta-line{font-size:17px;color:var(--ink);margin:10px auto 16px;max-width:44ch}
+  .della-cta-form{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;align-items:stretch}
+  .della-cta-form input[type=text]{flex:1 1 280px;min-width:0;padding:13px 15px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:15.5px;background:var(--cloud);color:var(--ink)}
+  .della-cta-form input[type=text]:focus{outline:none;border-color:var(--blue)}
+  .della-cta-form button{background:var(--red);color:#fff;border:0;padding:13px 28px;border-radius:999px;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 10px 30px rgba(64,52,34,.14);white-space:nowrap}
+  .della-cta-sub{display:block;font-size:13px;color:var(--soft);margin-top:12px}
   .related{margin:26px 0 0}
   .related h2{font-size:19px}
   .rel{display:block;background:var(--cloud);border:1px solid var(--line);border-radius:12px;padding:11px 15px;margin:7px 0;text-decoration:none;color:var(--blue);font-weight:600}
@@ -978,7 +1004,7 @@ ${TRACKER}
     <div class="matters">${g.matters}</div>
 
     <h2>What to say</h2>${sayRows}
-
+${dellaCta}
     <h2>What to avoid</h2>${avoidRows}
 
     <h2>${g.gesturesHeading || "Gestures that help"}</h2>
@@ -987,10 +1013,7 @@ ${TRACKER}
     <h2>How to keep showing up</h2>
     <p>${g.followUp}</p>
 
-    <div class="cta">
-      <a href="${ctaHref}">Get a plan for your situation →</a>
-      <span class="sub">Free · no account needed · personal to your relationship</span>
-    </div>
+${dellaCta}
 
     <h2>Common questions</h2>
     <div class="faq">${faqRows}</div>

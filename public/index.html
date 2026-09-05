@@ -5516,10 +5516,18 @@ function tcToastHide(){
 /* ================= end TC-81 ============================================= */
 
 // Deep-link from the SEO guide pages: /?begin=<moment> opens the flow pre-filled.
+// TC-174 Surface 3: when the reader came from a guide's inline intake (&from=guide), greet them
+// with a gentle "picking up where you left off" so it never feels like a cold reset.
 (function(){
   try {
-    var b = new URLSearchParams(location.search).get('begin');
-    if (b) openFlow(b.slice(0, 120));
+    var params = new URLSearchParams(location.search);
+    var b = params.get('begin');
+    if (b) {
+      openFlow(b.slice(0, 120));
+      if (params.get('from') === 'guide') {
+        try { tcToast("Picking up right where your guide left off. Tell me about your person and I'll make it theirs."); } catch(e){}
+      }
+    }
   } catch(e){}
 })();
 </script>
