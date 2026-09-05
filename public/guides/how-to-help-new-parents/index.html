@@ -107,6 +107,16 @@ alt="" /></noscript>
   .della-cta-form input[type=text]:focus{outline:none;border-color:var(--blue)}
   .della-cta-form button{background:var(--red);color:#fff;border:0;padding:13px 28px;border-radius:999px;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 10px 30px rgba(64,52,34,.14);white-space:nowrap}
   .della-cta-sub{display:block;font-size:13px;color:var(--soft);margin-top:12px}
+  /* TC-174 Surface 2: slim daily-thought opt-in at the guide foot */
+  .daily-optin{margin:26px 0 4px;padding:18px 20px;background:#eef6fa;border:1px solid var(--line);border-radius:16px}
+  .do-prompt{margin:0 0 10px;font-size:15.5px;font-weight:600;color:var(--blue-deep)}
+  .do-form{display:flex;gap:8px;flex-wrap:wrap;align-items:stretch}
+  .do-form input[type=email]{flex:1 1 220px;min-width:0;padding:11px 14px;border:1px solid var(--line);border-radius:11px;font:inherit;font-size:15px;background:var(--cloud);color:var(--ink)}
+  .do-form input[type=email]:focus{outline:none;border-color:var(--blue)}
+  .do-form button{flex:0 0 auto;background:var(--blue);color:#fff;border:0;padding:11px 20px;border-radius:11px;font:inherit;font-weight:700;font-size:15px;cursor:pointer;white-space:nowrap}
+  .do-form button:disabled{opacity:.6;cursor:default}
+  .do-msg{margin:10px 0 0;font-size:13.5px;color:var(--soft)}
+  .do-msg.bad{color:var(--red)}
   .related{margin:26px 0 0}
   .related h2{font-size:19px}
   .rel{display:block;background:var(--cloud);border:1px solid var(--line);border-radius:12px;padding:11px 15px;margin:7px 0;text-decoration:none;color:var(--blue);font-weight:600}
@@ -201,6 +211,43 @@ alt="" /></noscript>
         <a class="rel" href="/guides/what-to-write-in-a-new-baby-card/">What to write in a new baby card</a>
         <a class="rel" href="/guides/ways-to-help-a-grieving-friend/">Ways to actually help a grieving friend</a>
     </div>
+
+    <div class="daily-optin" id="guideDailyOptin">
+      <p class="do-prompt">Want a small thought from Della each morning?</p>
+      <form class="do-form" id="guideDailyForm" novalidate>
+        <input type="email" id="guideDailyEmail" placeholder="you@email.com" aria-label="Your email" autocomplete="email" />
+        <button type="submit" id="guideDailyBtn">Yes, send them</button>
+      </form>
+      <p class="do-msg" id="guideDailyMsg" role="status" aria-live="polite"></p>
+    </div>
+    <script>
+    (function(){
+      var form=document.getElementById('guideDailyForm');if(!form)return;
+      var wrap=document.getElementById('guideDailyOptin');
+      var input=document.getElementById('guideDailyEmail');
+      var btn=document.getElementById('guideDailyBtn');
+      var msg=document.getElementById('guideDailyMsg');
+      try{if(localStorage.getItem('tc_daily_sub')==='1'){wrap.style.display='none';return;}}catch(e){}
+      var RE=/^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      form.addEventListener('submit',function(ev){
+        ev.preventDefault();
+        var email=(input.value||'').trim();
+        msg.className='do-msg';
+        if(!RE.test(email)){msg.className='do-msg bad';msg.textContent='That email looks off. Mind checking it?';return;}
+        var sid;try{sid=localStorage.getItem('tc_sid')||undefined;}catch(e){}
+        btn.disabled=true;msg.textContent='One moment...';
+        fetch('/api/subscribe-daily',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({email:email,source:'guide',sid:sid})})
+          .then(function(r){return r.json().then(function(j){return {ok:r.ok,j:j};});})
+          .then(function(res){
+            if(!res.ok){btn.disabled=false;msg.className='do-msg bad';msg.textContent=(res.j&&res.j.error)||'That did not go through. Try again in a moment.';return;}
+            try{localStorage.setItem('tc_daily_sub','1');}catch(e){}
+            form.style.display='none';wrap.querySelector('.do-prompt').style.display='none';
+            msg.className='do-msg';msg.textContent='Lovely. You will get a small thought each morning.';
+          })
+          .catch(function(){btn.disabled=false;msg.className='do-msg bad';msg.textContent='That did not go through. Try again in a moment.';});
+      });
+    })();
+    </script>
   </article>
 
   <footer>Thoughts Count: helping good intentions become meaningful actions.</footer>

@@ -451,10 +451,25 @@ alt="" /></noscript>
   .tc-daily-dismiss { position: absolute; top: 15px; right: 26px; width: 30px; height: 30px; display: inline-flex; align-items: center; justify-content: center; border: none; background: transparent; color: rgba(255,255,255,.55); border-radius: 8px; cursor: pointer; transition: color .15s ease, background .15s ease; }
   .tc-daily-dismiss:hover { color: #fff; background: rgba(255,255,255,.1); }
   .tc-daily-dismiss:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255,255,255,.4); }
+  /* TC-174 Surface 2: a quiet opt-in tucked under the thought — "want one of these each morning?"
+     Catches the many who read but never start a plan. Stays in the bar's calm blue; never a loud box. */
+  .tc-daily-optin { margin-top: 14px; }
+  .tc-daily-optin[hidden] { display: none; }
+  .tc-daily-optin .tdo-prompt { display: block; font-size: 14px; color: rgba(255,255,255,.9); margin-bottom: 9px; }
+  .tc-daily-optin .tdo-form { display: flex; gap: 8px; flex-wrap: wrap; align-items: stretch; max-width: 440px; }
+  .tc-daily-optin input[type=email] { flex: 1 1 210px; min-width: 0; padding: 10px 13px; border: 1px solid rgba(255,255,255,.4); border-radius: 10px; font: inherit; font-size: 15px; background: rgba(255,255,255,.12); color: #fff; }
+  .tc-daily-optin input[type=email]::placeholder { color: rgba(255,255,255,.6); }
+  .tc-daily-optin input[type=email]:focus { outline: none; border-color: #fff; background: rgba(255,255,255,.18); }
+  .tc-daily-optin button { flex: 0 0 auto; background: #fff; color: var(--tc-blue-deep, #0a5876); border: 0; padding: 10px 18px; border-radius: 10px; font: inherit; font-weight: 700; font-size: 15px; cursor: pointer; white-space: nowrap; }
+  .tc-daily-optin button:hover { background: #eef7fb; }
+  .tc-daily-optin button:disabled { opacity: .6; cursor: default; }
+  .tc-daily-optin .tdo-msg { margin: 9px 0 0; font-size: 13.5px; color: rgba(255,255,255,.92); min-height: 0; }
+  .tc-daily-optin .tdo-msg.bad { color: #ffe0dc; }
   @media (max-width: 560px) {
     .tc-daily-inner { padding: 16px 20px 18px; gap: 11px; }
     .tc-daily-line { font-size: 16px; }
     .tc-daily-dismiss { top: 8px; right: 10px; width: 40px; height: 40px; }
+    .tc-daily-optin .tdo-form { max-width: none; }
   }
 
   /* ---------- trust strip (compact, visual) ---------- */
@@ -596,6 +611,11 @@ alt="" /></noscript>
   .tc-remember-band .rb-text { flex: 1 1 auto; line-height: 1.35; }
   .tc-remember-band .rb-undo { flex: 0 0 auto; background: transparent; border: none; color: var(--sage-deep); font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 4px 6px; border-radius: 8px; line-height: 1; }
   .tc-remember-band .rb-undo:hover { text-decoration: underline; }
+  /* TC-174 Surface 4: the post-save check-in nudge OFFER reuses the band, with an accept action. */
+  .tc-remember-band.tc-checkin-offer { align-items: center; }
+  .tc-remember-band .rb-accept { flex: 0 0 auto; background: var(--tc-blue-deep, #0a5876); color: #fff; border: none; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer; padding: 7px 14px; border-radius: 10px; line-height: 1; white-space: nowrap; }
+  .tc-remember-band .rb-accept:hover { filter: brightness(1.08); }
+  .tc-remember-band .rb-accept:disabled { opacity: .6; cursor: default; }
   .block h4 { font-family: var(--tc-font); font-weight: 600; font-size: 18px; margin: 0 0 13px; display: flex; align-items: center; gap: 11px; }
   .block h4 .ic { width: 30px; height: 30px; border-radius: 10px; background: var(--mist); display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; }
   .block h4 .ic svg { width: 17px; height: 17px; }
@@ -1156,6 +1176,15 @@ alt="" /></noscript>
       <div class="tc-daily-body">
         <p class="tc-daily-label" id="tcDailyLabel">A thought</p>
         <p class="tc-daily-line" id="tcDailyLine"></p>
+        <!-- TC-174 Surface 2: opt into a small thought each morning (accept-a-gift verb, never "Subscribe"). -->
+        <div class="tc-daily-optin" id="tcDailyOptin" hidden>
+          <span class="tdo-prompt">Want a small thought like this from me each morning?</span>
+          <form class="tdo-form" id="tcDailyOptinForm" novalidate>
+            <input type="email" id="tcDailyEmail" placeholder="you@email.com" aria-label="Your email" autocomplete="email" />
+            <button type="submit" id="tcDailyOptinBtn">Yes, send them</button>
+          </form>
+          <p class="tdo-msg" id="tcDailyOptinMsg" role="status" aria-live="polite"></p>
+        </div>
       </div>
       <button type="button" class="tc-daily-dismiss" id="tcDailyDismiss" aria-label="Dismiss today's thought" title="Dismiss">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -1207,8 +1236,47 @@ alt="" /></noscript>
         try { window.addEventListener('tc-her-name', applyLabel); } catch(e){}
         lineEl.textContent = '"' + d.line + '"';   // her thoughts shown in quotes (textContent = no HTML injection)
         el.hidden = false;                         // shows on every visit today until dismissed
+        wireDailyOptin();                          // TC-174 Surface 2: offer the morning-thought opt-in
       })
       .catch(function(){ /* stay hidden on any error */ });
+
+    // TC-174 Surface 2: attach the low-commitment "send me one each morning" opt-in to the bar.
+    // Quiet by design: hidden once someone has opted in (localStorage), so it never nags.
+    function wireDailyOptin(){
+      var wrap = document.getElementById('tcDailyOptin');
+      var form = document.getElementById('tcDailyOptinForm');
+      if (!wrap || !form) return;
+      var already = false;
+      try { already = localStorage.getItem('tc_daily_sub') === '1'; } catch(e){}
+      if (already) return;                          // already on the list → stay hidden
+      wrap.hidden = false;
+      var input = document.getElementById('tcDailyEmail');
+      var btn = document.getElementById('tcDailyOptinBtn');
+      var msg = document.getElementById('tcDailyOptinMsg');
+      var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      form.addEventListener('submit', function(ev){
+        ev.preventDefault();
+        var email = (input.value || '').trim();
+        msg.className = 'tdo-msg';
+        if (!EMAIL_RE.test(email)) { msg.className = 'tdo-msg bad'; msg.textContent = 'That email looks off. Mind checking it?'; return; }
+        btn.disabled = true; msg.textContent = 'One moment...';
+        fetch('/api/subscribe-daily', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: email, source: 'home', sid: window.__tcSid, test: window.__tcTest })
+        })
+          .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
+          .then(function(res){
+            if (!res.ok) { btn.disabled = false; msg.className = 'tdo-msg bad'; msg.textContent = (res.j && res.j.error) || 'That did not go through. Try again in a moment.'; return; }
+            try { localStorage.setItem('tc_daily_sub', '1'); } catch(e){}
+            form.style.display = 'none';
+            wrap.querySelector('.tdo-prompt').style.display = 'none';
+            msg.className = 'tdo-msg';
+            msg.textContent = "Lovely. I'll send you a small thought each morning.";
+          })
+          .catch(function(){ btn.disabled = false; msg.className = 'tdo-msg bad'; msg.textContent = 'That did not go through. Try again in a moment.'; });
+      });
+    }
   })();
   </script>
 
@@ -5037,6 +5105,52 @@ function tcFlushPendingRemember(){
   const inject = tcRememberShouldInject(pend.personId, window.__tcFlowPersonId, Date.now() - (pend.ts || 0), window.TC_REMEMBER_TTL_MS);
   if (inject) tcRenderRememberBand(pend.payload);
 }
+// TC-174 Surface 4: after a signed-in save, Della OFFERS a timed check-in nudge (the return hook).
+// Reuses the .tc-remember-band styling. Valence-aware copy with the grief guard: a celebration/other
+// suggests a week; a hard_time suggests further out ("the hard part comes weeks later"). Accepting
+// calls onAccept(), which schedules the nudge in the companion layer and resolves with the human
+// "when" text. Never-extractive: only the person's first name + a date are stored, and the nudge
+// goes TO THE USER (never any outreach to the person; we never ask for their contact info).
+function tcRenderCheckinOffer({ mountEl, firstName, valence, onAccept }){
+  if (!mountEl || typeof onAccept !== 'function') return false;
+  const old = mountEl.querySelector('.tc-checkin-offer'); if (old) old.remove();
+  const fn = escapeHtml(String(firstName || 'them'));
+  const hard = valence === 'hard_time';
+  const prompt = hard
+    ? 'The hard part often comes weeks later, after everyone else has moved on. Want me to remind you to check in on ' + fn + ' then?'
+    : 'Want me to nudge you to check in with ' + fn + ' in a week? Sometimes showing up later is the part that matters most.';
+  const band = document.createElement('div');
+  band.className = 'tc-remember-band tc-checkin-offer';
+  band.setAttribute('role', 'group');
+  band.innerHTML =
+    '<span class="rb-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>' +
+    '<span class="rb-text">' + prompt + '</span>' +
+    '<button type="button" class="rb-accept">Yes, nudge me</button>' +
+    '<button type="button" class="rb-undo rb-decline">Not now</button>';
+  mountEl.appendChild(band);
+  requestAnimationFrame(() => band.classList.add('in'));
+  const remove = () => { band.classList.remove('in'); setTimeout(() => { try { band.remove(); } catch(e){} }, 220); };
+  const decline = band.querySelector('.rb-decline');
+  if (decline) decline.addEventListener('click', remove);
+  const accept = band.querySelector('.rb-accept');
+  if (accept) accept.addEventListener('click', async () => {
+    accept.disabled = true;
+    const txt = band.querySelector('.rb-text');
+    try {
+      const whenText = await onAccept();
+      if (txt) txt.textContent = "Done. I'll nudge you to check in with " + String(firstName || 'them') + ' ' + (whenText || 'soon') + '.';
+      accept.remove(); if (decline) decline.remove();
+      const ic = band.querySelector('.rb-ic');
+      if (ic) ic.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
+      setTimeout(remove, 7000);
+    } catch (e) {
+      accept.disabled = false;
+      if (txt) txt.textContent = "I couldn't set that reminder just now. Try again in a moment.";
+    }
+  });
+  return true;
+}
+window.tcOfferCheckin = tcRenderCheckinOffer;
 // TC-86: one-tap copy for the lines a user actually sends. The plan text is already
 // humanized server-side; tcCleanForHuman is a belt-and-suspenders normalize so a paste
 // never lands indented (David's "sentence starts 2-3 spaces in / line looks cut off" tell)

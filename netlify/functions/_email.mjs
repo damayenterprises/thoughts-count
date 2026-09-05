@@ -117,5 +117,17 @@ export function peopleNudgeEmailHtml({ personName, label, whenText, planUrl }) {
   return WRAP(inner);
 }
 
+// TC-174 Surface 2: the morning "daily thought" email. Della sends one small line to the people
+// who asked to hear from her each day. Straight punctuation only (no em/en dashes, curly quotes, or
+// ellipsis) so it reads hand-written, and a plain unsubscribe link so it stays opt-out at a tap.
+export function dailyThoughtEmailHtml({ line, unsubUrl }) {
+  const inner = `
+    <div style="font-family:Georgia,serif;font-size:19px;font-style:italic;line-height:1.55;color:#2c2a26;margin:4px 0 8px;">"${esc(line)}"</div>
+    <div style="color:#5a554c;margin-top:14px;">A small thing to carry with you today.</div>
+    ${herSignoff()}
+    <div style="margin-top:22px;padding-top:14px;border-top:1px solid #e7ded0;font-size:12px;color:#8a8377;">You are getting this because you asked me for a small thought each morning. <a href="${esc(unsubUrl)}" style="color:#8a8377;">Stop these anytime</a>.</div>`;
+  return WRAP(inner);
+}
+
 function stripHtml(h) { return String(h || "").replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim(); }
 async function safeText(res) { try { return await res.text(); } catch { return "(no body)"; } }
