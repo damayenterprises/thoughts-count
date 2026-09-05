@@ -390,11 +390,12 @@ async function boot() {
   user = data?.session?.user || null;
   accessToken = data?.session?.access_token || null;
   hydrateCallMe(); // bring a remembered "call me" name onto this device
+  if (user) markInsiderSession(); // server-verified insider exclusion on a restored session
 
   sb.auth.onAuthStateChange((evt, session) => {
     user = session?.user || null;
     accessToken = session?.access_token || null;
-    if (evt === "SIGNED_IN") hydrateCallMe();
+    if (evt === "SIGNED_IN") { hydrateCallMe(); markInsiderSession(); }
     renderAuthBtn();
     // TC-81: any sign-out (button, expiry, other tab) clears the device-local recovered plan.
     if (evt === "SIGNED_OUT") {
@@ -920,6 +921,30 @@ function personCard(p) {
       <button class="cta ghost tc-talk" data-pid="${p.id}" style="width:100%;justify-content:center;margin-top:8px;">${chatSvg(16, "currentColor")}<span>Talk it through</span></button>
       <div class="tc-persondel-mount" data-pid="${p.id}"></div>
     </div>`;
+}
+
+// Server-verified insider exclusion (David 2026-09-05). Fires once per session id when a signed-in
+// session exists: hands the sid to /api/whoami, which — from the VERIFIED JWT email — decides whether
+// this is an insider (you/JC) and, if so, stamps the sid server-side so the whole session drops out
+// of real-traffic metrics even if the browser tc_test flag was never set. Also self-flags the browser
+// as before. The insider list stays server-side; the client only sends its sid.
+let _identifiedSid = null;
+async function markInsiderSession() {
+  if (!accessToken) return;
+  const sid = (typeof window !== "undefined" && window.__tcSid) || "";
+  if (!sid || _identifiedSid === sid) return; // once per session id
+  _identifiedSid = sid;
+  try {
+    const res = await fetch(`/api/whoami?sid=${encodeURIComponent(sid)}`, {
+      headers: { Authorization: `Bearer ${accessToken}` },
+      cache: "no-store",
+    });
+    const data = await res.json();
+    if (data && data.insider) {
+      try { localStorage.setItem("tc_test", "1"); } catch (e) {}
+      try { window.__tcTest = true; } catch (e) {}
+    }
+  } catch (e) { /* exclusion is best-effort; never break boot */ }
 }
 
 // Cached admin check — asked once per signed-in session. null = not yet asked.
