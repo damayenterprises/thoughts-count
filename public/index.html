@@ -686,6 +686,13 @@ alt="" /></noscript>
   .keep-or { display: flex; align-items: center; gap: 12px; margin: 18px 0 14px; color: var(--tc-ink-mute); font-size: 12.5px; }
   .keep-or::before, .keep-or::after { content: ""; flex: 1; height: 1px; background: var(--line); }
   /* TC-71: secondary actions demoted to a quiet row below the single save card. */
+  /* TC-174 Surface 1: quiet sticky nudge to the save card for readers who scrolled past it.
+     Hidden by default; shown by JS only while the keep card is out of view. */
+  .save-chip { position: fixed; right: 20px; bottom: 20px; z-index: 40; display: none;
+    background: var(--sage, #118ab9); color: #fff; border: 0; border-radius: 999px;
+    padding: 12px 22px; font: inherit; font-size: 14.5px; font-weight: 700; cursor: pointer;
+    box-shadow: 0 10px 30px rgba(20,40,60,.22); opacity: 0; transition: opacity .2s ease; }
+  .save-chip.show { display: inline-block; opacity: 1; }
   .plan-secondary { padding: 18px 32px 2px; }
   .plan-actions { display: flex; gap: 8px; align-items: center; justify-content: center; flex-wrap: wrap; }
   .plan-actions .ps-dot { color: var(--tc-line-strong); }
@@ -5223,16 +5230,16 @@ function renderPlan(p){
       <!-- TC-71: one unified "keep this plan" card. Both ways to save live here — email it
            to yourself (below) and, for signed-in users, save it to one of your people (the
            companion layer injects that option into #savePersonMount). -->
-      <div class="keep keep-unified">
+      <div class="keep keep-unified" id="keepCard">
         <h4>Keep this plan</h4>
-        <p class="k-sub">Have it when you need it, and get a gentle nudge at just the right time to follow through.</p>
+        <p class="k-sub">${fbHard ? "Keep this close. I can send it to you, and quietly remind you of the dates that matter." : "So it's on your phone when you're standing in the card aisle, not stuck on your laptop at home."}</p>
         <div class="keep-way">
           <div class="keep-way-label">Email it to you</div>
           <div class="k-row">
             <input type="email" id="planEmail" placeholder="you@email.com" autocomplete="email" />
             <button class="cta" id="emailPlanBtn">Email me my plan</button>
           </div>
-          <label class="k-remind"><input type="checkbox" id="wantReminders" /> Also email me the "keep showing up" reminders, on their dates</label>
+          <label class="k-remind"><input type="checkbox" id="wantReminders" /> Also nudge me on the dates in "keep showing up" so I actually follow through</label>
           <div class="k-msg" id="emailMsg"></div>
           <div class="k-privacy">We use your email only for this. No account, no sharing. <a href="/privacy.html" target="_blank" rel="noopener" style="color:inherit;text-decoration:underline;">See how we handle your data →</a></div>
         </div>
@@ -5240,6 +5247,8 @@ function renderPlan(p){
         <div id="savePersonMount"></div>
       </div>
     </div>
+    <!-- TC-174 Surface 1: quiet sticky nudge to the save card, shown only when the card is scrolled out of view. -->
+    <button type="button" id="savePlanChip" class="save-chip" onclick="var c=document.getElementById('keepCard'); if(c) c.scrollIntoView({behavior:'smooth',block:'center'});">${fbHard ? 'Keep this close' : 'Save this plan'}</button>
     <!-- TC-71: quieter secondary row — the single save card above is the main action. -->
     <div class="plan-secondary">
       <div class="plan-actions">
@@ -5323,6 +5332,34 @@ function renderPlan(p){
   // location field) so they can add it and regenerate with local ideas.
   const addLoc = stage.querySelector('#addLocationLink');
   if (addLoc) addLoc.addEventListener('click', (e) => { e.preventDefault(); idx = STEPS.length - 1; renderStep(); });
+
+  // TC-174 Surface 1: show the sticky "Save this plan" chip only while the keep card is out of
+  // view, so a reader scrolling a long plan is never far from the save action. Quiet by design:
+  // it hides the moment the card is on screen. A plain scroll handler + getBoundingClientRect is
+  // used (not IntersectionObserver) so it stays reliable and synchronous.
+  try {
+    const chip = document.getElementById('savePlanChip');
+    const card = document.getElementById('keepCard');
+    if (chip && card) {
+      const update = () => {
+        const r = card.getBoundingClientRect();
+        const outOfView = r.top >= window.innerHeight || r.bottom <= 0;
+        chip.classList.toggle('show', outOfView);
+      };
+      // The plan scrolls inside the modal panel; listen there (recreated each render, no leak)
+      // and on window. Replace any prior window handler so re-renders don't stack listeners.
+      let sc = null;
+      for (let p = card.parentElement; p; p = p.parentElement) {
+        const s = getComputedStyle(p);
+        if (/(auto|scroll)/.test(s.overflowY) && p.scrollHeight > p.clientHeight) { sc = p; break; }
+      }
+      if (sc) sc.addEventListener('scroll', update, { passive: true });
+      if (window.__tcChipScroll) window.removeEventListener('scroll', window.__tcChipScroll);
+      window.__tcChipScroll = update;
+      window.addEventListener('scroll', window.__tcChipScroll, { passive: true });
+      setTimeout(update, 50); // set initial state once laid out
+    }
+  } catch (e) {}
 
   // Wire up "Email me my plan".
   const emailBtn = document.getElementById('emailPlanBtn');
