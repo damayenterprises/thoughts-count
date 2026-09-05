@@ -120,10 +120,14 @@ export function peopleNudgeEmailHtml({ personName, label, whenText, planUrl }) {
 // TC-174 Surface 2: the morning "daily thought" email. Della sends one small line to the people
 // who asked to hear from her each day. Straight punctuation only (no em/en dashes, curly quotes, or
 // ellipsis) so it reads hand-written, and a plain unsubscribe link so it stays opt-out at a tap.
-export function dailyThoughtEmailHtml({ line, unsubUrl }) {
+export function dailyThoughtEmailHtml({ line, unsubUrl, readUrl }) {
+  // TC-179 flywheel: a quiet, non-pushy path back to the site so the morning email isn't a dead end.
+  // Only shown when a readUrl is provided (older callers omit it and the email stays as-is).
+  const cta = readUrl ? `
+    <div style="margin-top:16px;color:#5a554c;">Is there someone this brings to mind? <a href="${esc(readUrl)}" style="color:#118ab9;font-weight:600;text-decoration:none;">Think it through with me here</a>.</div>` : "";
   const inner = `
     <div style="font-family:Georgia,serif;font-size:19px;font-style:italic;line-height:1.55;color:#2c2a26;margin:4px 0 8px;">"${esc(line)}"</div>
-    <div style="color:#5a554c;margin-top:14px;">A small thing to carry with you today.</div>
+    <div style="color:#5a554c;margin-top:14px;">A small thing to carry with you today.</div>${cta}
     ${herSignoff()}
     <div style="margin-top:22px;padding-top:14px;border-top:1px solid #e7ded0;font-size:12px;color:#8a8377;">You are getting this because you asked me for a small thought each morning. <a href="${esc(unsubUrl)}" style="color:#8a8377;">Stop these anytime</a>.</div>`;
   return WRAP(inner);

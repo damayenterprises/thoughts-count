@@ -1954,6 +1954,7 @@ function sitemap() {
   const urls = [
     { loc: SITE + "/", pri: "1.0" },
     { loc: SITE + "/guides/", pri: "0.8" },
+    { loc: SITE + "/thoughts/", pri: "0.6" }, // TC-179 daily-thought hub (freshens daily)
     ...PILLARS.map((p) => ({ loc: `${SITE}/guides/${p.slug}/`, pri: "0.7" })),
     ...GUIDES.map((g) => ({ loc: `${SITE}/guides/${g.slug}/`, pri: "0.7" })),
   ];

@@ -15,6 +15,7 @@ import { getEnv, sendEmail, dailyThoughtEmailHtml } from "./_email.mjs";
 import { logEvent, isTestEmail } from "./_analytics.mjs";
 import { recordSend } from "./_sendlog.mjs";
 import { SUBSCRIBER_STORE } from "./subscribe-daily.mjs";
+import { recordThought } from "./_thoughts.mjs";
 
 export const config = { schedule: "30 13 * * *" }; // 13:30 UTC daily (~8:30am CT), after the 7am CT thought turnover
 
@@ -52,7 +53,11 @@ export default async () => {
 
   // 2) Send to every active subscriber, once per thought-day.
   const siteUrl = (getEnv("URL") || "https://thoughtscount.com").replace(/\/+$/, "");
+  const readUrl = `${siteUrl}/thoughts/`;
   const dayMark = thought.day; // always dashed YYYY-MM-DD (normalized above)
+  // TC-179: archive today's line so the /thoughts/ hub always has the latest, even on days no one
+  // loaded the home bar. Idempotent by day, fail-soft.
+  await recordThought({ line: thought.line, day: thought.day }).catch(() => {});
   try {
     const store = getStore(SUBSCRIBER_STORE);
     let cursor;
@@ -73,7 +78,7 @@ export default async () => {
           const res = await sendEmail({
             to: rec.email,
             subject: "A thought for today",
-            html: dailyThoughtEmailHtml({ line: thought.line, unsubUrl }),
+            html: dailyThoughtEmailHtml({ line: thought.line, unsubUrl, readUrl }),
           });
           if (res.ok) {
             await store.setJSON(b.key, { ...rec, lastSentDay: dayMark });

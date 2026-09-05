@@ -14,6 +14,8 @@
 // or any error ALL return { line: null } (HTTP 200) so the site simply renders nothing.
 // This function must NEVER 500 the page.
 
+import { recordThought } from "./_thoughts.mjs";
+
 const MOS_DAILY_THOUGHT = "https://damay-marketing-os.netlify.app/api/daily-thought?app=thoughts-count";
 const TIMEOUT_MS = 5000;
 
@@ -30,8 +32,12 @@ export default async () => {
       clearTimeout(t);
     }
     if (!data || !data.line || !String(data.line).trim()) return json({ line: null });
+    const line = String(data.line).trim();
+    // TC-179: opportunistically archive today's approved line so the /thoughts/ hub compounds. Idempotent
+    // by day, fail-soft. Not awaited-critical — never let capture delay or break the home-bar response.
+    recordThought({ line, author: data.author, day: data.day }).catch(() => {});
     return json({
-      line: String(data.line).trim(),
+      line,
       author: data.author || null,
       day: data.day || null,
     });

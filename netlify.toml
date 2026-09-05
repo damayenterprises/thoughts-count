@@ -85,6 +85,18 @@
   to = "/.netlify/functions/daily-reflection"
   status = 200
 
+# TC-179: the /thoughts/ hub — today's thought + the growing archive, crawlable + shareable.
+# Both trailing-slash forms map to the function so either link works.
+[[redirects]]
+  from = "/thoughts"
+  to = "/.netlify/functions/thoughts"
+  status = 200
+
+[[redirects]]
+  from = "/thoughts/"
+  to = "/.netlify/functions/thoughts"
+  status = 200
+
 # Anonymous funnel event ingest (no cookies, no personal data)
 [[redirects]]
   from = "/api/track"
