@@ -181,35 +181,35 @@ alt="" /></noscript>
      ============================================================================ */
   /* base wash lives on #bg itself (CSS, not JS) so the blue paints on FIRST paint —
      no gray/paper flash before the blobs are injected. Blobs layer on top for life. */
-  body.living-bg #bg { background: radial-gradient(145% 122% at 22% 0%, #e2f3fb 0%, #a3d3ec 22%, #3f9ecb 52%, #0e73a2 78%, #06466a 100%); }
+  body.living-bg #bg { background: radial-gradient(145% 122% at 22% 0%, #e3f0f6 0%, #a9d3e6 22%, #118ab9 52%, #0d6c91 78%, #0a5876 100%); }
   /* base wash behind the blobs — never flashes white */
   body.living-bg #bg .bg-wash { position: absolute; inset: 0;
-    background: radial-gradient(145% 122% at 22% 0%, #e2f3fb 0%, #a3d3ec 22%, #3f9ecb 52%, #0e73a2 78%, #06466a 100%); }
+    background: radial-gradient(145% 122% at 22% 0%, #e3f0f6 0%, #a9d3e6 22%, #118ab9 52%, #0d6c91 78%, #0a5876 100%); }
   body.living-bg #bg .blob { position: absolute; border-radius: 50%; will-change: transform;
     mix-blend-mode: normal; }
-  /* c1 brand blue */
+  /* c1 brand blue #118ab9 */
   body.living-bg #bg .c1 { width: 62vw; height: 62vw; top: -8vw; left: -6vw; filter: blur(90px);
-    background: radial-gradient(circle at 50% 50%, rgba(19,146,196,.66) 0%, rgba(19,146,196,0) 74%);
+    background: radial-gradient(circle at 50% 50%, rgba(17,138,185,.64) 0%, rgba(17,138,185,0) 74%);
     animation: drift1 34s ease-in-out infinite; }
-  /* c2 deep navy */
+  /* c2 brand deep blue #0a5876 */
   body.living-bg #bg .c2 { width: 55vw; height: 55vw; bottom: -10vw; right: -8vw; filter: blur(100px);
-    background: radial-gradient(circle at 50% 50%, rgba(9,84,120,.56) 0%, rgba(9,84,120,0) 72%);
+    background: radial-gradient(circle at 50% 50%, rgba(10,88,118,.54) 0%, rgba(10,88,118,0) 72%);
     animation: drift2 40s ease-in-out infinite; }
-  /* c3 sky/teal */
+  /* c3 lighter brand blue (nudged off pure cyan toward the brand hue) */
   body.living-bg #bg .c3 { width: 50vw; height: 50vw; top: 22vh; left: 34vw; filter: blur(90px);
-    background: radial-gradient(circle at 50% 50%, rgba(110,190,222,.58) 0%, rgba(110,190,222,0) 72%);
+    background: radial-gradient(circle at 50% 50%, rgba(74,168,207,.5) 0%, rgba(74,168,207,0) 72%);
     animation: drift3 30s ease-in-out infinite; }
-  /* c4 warm amber (complement) — kept OFF the dead-center hero zone (top-right) */
+  /* c4 soft brand-blue tint (was an off-brand amber) — kept OFF the dead-center hero zone (top-right) */
   body.living-bg #bg .c4 { width: 48vw; height: 48vw; top: -6vh; right: 4vw; filter: blur(100px);
-    background: radial-gradient(circle at 50% 50%, rgba(236,150,80,.26) 0%, rgba(236,150,80,0) 66%);
+    background: radial-gradient(circle at 50% 50%, rgba(163,211,230,.34) 0%, rgba(163,211,230,0) 66%);
     animation: drift4 36s ease-in-out infinite; }
-  /* c5 cream glow (unifier) */
+  /* c5 pale-blue glow (unifier) */
   body.living-bg #bg .c5 { width: 44vw; height: 44vw; bottom: 6vh; left: 10vw; filter: blur(80px);
     background: radial-gradient(circle at 50% 50%, rgba(206,233,246,.34) 0%, rgba(206,233,246,0) 70%);
     animation: drift5 28s ease-in-out infinite; }
-  /* c6 coral bloom (RARE, off-center bottom-right) */
+  /* c6 brand-red heart bloom #ef4136 (RARE + scarce, off-center bottom-right) */
   body.living-bg #bg .c6 { width: 34vw; height: 34vw; bottom: -8vh; right: 12vw; filter: blur(110px);
-    background: radial-gradient(circle at 50% 50%, rgba(239,72,58,.30) 0%, rgba(239,72,58,0) 70%);
+    background: radial-gradient(circle at 50% 50%, rgba(239,65,54,.24) 0%, rgba(239,65,54,0) 70%);
     animation: drift6 38s ease-in-out infinite; }
   /* small-amplitude (3-6vw) slow drift — never a busy churn */
   @keyframes drift1 { 0%,100% { transform: translate(0,0); } 50% { transform: translate(4vw,3vw); } }
@@ -785,7 +785,13 @@ alt="" /></noscript>
      the canvas carries the color life. Palette/motion mirror public/orb.html (approved). */
   .hero-orb-wrap { display: flex; flex-direction: column; align-items: center; gap: 2px; margin: 4px auto 2px; }
   .hero-orb-wrap .stage { position: relative; width: 240px; height: 240px; display: flex; align-items: center; justify-content: center;
-                          cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; outline: none; }
+                          cursor: pointer; border-radius: 50%; -webkit-tap-highlight-color: transparent; outline: none;
+                          transition: transform .2s ease; }
+  /* TC UX: the orb IS the button — give it a clear press-invite. Hover lifts + brightens the halo
+     (scale the .stage, not the .orb, so it never fights the breathing keyframes); active presses in. */
+  .hero-orb-wrap .stage:hover { transform: scale(1.04); }
+  .hero-orb-wrap .stage:hover .halo { opacity: .95; filter: brightness(1.12); }
+  .hero-orb-wrap .stage:active { transform: scale(.98); }
   .hero-orb-wrap .stage:focus-visible { box-shadow: 0 0 0 3px rgba(255,255,255,.9), 0 0 0 6px rgba(255,255,255,.4); }
   .hero-orb-wrap .orb { position: relative; width: 200px; height: 200px; border-radius: 50%; will-change: transform; }
   /* Small phones (~320px): shrink the orb + its stage so the halo doesn't crowd the screen edges. */
@@ -802,9 +808,17 @@ alt="" /></noscript>
                                 filter: blur(8px); }
   .hero-orb-prompt { font-size: 17px; color: #fff; font-weight: 700; margin-top: -16px; }
   .hero-orb-prompt .her-name { font-family: var(--tc-serif); font-style: italic; font-weight: 500; }
-  .hero-typelink { background: none; border: none; font-family: inherit; font-size: 14px; font-weight: 600; color: rgba(255,255,255,.92);
-                   cursor: pointer; padding: 4px 8px; text-decoration: underline; text-underline-offset: 3px; opacity: .95; transition: opacity .15s ease; }
-  .hero-typelink:hover { opacity: 1; }
+  /* TC UX: the type path is a clearly-visible pill (was a faint underline link), so a first-timer
+     sees BOTH ways in — tap the orb to talk, or type instead. Frosted white to sit on the blue. */
+  .hero-typelink { display: inline-flex; align-items: center; gap: 8px; margin-top: 12px;
+                   background: rgba(255,255,255,.16); border: 1.5px solid rgba(255,255,255,.62);
+                   font-family: inherit; font-size: 14.5px; font-weight: 700; color: #fff; cursor: pointer;
+                   padding: 10px 20px; border-radius: 999px; text-decoration: none; opacity: 1;
+                   -webkit-backdrop-filter: blur(6px); backdrop-filter: blur(6px);
+                   transition: background .15s ease, border-color .15s ease, transform .12s ease; }
+  .hero-typelink svg { opacity: .95; }
+  .hero-typelink:hover { background: rgba(255,255,255,.26); border-color: #fff; transform: translateY(-1px); }
+  .hero-typelink:focus-visible { outline: none; box-shadow: 0 0 0 3px rgba(255,255,255,.55); }
 
   /* state motion — the CANVAS carries color; CSS transforms add the breath/pulse body.
      Both read data-state on the .stage (mirrors the approved prototype's motion). */
@@ -1157,7 +1171,7 @@ alt="" /></noscript>
           </div>
         </div>
         <div class="hero-orb-prompt" id="homeOrbPrompt">Tap to talk</div>
-        <button type="button" class="hero-typelink" id="homeTypeBtn" onclick="openConverse()">or type instead</button>
+        <button type="button" class="hero-typelink" id="homeTypeBtn" onclick="openConverse()"><svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="6" width="20" height="12" rx="2"/><path d="M6 10h.01M10 10h.01M14 10h.01M7 14h10"/></svg>Or type it instead</button>
       </div>
       <!-- TC-81: quiet recovery link — shown only when a valid, unexpired plan is stored on this device. -->
       <div class="tc-lastplan" id="lastPlanAffordance">
@@ -1169,6 +1183,31 @@ alt="" /></noscript>
     </div>
     <div class="reassure">No account needed · A thoughtful plan in ~60 seconds</div>
    </div>
+  </section>
+
+  <!-- TC streamlining: the occasion cards are the clearest explainer of what this is AND the
+       easiest first tap, so they now sit directly under the hero (they were previously buried
+       below the daily-thought block). "Anniversary" added — it was the most-requested occasion
+       with no card (8 plans, ahead of engagement/illness/graduation, which all have cards). -->
+  <section class="section wrap">
+    <h2>What's the moment?</h2>
+    <div class="moments">
+      <button type="button" class="chip" onclick="openFlow('Someone who has been on my mind')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="11" r="5"/><path d="M4 27v-1.5a7 7 0 0 1 7-7h4a7 7 0 0 1 4 1.2"/><path d="M24.5 16.5c1.3-1.4 3.5-1 3.5 1 0 2-3.5 4-3.5 4S21 19.5 21 17.5c0-2 2.2-2.4 3.5-1Z"/></svg></span><span class="m-label">Someone on my mind</span></button>
+      <button type="button" class="chip" onclick="openFlow('New baby')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="11" r="6"/><path d="M13 10h.01M19 10h.01M13.5 13.5a3.5 3 0 0 0 5 0"/><path d="M7 28v-2a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v2"/></svg></span><span class="m-label">New baby</span></button>
+      <button type="button" class="chip" onclick="openFlow('New job or promotion')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="22" height="14" rx="2"/><path d="M12 11V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M5 17h22"/></svg></span><span class="m-label">New job or promotion</span></button>
+      <button type="button" class="chip" onclick="openFlow('Engagement or wedding')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5h8l4 5-8 9-8-9 4-5Z"/><path d="M8 10h16"/></svg></span><span class="m-label">Engagement or wedding</span></button>
+      <button type="button" class="chip" onclick="openFlow('Anniversary')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="12.5" cy="19" r="6.5"/><circle cx="19.5" cy="19" r="6.5"/><path d="M16 4.5v4M14 6.5h4"/></svg></span><span class="m-label">Anniversary</span></button>
+      <button type="button" class="chip" onclick="openFlow('Graduation')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7 4 13l12 6 12-6-12-6Z"/><path d="M9 15.5V21c0 1.7 3.1 3 7 3s7-1.3 7-3v-5.5M26 14v6"/></svg></span><span class="m-label">Graduation</span></button>
+      <button type="button" class="chip" onclick="openFlow('Birthday')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16h20v10H6zM6 21h20M16 16v-4"/><path d="M16 8a1.5 1.5 0 1 0 0-2 1.5 1.5 0 0 0 0 2Z"/></svg></span><span class="m-label">Birthday</span></button>
+      <button type="button" class="chip" onclick="openFlow('A thank-you, just because')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9h20v14H6zM6 10l10 7 10-7"/></svg></span><span class="m-label">Thank-you, just because</span></button>
+      <button type="button" class="chip" onclick="openFlow('A hard diagnosis')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h5l3 6 6-14 3 8h5"/></svg></span><span class="m-label">A hard diagnosis</span></button>
+      <button type="button" class="chip" onclick="openFlow('Lost a loved one')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 27s-9-5.7-9-12.6A5.4 5.4 0 0 1 16 10a5.4 5.4 0 0 1 9 4.4C25 21.3 16 27 16 27Z"/></svg></span><span class="m-label">Lost a loved one</span></button>
+      <button type="button" class="chip" onclick="openFlow('A job loss or being laid off')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="12" width="22" height="13" rx="2"/><path d="M12 12v-2a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/><path d="M16 16.5v5M13.5 19l2.5 2.5 2.5-2.5"/></svg></span><span class="m-label">Lost a job</span></button>
+      <button type="button" class="chip" onclick="openFlow('Just a hard week')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20a6 6 0 0 1 0-12 7 7 0 0 1 13.3 2.5A5 5 0 0 1 24 20H9Z"/></svg></span><span class="m-label">Just a hard week</span></button>
+    </div>
+    <div style="text-align:center; margin-top:32px;">
+      <button class="cta sage" onclick="openFlow()">Or say it your way</button>
+    </div>
   </section>
 
   <!-- WP-3 "A daily thought" — one small, quiet reflection in Della's voice, populated by
@@ -1183,15 +1222,11 @@ alt="" /></noscript>
         <p class="tc-daily-line" id="tcDailyLine"></p>
         <!-- TC-179: permalink home for the daily thought — a quiet path to the growing archive. -->
         <a class="tc-daily-more" href="/thoughts/" style="display:inline-block;margin-top:9px;font-size:12.5px;color:#fff;opacity:.82;text-decoration:underline;text-underline-offset:2px">More daily thoughts</a>
-        <!-- TC-174 Surface 2: opt into a small thought each morning (accept-a-gift verb, never "Subscribe"). -->
-        <div class="tc-daily-optin" id="tcDailyOptin" hidden>
-          <span class="tdo-prompt">Want a small thought like this from me each morning?</span>
-          <form class="tdo-form" id="tcDailyOptinForm" novalidate>
-            <input type="email" id="tcDailyEmail" placeholder="you@email.com" aria-label="Your email" autocomplete="email" />
-            <button type="submit" id="tcDailyOptinBtn">Yes, send them</button>
-          </form>
-          <p class="tdo-msg" id="tcDailyOptinMsg" role="status" aria-live="polite"></p>
-        </div>
+        <!-- TC streamlining: the above-fold "send me a thought each morning" email form was
+             removed (it converted ~0 and asked for an email before any value was delivered).
+             Email capture now lives only at the value moment — "Email me my plan" after a plan
+             is generated (#emailPlanBtn → /api/send-plan). The daily thought stays as warmth. -->
+
       </div>
       <button type="button" class="tc-daily-dismiss" id="tcDailyDismiss" aria-label="Dismiss today's thought" title="Dismiss">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg>
@@ -1243,68 +1278,10 @@ alt="" /></noscript>
         try { window.addEventListener('tc-her-name', applyLabel); } catch(e){}
         lineEl.textContent = '"' + d.line + '"';   // her thoughts shown in quotes (textContent = no HTML injection)
         el.hidden = false;                         // shows on every visit today until dismissed
-        wireDailyOptin();                          // TC-174 Surface 2: offer the morning-thought opt-in
       })
       .catch(function(){ /* stay hidden on any error */ });
-
-    // TC-174 Surface 2: attach the low-commitment "send me one each morning" opt-in to the bar.
-    // Quiet by design: hidden once someone has opted in (localStorage), so it never nags.
-    function wireDailyOptin(){
-      var wrap = document.getElementById('tcDailyOptin');
-      var form = document.getElementById('tcDailyOptinForm');
-      if (!wrap || !form) return;
-      var already = false;
-      try { already = localStorage.getItem('tc_daily_sub') === '1'; } catch(e){}
-      if (already) return;                          // already on the list → stay hidden
-      wrap.hidden = false;
-      var input = document.getElementById('tcDailyEmail');
-      var btn = document.getElementById('tcDailyOptinBtn');
-      var msg = document.getElementById('tcDailyOptinMsg');
-      var EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-      form.addEventListener('submit', function(ev){
-        ev.preventDefault();
-        var email = (input.value || '').trim();
-        msg.className = 'tdo-msg';
-        if (!EMAIL_RE.test(email)) { msg.className = 'tdo-msg bad'; msg.textContent = 'That email looks off. Mind checking it?'; return; }
-        btn.disabled = true; msg.textContent = 'One moment...';
-        fetch('/api/subscribe-daily', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          body: JSON.stringify({ email: email, source: 'home', sid: window.__tcSid, test: window.__tcTest })
-        })
-          .then(function(r){ return r.json().then(function(j){ return { ok: r.ok, j: j }; }); })
-          .then(function(res){
-            if (!res.ok) { btn.disabled = false; msg.className = 'tdo-msg bad'; msg.textContent = (res.j && res.j.error) || 'That did not go through. Try again in a moment.'; return; }
-            try { localStorage.setItem('tc_daily_sub', '1'); } catch(e){}
-            form.style.display = 'none';
-            wrap.querySelector('.tdo-prompt').style.display = 'none';
-            msg.className = 'tdo-msg';
-            msg.textContent = "Lovely. I'll send you a small thought each morning.";
-          })
-          .catch(function(){ btn.disabled = false; msg.className = 'tdo-msg bad'; msg.textContent = 'That did not go through. Try again in a moment.'; });
-      });
-    }
   })();
   </script>
-
-  <section class="section wrap">
-    <h2>What's the moment?</h2>
-    <div class="moments">
-      <button type="button" class="chip" onclick="openFlow('Someone who has been on my mind')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="13" cy="11" r="5"/><path d="M4 27v-1.5a7 7 0 0 1 7-7h4a7 7 0 0 1 4 1.2"/><path d="M24.5 16.5c1.3-1.4 3.5-1 3.5 1 0 2-3.5 4-3.5 4S21 19.5 21 17.5c0-2 2.2-2.4 3.5-1Z"/></svg></span><span class="m-label">Someone on my mind</span></button>
-      <button type="button" class="chip" onclick="openFlow('New baby')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><circle cx="16" cy="11" r="6"/><path d="M13 10h.01M19 10h.01M13.5 13.5a3.5 3 0 0 0 5 0"/><path d="M7 28v-2a6 6 0 0 1 6-6h6a6 6 0 0 1 6 6v2"/></svg></span><span class="m-label">New baby</span></button>
-      <button type="button" class="chip" onclick="openFlow('New job or promotion')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="11" width="22" height="14" rx="2"/><path d="M12 11V9a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M5 17h22"/></svg></span><span class="m-label">New job or promotion</span></button>
-      <button type="button" class="chip" onclick="openFlow('Engagement or wedding')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5h8l4 5-8 9-8-9 4-5Z"/><path d="M8 10h16"/></svg></span><span class="m-label">Engagement or wedding</span></button>
-      <button type="button" class="chip" onclick="openFlow('Graduation')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 7 4 13l12 6 12-6-12-6Z"/><path d="M9 15.5V21c0 1.7 3.1 3 7 3s7-1.3 7-3v-5.5M26 14v6"/></svg></span><span class="m-label">Graduation</span></button>
-      <button type="button" class="chip" onclick="openFlow('Birthday')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 16h20v10H6zM6 21h20M16 16v-4"/><path d="M16 8a1.5 1.5 0 1 0 0-2 1.5 1.5 0 0 0 0 2Z"/></svg></span><span class="m-label">Birthday</span></button>
-      <button type="button" class="chip" onclick="openFlow('A thank-you, just because')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9h20v14H6zM6 10l10 7 10-7"/></svg></span><span class="m-label">Thank-you, just because</span></button>
-      <button type="button" class="chip" onclick="openFlow('A hard diagnosis')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M5 17h5l3 6 6-14 3 8h5"/></svg></span><span class="m-label">A hard diagnosis</span></button>
-      <button type="button" class="chip" onclick="openFlow('Lost a loved one')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M16 27s-9-5.7-9-12.6A5.4 5.4 0 0 1 16 10a5.4 5.4 0 0 1 9 4.4C25 21.3 16 27 16 27Z"/></svg></span><span class="m-label">Lost a loved one</span></button>
-      <button type="button" class="chip" onclick="openFlow('Just a hard week')"><span class="m-ic"><svg viewBox="0 0 32 32" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M9 20a6 6 0 0 1 0-12 7 7 0 0 1 13.3 2.5A5 5 0 0 1 24 20H9Z"/></svg></span><span class="m-label">Just a hard week</span></button>
-    </div>
-    <div style="text-align:center; margin-top:32px;">
-      <button class="cta sage" onclick="openFlow()">Or say it your way</button>
-    </div>
-  </section>
 
   <section class="section tint wrap">
     <h2>You're not looking for a product.</h2>

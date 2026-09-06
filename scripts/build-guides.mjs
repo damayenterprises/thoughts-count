@@ -1816,14 +1816,14 @@ ${MARKETING_TAGS}
 <script type="application/ld+json">${JSON.stringify(faqLd)}</script>
 <script type="application/ld+json">${JSON.stringify(breadcrumbLd)}</script>
 <style>
-  :root{--paper:#f7f3ec;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
+  :root{--paper:#f4f9fc;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#d8e6ee}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.75;background:var(--paper)}
   /* TC-174 blocker #2 (Design Lead ruling): share home's living-gradient COLOR WORLD so the guide→home
      seam reads as one brand, but STATIC (no blobs), a reading page stays calm (brand law #6: only the
      orb animates, and guides have no orb). Article + cards stay opaque warm "rooms" for legibility.
      Exact base wash from ITERATION-2-SPEC PART 2. */
-  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
+  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f0f7fb 0%, #e3f0f6 45%, #cfe6f1 78%, #a9d3e6 100%)}
   a{color:var(--blue)}
   h1,h2,h3{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em;line-height:1.2}
   .wrap{max-width:760px;margin:0 auto;padding:0 22px}
@@ -1832,7 +1832,7 @@ ${MARKETING_TAGS}
   .brand svg{width:22px;height:22px}
   .crumbs{font-size:13px;color:var(--soft);margin:8px 0 0}
   .crumbs a{color:var(--soft)}
-  article{background:var(--cloud);border:1px solid var(--line);border-radius:22px;padding:40px 38px;margin:14px 0 30px;box-shadow:0 14px 40px rgba(64,52,34,.06)}
+  article{background:var(--cloud);border:1px solid var(--line);border-radius:22px;padding:40px 38px;margin:14px 0 30px;box-shadow:0 14px 40px rgba(10,88,118,.06)}
   h1{font-size:clamp(27px,4.4vw,40px);margin:0 0 18px}
   h2{font-size:23px;margin:34px 0 12px}
   .lead p{font-size:18px;color:var(--ink)}
@@ -1851,7 +1851,7 @@ ${MARKETING_TAGS}
   .qa h3{font-size:16.5px;margin:0 0 4px;font-weight:600}
   .qa p{margin:0;font-size:15.5px;color:var(--ink)}
   .cta{margin:30px 0 6px;text-align:center}
-  .cta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:15px 32px;border-radius:999px;font-weight:700;font-size:16.5px;box-shadow:0 10px 30px rgba(64,52,34,.14)}
+  .cta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:15px 32px;border-radius:999px;font-weight:700;font-size:16.5px;box-shadow:0 10px 30px rgba(10,88,118,.14)}
   .cta .sub{display:block;font-size:13.5px;color:var(--soft);margin-top:10px}
   /* TC-174 Surface 3: inline Della intake, turns a reader into a personalized plan without leaving the page */
   .della-cta{background:#e3f0f6;border:1px solid var(--line);border-radius:18px;padding:22px 24px;margin:26px 0;text-align:center}
@@ -1861,7 +1861,7 @@ ${MARKETING_TAGS}
   .della-cta-form{display:flex;gap:9px;flex-wrap:wrap;justify-content:center;align-items:stretch}
   .della-cta-form input[type=text]{flex:1 1 280px;min-width:0;padding:13px 15px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:15.5px;background:var(--cloud);color:var(--ink)}
   .della-cta-form input[type=text]:focus{outline:none;border-color:var(--blue)}
-  .della-cta-form button{background:var(--red);color:#fff;border:0;padding:13px 28px;border-radius:999px;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 10px 30px rgba(64,52,34,.14);white-space:nowrap}
+  .della-cta-form button{background:var(--red);color:#fff;border:0;padding:13px 28px;border-radius:999px;font-weight:700;font-size:16px;cursor:pointer;box-shadow:0 10px 30px rgba(10,88,118,.14);white-space:nowrap}
   .della-cta-sub{display:block;font-size:13px;color:var(--soft);margin-top:12px}
   /* TC-174 Surface 2: slim daily-thought opt-in at the guide foot */
   .daily-optin{margin:26px 0 4px;padding:18px 20px;background:#eef6fa;border:1px solid var(--line);border-radius:16px}
@@ -1973,14 +1973,14 @@ ${MARKETING_TAGS}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  :root{--cloud:#fdfbf7;--paper:#f7f3ec;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
+  :root{--cloud:#fdfbf7;--paper:#f4f9fc;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#d8e6ee}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.7;background:var(--paper)}
   /* TC-174 blocker #2 (Design Lead ruling): share home's living-gradient COLOR WORLD so the guide→home
      seam reads as one brand, but STATIC (no blobs), a reading page stays calm (brand law #6: only the
      orb animates, and guides have no orb). Article + cards stay opaque warm "rooms" for legibility.
      Exact base wash from ITERATION-2-SPEC PART 2. */
-  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
+  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f0f7fb 0%, #e3f0f6 45%, #cfe6f1 78%, #a9d3e6 100%)}
   a{color:var(--blue)}
   h1,h2{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em}
   .wrap{max-width:900px;margin:0 auto;padding:0 22px}
@@ -1991,20 +1991,20 @@ ${MARKETING_TAGS}
   .hero h1{font-size:clamp(28px,4.6vw,42px);margin:0 0 10px}
   .hero p{color:var(--soft);max-width:52ch;margin:0 auto;font-size:17px}
   .hcta{text-align:center;margin:22px 0 4px}
-  .hcta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:13px 30px;border-radius:999px;font-weight:700;font-size:16px;box-shadow:0 10px 30px rgba(64,52,34,.14)}
+  .hcta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:13px 30px;border-radius:999px;font-weight:700;font-size:16px;box-shadow:0 10px 30px rgba(10,88,118,.14)}
   .hcta .sub{display:block;font-size:13px;color:var(--soft);margin-top:9px}
   .pillars{display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin:22px 0 4px}
-  .pillar-link{background:var(--cloud);border:1px solid var(--line);border-radius:999px;padding:9px 18px;text-decoration:none;color:var(--blue-deep);font-weight:600;font-size:14.5px;box-shadow:0 6px 18px rgba(64,52,34,.05)}
+  .pillar-link{background:var(--cloud);border:1px solid var(--line);border-radius:999px;padding:9px 18px;text-decoration:none;color:var(--blue-deep);font-weight:600;font-size:14.5px;box-shadow:0 6px 18px rgba(10,88,118,.05)}
   .pillar-link:hover{border-color:var(--blue)}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin:22px 0 40px}
-  .card{background:var(--cloud);border:1px solid var(--line);border-radius:18px;padding:20px;text-decoration:none;color:var(--ink);box-shadow:0 10px 30px rgba(64,52,34,.05);transition:transform .12s}
+  .card{background:var(--cloud);border:1px solid var(--line);border-radius:18px;padding:20px;text-decoration:none;color:var(--ink);box-shadow:0 10px 30px rgba(10,88,118,.05);transition:transform .12s}
   .card:hover{transform:translateY(-2px)}
   .card h2{font-size:19px;margin:8px 0 6px}
   .card p{color:var(--soft);font-size:14px;margin:0}
   .tag{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;border-radius:999px}
   .tag.hard{background:#e3f0f6;color:var(--blue-deep)}
   .tag.celebration{background:#fdeceb;color:var(--red)}
-  .tag.everyday{background:#f1ebe1;color:var(--soft)}
+  .tag.everyday{background:#eef3f6;color:var(--soft)}
   footer{padding:20px 0 50px;color:var(--soft);font-size:13px;text-align:center}
 </style>
 </head>
@@ -2085,10 +2085,10 @@ ${MARKETING_TAGS}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  :root{--cloud:#fdfbf7;--paper:#f7f3ec;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
+  :root{--cloud:#fdfbf7;--paper:#f4f9fc;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#d8e6ee}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.7;background:var(--paper)}
-  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
+  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f0f7fb 0%, #e3f0f6 45%, #cfe6f1 78%, #a9d3e6 100%)}
   a{color:var(--blue)}
   h1,h2{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em}
   .wrap{max-width:900px;margin:0 auto;padding:0 22px}
@@ -2101,17 +2101,17 @@ ${MARKETING_TAGS}
   .hero h1{font-size:clamp(27px,4.4vw,40px);margin:0 0 12px}
   .hero p{color:var(--soft);max-width:56ch;margin:0 auto;font-size:17px;line-height:1.7}
   .hcta{text-align:center;margin:22px 0 4px}
-  .hcta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:13px 30px;border-radius:999px;font-weight:700;font-size:16px;box-shadow:0 10px 30px rgba(64,52,34,.14)}
+  .hcta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:13px 30px;border-radius:999px;font-weight:700;font-size:16px;box-shadow:0 10px 30px rgba(10,88,118,.14)}
   .hcta .sub{display:block;font-size:13px;color:var(--soft);margin-top:9px}
   .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:16px;margin:26px 0 26px}
-  .card{background:var(--cloud);border:1px solid var(--line);border-radius:18px;padding:20px;text-decoration:none;color:var(--ink);box-shadow:0 10px 30px rgba(64,52,34,.05);transition:transform .12s}
+  .card{background:var(--cloud);border:1px solid var(--line);border-radius:18px;padding:20px;text-decoration:none;color:var(--ink);box-shadow:0 10px 30px rgba(10,88,118,.05);transition:transform .12s}
   .card:hover{transform:translateY(-2px)}
   .card h2{font-size:19px;margin:8px 0 6px}
   .card p{color:var(--soft);font-size:14px;margin:0}
   .tag{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:3px 9px;border-radius:999px}
   .tag.hard{background:#e3f0f6;color:var(--blue-deep)}
   .tag.celebration{background:#fdeceb;color:var(--red)}
-  .tag.everyday{background:#f1ebe1;color:var(--soft)}
+  .tag.everyday{background:#eef3f6;color:var(--soft)}
   .allguides{text-align:center;margin:6px 0 40px;font-size:15px}
   footer{padding:20px 0 50px;color:var(--soft);font-size:13px;text-align:center}
 </style>
@@ -2161,7 +2161,7 @@ function whatToSayTool() {
     publisher: { "@id": ORG_ID },
     isPartOf: { "@id": SITE + "/#website" },
   };
-  const embedSnippet = `<iframe src="${url}?embed=1" title="What to Say, by Thoughts Count" width="100%" height="560" style="border:1px solid #e7ded0;border-radius:16px;max-width:560px" loading="lazy"></iframe>
+  const embedSnippet = `<iframe src="${url}?embed=1" title="What to Say, by Thoughts Count" width="100%" height="560" style="border:1px solid #d8e6ee;border-radius:16px;max-width:560px" loading="lazy"></iframe>
 <p style="font:13px system-ui;color:#5a554c">Free tool by <a href="${url}">Thoughts Count</a></p>`;
   return `<!doctype html>
 <html lang="en">
@@ -2186,10 +2186,10 @@ ${MARKETING_TAGS}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  :root{--paper:#f7f3ec;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
+  :root{--paper:#f4f9fc;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#d8e6ee}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.65;background:var(--paper)}
-  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
+  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f0f7fb 0%, #e3f0f6 45%, #cfe6f1 78%, #a9d3e6 100%)}
   a{color:var(--blue)}
   h1,h2{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em}
   .wrap{max-width:640px;margin:0 auto;padding:0 20px}
@@ -2199,7 +2199,7 @@ ${MARKETING_TAGS}
   .hero{text-align:center;padding:14px 0 6px}
   .hero h1{font-size:clamp(24px,4vw,34px);margin:0 0 8px}
   .hero p{color:var(--soft);margin:0 auto;max-width:46ch;font-size:16px}
-  .card{background:var(--cloud);border:1px solid var(--line);border-radius:20px;padding:22px;margin:18px 0;box-shadow:0 14px 40px rgba(64,52,34,.06)}
+  .card{background:var(--cloud);border:1px solid var(--line);border-radius:20px;padding:22px;margin:18px 0;box-shadow:0 14px 40px rgba(10,88,118,.06)}
   label.lbl{display:block;font-size:13px;font-weight:700;color:var(--blue-deep);text-transform:uppercase;letter-spacing:.08em;margin:0 0 8px}
   select{width:100%;padding:13px 14px;border:1px solid var(--line);border-radius:12px;font:inherit;font-size:16px;background:#fff;color:var(--ink)}
   .out{margin-top:18px}
@@ -2338,10 +2338,10 @@ ${MARKETING_TAGS}
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <style>
-  :root{--paper:#f7f3ec;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#e7ded0}
+  :root{--paper:#f4f9fc;--cloud:#fdfbf7;--ink:#2c2a26;--soft:#5a554c;--blue:#118ab9;--blue-deep:#0a5876;--red:#ef4136;--line:#d8e6ee}
   *{box-sizing:border-box}
   body{margin:0;font-family:'Hanken Grotesk',system-ui,-apple-system,'Segoe UI',sans-serif;color:var(--ink);line-height:1.7;background:var(--paper)}
-  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f4e6dc 0%, #dfe9ee 45%, #b9d2de 78%, #8fb9cc 100%)}
+  #bg{position:fixed;inset:0;z-index:-2;background:radial-gradient(130% 100% at 20% 10%, #f0f7fb 0%, #e3f0f6 45%, #cfe6f1 78%, #a9d3e6 100%)}
   a{color:var(--blue)}
   h1,h2,h3{font-family:'Hanken Grotesk',system-ui,sans-serif;font-weight:700;letter-spacing:-.01em;line-height:1.25}
   .wrap{max-width:780px;margin:0 auto;padding:0 22px}
@@ -2353,7 +2353,7 @@ ${MARKETING_TAGS}
   .hero{text-align:center;padding:18px 0 4px}
   .hero h1{font-size:clamp(26px,4.4vw,38px);margin:0 0 12px}
   .hero p{color:var(--soft);max-width:52ch;margin:0 auto;font-size:17px}
-  article{background:var(--cloud);border:1px solid var(--line);border-radius:22px;padding:34px 32px;margin:18px 0 24px;box-shadow:0 14px 40px rgba(64,52,34,.06)}
+  article{background:var(--cloud);border:1px solid var(--line);border-radius:22px;padding:34px 32px;margin:18px 0 24px;box-shadow:0 14px 40px rgba(10,88,118,.06)}
   .verdict{background:#e3f0f6;border-radius:14px;padding:16px 18px;font-size:16px;margin:0 0 8px}
   h2{font-size:22px;margin:28px 0 12px}
   .crow{border:1px solid var(--line);border-radius:14px;padding:14px 16px;margin:10px 0;background:#fff}
@@ -2364,7 +2364,7 @@ ${MARKETING_TAGS}
   .tag{display:inline-block;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.05em;padding:2px 8px;border-radius:999px;margin-right:8px;background:#eee;color:#666}
   .tag-us{background:#fdeceb;color:var(--red)}
   .cta{margin:26px 0 6px;text-align:center}
-  .cta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:15px 32px;border-radius:999px;font-weight:700;font-size:16.5px;box-shadow:0 10px 30px rgba(64,52,34,.14)}
+  .cta a{display:inline-block;background:var(--red);color:#fff;text-decoration:none;padding:15px 32px;border-radius:999px;font-weight:700;font-size:16.5px;box-shadow:0 10px 30px rgba(10,88,118,.14)}
   .cta .sub{display:block;font-size:13.5px;color:var(--soft);margin-top:10px}
   .qa{padding:12px 0;border-bottom:1px dashed var(--line)}
   .qa:last-child{border-bottom:none}
